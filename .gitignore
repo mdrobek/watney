@@ -25,3 +25,4 @@ _testmain.go
 
 # project stuff
 conf/unionwork.ini
+static/resources/closure-library/

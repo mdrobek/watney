@@ -22,6 +22,8 @@ func main() {
 
 	// Handler definitions
 	http.HandleFunc("/", web.Root)
+	jsHandler := http.FileServer(http.Dir("src/mdrobek/watney/static/resources/"))
+	http.Handle("/js/", http.StripPrefix("/js/", jsHandler))
 	http.HandleFunc("/mails", web.Mails)
 	http.HandleFunc("/headers", web.Headers)
 
