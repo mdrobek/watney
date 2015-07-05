@@ -1,0 +1,24 @@
+{namespace wat.soy.mail}
+
+/**
+ * @param Time
+ * @param Subject
+ * @param From
+ * @param Date
+ */
+{template .mailOverview}
+    <div class="row mail-overview-entry">
+        <div class="col-md-12" style="padding: 0">
+            <div class="col-md-3 mail-overview-entry-date">
+                <div style="font-size: 25px;">{$Time}</div>
+                <div style="font-size: 18px;">{$Date}</div>
+            </div>
+            <div class="col-md-9 mail-overview-entry-from">
+                <div>{$From}</div>
+            </div>
+            <div class="col-md-12 mail-overview-entry-subject">
+                <div>{$Subject}</div>
+            </div>
+        </div>
+    </div>
+{/template}

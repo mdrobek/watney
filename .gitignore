@@ -25,4 +25,5 @@ _testmain.go
 
 # project stuff
 conf/unionwork.ini
-static/resources/closure-library/
+static/resources/js/closure-library/
+static/resources/soy/SoyToJsSrcCompiler.jar

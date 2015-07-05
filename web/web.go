@@ -42,10 +42,12 @@ func NewWeb(mailConf *conf.MailConf) *MailWeb {
 	}
 
 	log.Print(strTmpls)
-	for _, curTmpl := range strTmpls {
-		web.templates[filepath.Base(curTmpl)] = template.Must(
-			template.ParseFiles(curTmpl))
-	}
+	web.templates["main"] = template.Must(template.ParseFiles(strTmpls...))
+
+//	for _, curTmpl := range strTmpls {
+//		web.templates[filepath.Base(curTmpl)] = template.Must(
+//			template.ParseFiles(curTmpl))
+//	}
 
 	return web
 }
@@ -64,16 +66,7 @@ func (web *MailWeb) Close() error {
  ***									Web methods												***
  **************************************************************************************************/
 func (web *MailWeb) Root(w http.ResponseWriter, r *http.Request) {
-//	mc, err := mail.NewMailCon(web.mconf)
-//	defer mc.Close()
-	var mails []mail.Mail = []mail.Mail{}
-//	if nil == err {
-		mails, _ = web.imapCon.LoadMails()
-//		mails, _ = mc.LoadNMails(4)
-		// Reverse the retrieved mail array
-		sort.Sort(mail.MailSlice(mails))
-//	}
-	web.renderTemplate(w, "welcome.html", map[string]interface{}{"mails": mails})
+	web.renderTemplate(w, "main", nil)
 }
 
 func (web *MailWeb) Mails(w http.ResponseWriter, r *http.Request) {
@@ -120,6 +113,6 @@ func (web *MailWeb) renderTemplate(w http.ResponseWriter, name string, data map[
 		log.Fatalf("Couldn't load template for name '%s' in templates map '%s'", name,
 			web.templates)
 	}
-	curTmpl.Execute(w, data)
+	curTmpl.ExecuteTemplate(w, "base", data)
 }
 

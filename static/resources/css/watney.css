@@ -1,0 +1,124 @@
+/*
+ * Base structure
+ */
+
+/* Move down content because we have a fixed navbar that is 50px tall */
+body {
+    padding-top: 50px;
+}
+
+
+/*
+ * Global add-ons
+ */
+
+.sub-header {
+    padding-bottom: 10px;
+    border-bottom: 1px solid #eee;
+    color: #b29c51;
+}
+
+/*
+ * Top navigation
+ * Hide default border to remove 1px line.
+ */
+.navbar-fixed-top {
+    border: 0;
+}
+
+/*
+ * Sidebar
+ */
+
+/* Hide for mobile, show later */
+.sidebar {
+    display: none;
+    background-color: #666c6d;
+}
+@media (min-width: 768px) {
+    .sidebar {
+        position: fixed;
+        top: 51px;
+        bottom: 0;
+        left: 0;
+        z-index: 1000;
+        display: block;
+        padding: 20px;
+        overflow-x: hidden;
+        overflow-y: auto; /* Scrollable contents if viewport is shorter than content. */
+        /*background-color: #f5f5f5;*/
+        border-right: 1px solid #eee;
+    }
+}
+
+/* Sidebar navigation */
+.nav-sidebar {
+    margin-right: -21px; /* 20px padding + 1px border */
+    margin-bottom: 20px;
+    margin-left: -20px;
+}
+.nav-sidebar > li > a {
+    padding-right: 20px;
+    padding-left: 20px;
+}
+.nav-sidebar > .active > a,
+.nav-sidebar > .active > a:hover,
+.nav-sidebar > .active > a:focus {
+    color: #fff;
+    background-color: #428bca;
+}
+
+
+/*
+ * Main content
+ */
+
+.main {
+    padding: 20px;
+}
+@media (min-width: 768px) {
+    .main {
+        padding-right: 40px;
+        padding-left: 40px;
+    }
+}
+.main .page-header {
+    margin-top: 0;
+}
+
+
+.mail-page {
+    background-color: #454b4c;
+}
+.mail-overview-header {
+    color: white;
+    font-size: 25px;
+    text-align: center;
+    border: 2px solid #FFF;
+}
+.mail-overview-date {
+    border-right: 2px solid white;
+}
+.mail-overview-subject {
+    border-right: 2px solid white;
+}
+.mail-overview-entry {
+    color: #FFF;
+    text-align: center;
+    border: 2px solid #FFF;
+    padding: 0;
+    overflow: hidden;
+}
+.mail-overview-entry-date {
+    border-right: 2px solid #FFF;
+}
+.mail-overview-entry-from {
+    font-size: 30px;
+    margin-top: 10px;
+}
+.mail-overview-entry-subject {
+    border-top: 2px solid white;
+    font-size: 30px;
+    padding: 0px;
+    height: 50px;
+}
