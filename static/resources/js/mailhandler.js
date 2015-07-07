@@ -1,8 +1,11 @@
 /**
  * Created by lion on 22/06/15.
  */
+goog.provide('wat.mail.MailHandler');
+
 goog.require('wat');
 goog.require('wat.mail');
+goog.require('wat.mail.Mail');
 goog.require("goog.net.XhrIo");
 goog.require("goog.Uri.QueryData");
 goog.require('goog.json');

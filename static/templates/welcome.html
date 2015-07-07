@@ -1,5 +1,4 @@
 {{ define "base" }}
-<!DOCTYPE html>
 <html>
 
 <head lang="en">
@@ -14,13 +13,12 @@
 
 
     <!-- Necessary JS code -->
-    <script src="/js/closure-library/closure/goog/base.js"></script>
-    <script src="/js/soyutils_usegoog.js"></script>
-    <script src="/js/watney.js"></script>
-    <script src="/js/soy-templates.js"></script>
-    <script src="/js/mail.js"></script>
-    <script src="/js/mailhandler.js"></script>
-    <script src="/js/app.js"></script>
+    <script src="/js/watney-compiled.js"></script>
+    <!--<script src="/libs/closure-library/closure/goog/base.js"></script>-->
+    <!--<script src="/js/watney-deps.js"></script>-->
+    <script>
+        goog.require('wat.app');
+    </script>
 </head>
 
 <body>
@@ -36,7 +34,7 @@
     <!-- Latest compiled and minified JavaScript -->
     <!--<script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.4/js/bootstrap.min.js"></script>-->
     <script>
-        start();
+        wat.app.start();
     </script>
 </body>
 
