@@ -33,6 +33,7 @@ type MailConf struct {
 
 type WebConf struct {
 	Port int
+	Debug bool
 }
 
 func ReadConfig(configFile string) (*WatneyConf, error) {

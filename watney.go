@@ -17,7 +17,7 @@ func main() {
 		panic(err)
 	}
 
-	web := web.NewWeb(&conf.Mail)
+	web := web.NewWeb(&conf.Mail, conf.Web.Debug)
 	defer web.Close()
 
 	// Handler definitions

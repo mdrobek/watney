@@ -13,9 +13,12 @@
 
 
     <!-- Necessary JS code -->
-    <script src="/js/watney-compiled.js"></script>
-    <!--<script src="/libs/closure-library/closure/goog/base.js"></script>-->
-    <!--<script src="/js/watney-deps.js"></script>-->
+    {{ if .IsDebug }}
+        <script src="/libs/closure-library/closure/goog/base.js"></script>
+        <script src="/js/watney-deps.js"></script>
+    {{ else }}
+        <script src="/js/watney-compiled.js"></script>
+    {{ end }}
     <script>
         goog.require('wat.app');
     </script>

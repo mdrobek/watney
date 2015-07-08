@@ -19,11 +19,14 @@ type MailWeb struct {
 	mconf *conf.MailConf
 	// Mail server connection
 	imapCon *mail.MailCon
+	// Whether the app server is run in debugging mode for dev
+	debug bool
 }
 
-func NewWeb(mailConf *conf.MailConf) *MailWeb {
+func NewWeb(mailConf *conf.MailConf, debug bool) *MailWeb {
 	var web *MailWeb = new(MailWeb)
 	web.mconf = mailConf
+	web.debug = debug
 
 	var err error
 	web.imapCon, err = mail.NewMailCon(web.mconf)
@@ -66,7 +69,9 @@ func (web *MailWeb) Close() error {
  ***									Web methods												***
  **************************************************************************************************/
 func (web *MailWeb) Root(w http.ResponseWriter, r *http.Request) {
-	web.renderTemplate(w, "main", nil)
+	web.renderTemplate(w, "main", map[string]interface{}{
+		"IsDebug" : web.debug,
+	})
 }
 
 func (web *MailWeb) Mails(w http.ResponseWriter, r *http.Request) {
