@@ -3,27 +3,34 @@
     <div class="row">
         <!-- Mail overview -->
         <div class="col-sm-5 col-sm-offset-2 col-md-4 col-md-offset-1" style="padding-top: 20px;">
-            <div id="mailOverview" class="container-fluid">
-                <div class="row mail-overview-header">
-                    <div class="col-md-3 mail-overview-date">
-                        <div>Date</div>
-                    </div>
-                    <div class="col-md-9 mail-overview-subject">
+            <div id="mailOverview" class="container-fluid mail-overview">
+                <div class="row header">
+                    <div class="col-md-9 subject">
                         <div>Subject / From</div>
+                    </div>
+                    <div class="col-md-3 date">
+                        <div>Date</div>
                     </div>
                 </div>
                 <!-- Mails -->
-                <div class="row mail-overview-entry">
-                    <div class="col-md-12" style="padding: 0">
-                        <div class="col-md-3 mail-overview-entry-date">
-                            <div style="font-size: 25px;">18:23</div>
-                            <div style="font-size: 18px;">19/02/2015</div>
+                <div class="row">
+                    <div class="col-md-12">
+                        <div class="row entry">
+                            <div class="col-md-9 content">
+                                <div class="subject">
+                                    <div>TestMail to show how it looks on huge subjects</div>
+                                </div>
+                                <div class="from">
+                                    <div>hansmueller@foobar.com</div>
+                                </div>
+                            </div>
+                            <div class="col-md-3 date">
+                                <div class="time">18:23</div>
+                                <div class="cal">10/02/2015</div>
+                            </div>
                         </div>
-                        <div class="col-md-9 mail-overview-entry-from">
-                            <div>hansmueller@guckuck.de</div>
-                        </div>
-                        <div class="col-md-12 mail-overview-entry-subject">
-                            <div>TestMail to show how it looks on huge subjects</div>
+                        <div class="row">
+                            <hr class="mail-separator">
                         </div>
                     </div>
                 </div>
@@ -31,13 +38,42 @@
         </div>
 
         <!-- Mail content -->
-        <div class="col-sm-5 col-md-7" style="padding-top: 20px;">
+        <div class="col-sm-5 col-md-7 mail-content" style="padding-top: 20px;">
+            <!-- Header information row -->
+            <div class="row header">
+                <div class="col-md-12">
+                    <div class="row">
+                        <div class="col-md-1">From:</div>
+                        <div class="col-md-11">hansmueller@foobar.com</div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-1">Subject:</div>
+                        <div class="col-md-11">TestMail to show how it looks on huge subjects</div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-1">To:</div>
+                        <div class="col-md-11">marcdrobek@unionwork.org</div>
+                    </div>
+                </div>
+            </div>
+            <!-- Control bar row -->
+            <div class="row control-bar">
+                <div class="col-md-12">
+                    <div class="row">
+                        <button type="button" class="btn btn-primary">Reply</button>
+                        <button type="button" class="btn btn-primary">Forward</button>
+                        <button type="button" class="btn btn-primary">Delete</button>
+                    </div>
+                </div>
+            </div>
+            <!-- Mail content row -->
+            <div class="row content">
+                <div class="col-md-12">
 
-            <table class="table table-bordered table-hover" style="width: 70%">
-                <tbody id="mailTable">
-                </tbody>
-            </table>
+                </div>
+            </div>
         </div>
     </div>
+</div>
 </div>
 {{ end }}

@@ -25,12 +25,13 @@ wat.mail.Mail.prototype.Folder = null;
 wat.mail.Mail.prototype.Receiver = null;
 wat.mail.Mail.prototype.From = null;
 wat.mail.Mail.prototype.Size = null;
+// Todo: length restriction of subject applies
 wat.mail.Mail.prototype.Subject = null;
 
 
 wat.mail.Mail.prototype.renderMail = function() {
     var mailTableElem = goog.dom.getElement("mailOverview"),
-        mailElem = goog.soy.renderAsElement(wat.soy.mail.mailOverview,
-            {Time:this.Time, Date:this.Date});
+        mailElem = goog.soy.renderAsElement(wat.soy.mail.mailOverview, this);
+            //{Time:this.Time, Date:this.Date});
     goog.dom.append(mailTableElem, mailElem);
 };

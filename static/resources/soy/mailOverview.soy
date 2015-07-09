@@ -7,17 +7,24 @@
  * @param Date
  */
 {template .mailOverview}
-    <div class="row mail-overview-entry">
-        <div class="col-md-12" style="padding: 0">
-            <div class="col-md-3 mail-overview-entry-date">
-                <div style="font-size: 25px;">{$Time}</div>
-                <div style="font-size: 18px;">{$Date}</div>
+    <div class="row">
+        <div class="col-md-12">
+            <div class="row entry">
+                <div class="col-md-9 content">
+                    <div class="subject">
+                        <div>{$Subject}</div>
+                    </div>
+                    <div class="from">
+                        <div>{$From}</div>
+                    </div>
+                </div>
+                <div class="col-md-3 date">
+                    <div class="time">{$Time}</div>
+                    <div class="cal">{$Date}</div>
+                </div>
             </div>
-            <div class="col-md-9 mail-overview-entry-from">
-                <div>{$From}</div>
-            </div>
-            <div class="col-md-12 mail-overview-entry-subject">
-                <div>{$Subject}</div>
+            <div class="row">
+                <hr class="mail-separator">
             </div>
         </div>
     </div>
