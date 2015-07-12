@@ -162,19 +162,32 @@ func (mc *MailCon) LoadMailOverview(folder string) ([]Mail, error) {
 //	return headers, err
 //}
 
-func (mc *MailCon) LoadContentForMail(uid uint32) (string, error) {
+func (mc *MailCon) LoadContentForMail(folder string, uid uint32) (string, error) {
+	println("Loading mail content for UID: ", uid)
 	if uid < 1 {
-		return nil, errors.New(fmt.Sprintf("Couldn't retrieve mail content, because mail " +
+		return "", errors.New(fmt.Sprintf("Couldn't retrieve mail content, because mail " +
 			"UID (%d) needs to be greater than 0"));
+	}
+	var mailboxFolder string = mc.conf.Mailbox
+	if len(folder) > 0 && folder != "/" {
+		mailboxFolder = mc.conf.Mailbox + mc.delim + folder
+	}
+	if _, err := mc.waitFor(mc.client.Select(mailboxFolder, true)); err != nil {
+		return "", err
 	}
 	set, _ := imap.NewSeqSet(fmt.Sprintf("%d", uid))
 	// Add the content flag to retrieve the content from the server
-	var itemsToFetch []string = []string{"RFC822.TEXT"}
-	cmd, err := mc.waitFor(mc.client.UIDFetch(set, itemsToFetch...))
-	if nil != err {
-		return nil, errors.New(fmt.Sprintf("Couldn't retrieve content for mail with UID: %d", uid))
+	var (
+		itemsToFetch []string = []string{"UID", "FLAGS", "INTERNALDATE", "RFC822.SIZE",
+			"RFC822.HEADER", "RFC822.TEXT"}
+		cmd *imap.Command
+		mailContent string
+		err error
+	)
+	if cmd, err = mc.waitFor(mc.client.UIDFetch(set, itemsToFetch...)); err != nil {
+		return "", errors.New(fmt.Sprintf("Couldn't retrieve content for mail with UID: %d" +
+		"\n Orig error: %s", uid, err.Error()))
 	}
-	var mailContent string
 	for _, resp := range cmd.Data {
 		mailContent = imap.AsString(resp.MessageInfo().Attrs["RFC822.TEXT"])
 	}
@@ -296,7 +309,7 @@ func (mc *MailCon) waitFor(cmd *imap.Command, err error) (*imap.Command, error) 
 	)
 	// 1) Check if we're missing a command and if so, return with an error
 	if cmd == nil {
-		wferr = errors.New("WaitFor: Missing command")
+		wferr = errors.New(fmt.Sprintf("WaitFor: Missing command, because: %s", err.Error()))
 		mc.logMC(wferr.Error(), imap.LogAll)
 		return nil, wferr
 	} else if err == nil {

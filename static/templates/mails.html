@@ -1,9 +1,9 @@
 {{ define "mails" }}
-<div class="container-fluid mail-page">
+<div class="col-sm-10 col-sm-offset-2 col-md-11 col-md-offset-1 mail-page">
     <div class="row">
         <!-- Mail overview -->
-        <div class="col-sm-5 col-sm-offset-2 col-md-4 col-md-offset-1" style="padding-top: 20px;">
-            <div id="mailOverview" class="container-fluid mail-overview">
+        <div class="col-sm-5 col-md-4" style="padding: 20px;">
+            <div id="mailOverview" class="mail-overview">
                 <div class="row header">
                     <div class="col-md-9 subject">
                         <div>Subject / From</div>
@@ -13,46 +13,31 @@
                     </div>
                 </div>
                 <!-- Mails -->
-                <div class="row">
-                    <div class="col-md-12">
-                        <div class="row entry">
-                            <div class="col-md-9 content">
-                                <div class="subject">
-                                    <div>TestMail to show how it looks on huge subjects</div>
-                                </div>
-                                <div class="from">
-                                    <div>hansmueller@foobar.com</div>
-                                </div>
-                            </div>
-                            <div class="col-md-3 date">
-                                <div class="time">18:23</div>
-                                <div class="cal">10/02/2015</div>
-                            </div>
-                        </div>
-                        <div class="row">
-                            <hr class="mail-separator">
-                        </div>
+                <div class="row mails">
+                    <div id="mailItems" class="col-md-12">
+                        <!-- Insertion point of all mail headers -->
                     </div>
                 </div>
             </div>
         </div>
 
-        <!-- Mail content -->
-        <div class="col-sm-5 col-md-7 mail-content" style="padding-top: 20px;">
+        <!-- Mail details -->
+        <div class="col-sm-7 col-md-8 mail-content" style="padding-top: 20px;">
             <!-- Header information row -->
             <div class="row header">
                 <div class="col-md-12">
                     <div class="row">
                         <div class="col-md-1">From:</div>
-                        <div class="col-md-11">hansmueller@foobar.com</div>
+                        <div id="mailDetails_From" class="col-md-11">hansmueller@foobar.com</div>
                     </div>
                     <div class="row">
                         <div class="col-md-1">Subject:</div>
-                        <div class="col-md-11">TestMail to show how it looks on huge subjects</div>
+                        <div id="mailDetails_Subject" class="col-md-11">TestMail to show how it looks on huge subjects
+                        </div>
                     </div>
                     <div class="row">
                         <div class="col-md-1">To:</div>
-                        <div class="col-md-11">marcdrobek@unionwork.org</div>
+                        <div id="mailDetails_To" class="col-md-11">marcdrobek@unionwork.org</div>
                     </div>
                 </div>
             </div>
@@ -60,20 +45,19 @@
             <div class="row control-bar">
                 <div class="col-md-12">
                     <div class="row">
-                        <button type="button" class="btn btn-primary">Reply</button>
-                        <button type="button" class="btn btn-primary">Forward</button>
-                        <button type="button" class="btn btn-primary">Delete</button>
+                        <button type="button" class="btn btn-lg btn-primary">Reply</button>
+                        <button type="button" class="btn btn-lg btn-primary">Forward</button>
+                        <button type="button" class="btn btn-lg btn-primary">Delete</button>
                     </div>
                 </div>
             </div>
             <!-- Mail content row -->
             <div class="row content">
-                <div class="col-md-12">
+                <div id="mailDetails_Content" class="col-md-12">
 
                 </div>
             </div>
         </div>
     </div>
-</div>
 </div>
 {{ end }}

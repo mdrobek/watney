@@ -102,11 +102,22 @@ body {
 .mail-overview .header .subject {
     border-right: 2px solid white;
 }
+.mail-overview .mails {
+    overflow-y: scroll;
+    height: 100%;
+}
+/* Have every 2nd row element in a slightly different color to get striped rows */
+div#mails > div.row:nth-of-type(2n) {
+    background-color: #514F4A;
+}
 .mail-overview .entry {
     color: #FFF;
     text-align: center;
     padding: 0;
     overflow: hidden;
+}
+.newMail {
+    font-weight: bold;
 }
 .mail-overview .entry:hover {
     background-color: #317461;
@@ -128,9 +139,11 @@ body {
     overflow: hidden;
     font-size: 20px;
     padding: 0px;
+    font-family: Console;
 }
 .mail-overview .entry .content .from {
     font-size: 18px;
+    font-style: italic;
 }
 .mail-separator {
     margin: 0;

@@ -1,26 +1,29 @@
 {namespace wat.soy.mail}
 
 /**
- * @param Time
- * @param Subject
- * @param From
- * @param Date
+ * @param DomID
+ * @param IsFromToday
+ * @param Seen
+ * @param ShortSubject
+ * @param ShortFrom
+ * @param DateString
+ * @param TimeString
  */
 {template .mailOverview}
-    <div class="row">
+    <div id={$DomID} class="row">
         <div class="col-md-12">
-            <div class="row entry">
+            <div class="row entry {if not $Seen} newMail {/if}">
                 <div class="col-md-9 content">
                     <div class="subject">
-                        <div>{$Subject}</div>
+                        <div>{$ShortSubject}</div>
                     </div>
                     <div class="from">
-                        <div>{$From}</div>
+                        <div>{$ShortFrom}</div>
                     </div>
                 </div>
                 <div class="col-md-3 date">
-                    <div class="time">{$Time}</div>
-                    <div class="cal">{$Date}</div>
+                    <div class="time">{$TimeString}</div>
+                    <div class="cal">{if $IsFromToday} Today {else} {$DateString} {/if}</div>
                 </div>
             </div>
             <div class="row">
