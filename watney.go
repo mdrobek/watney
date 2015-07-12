@@ -29,7 +29,7 @@ func main() {
 	cssHandler := http.FileServer(http.Dir("src/mdrobek/watney/static/resources/css/"))
 	http.Handle("/css/", http.StripPrefix("/css/", cssHandler))
 	http.HandleFunc("/mails", web.Mails)
-	http.HandleFunc("/headers", web.Headers)
+	http.HandleFunc("/mailContent", web.MailContent)
 
 	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%d", conf.Web.Port), nil))
 }

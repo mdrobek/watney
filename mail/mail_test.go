@@ -65,6 +65,9 @@ func TestLoadMails(t *testing.T) {
 	if 3 != len(mails) {
 		t.Errorf("Expected at least 3 mails to be loaded from root folder")
 	}
+	for _, mail := range mails {
+		if 0 == mail.UID { t.Errorf("Loaded mails have a UID that is 0"); }
+	}
 	// 2) Test that at least 3 mails have been downloaded
 	mails, err = mc.LoadNMailsFromFolder("Sent", 2, false)
 	if err != nil {
@@ -72,6 +75,22 @@ func TestLoadMails(t *testing.T) {
 	}
 	if 2 != len(mails) {
 		t.Errorf("Expected at least 3 mails from folder 'Sent'")
+	}
+}
+
+func TestLoadMailContent(t *testing.T) {
+	mc, err := NewMailCon(&loadConfig(TEST_CONFIG_FILE, t).Mail)
+	defer mc.Close()
+	if err != nil {
+		t.Errorf(err.Error())
+	}
+	mails, _ := mc.LoadNMails(1);
+	// Test whether the retrieved mail content equals the server mail content
+	for _, mail := range mails {
+		content, _ := mc.LoadContentForMail(mail.UID)
+		if content != mail.Content {
+			t.Errorf("Retrieved content of mail is not equal to server content.")
+		}
 	}
 }
 

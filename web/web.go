@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"errors"
 	"mdrobek/watney/conf"
+	"strconv"
 )
 
 type MailWeb struct {
@@ -79,8 +80,11 @@ func (web *MailWeb) Mails(w http.ResponseWriter, r *http.Request) {
 	defer mc.Close()
 	var mails []mail.Mail = []mail.Mail{}
 	if nil == err {
-		mails, _ = mc.LoadMails()
-		//		mails, _ = mc.LoadNMails(4)
+		switch r.FormValue("mailInformation") {
+		case mail.FULL: mails, _ = mc.LoadMailsFromFolder(r.FormValue("folder"))
+		case mail.OVERVIEW: fallthrough
+		default: mails, _ = mc.LoadMailOverview(r.FormValue("folder"))
+		}
 		// Reverse the retrieved mail array
 		sort.Sort(mail.MailSlice(mails))
 	}
@@ -91,22 +95,37 @@ func (web *MailWeb) Mails(w http.ResponseWriter, r *http.Request) {
 	w.Write(jsonRet)
 }
 
-func (web *MailWeb) Headers(w http.ResponseWriter, r *http.Request) {
-//	mc, err := mail.NewMailCon(web.mconf)
-//	defer mc.Close()
-	var headers mail.HeaderSlice = mail.HeaderSlice{}
-//	if nil == err {
-		headers, _ = web.imapCon.LoadMailHeaders()
-		//		mails, _ = mc.LoadNMails(4)
-		// Reverse the retrieved mail array
-		sort.Sort(headers)
-//	}
-	jsonRet, err := json.Marshal(headers)
+func (web *MailWeb) MailContent(w http.ResponseWriter, r *http.Request) {
+	mc, err := mail.NewMailCon(web.mconf)
+	defer mc.Close()
+	var mailContent string
+	if nil == err {
+		uid, _ := strconv.ParseUint(r.FormValue("uid"), 10, 32)
+		mailContent, _ = mc.LoadContentForMail(uid)
+	}
+	jsonRet, err := json.Marshal(mailContent)
 	if (nil != err) {
 		log.Fatal(err)
 	}
 	w.Write(jsonRet)
 }
+
+//func (web *MailWeb) Headers(w http.ResponseWriter, r *http.Request) {
+////	mc, err := mail.NewMailCon(web.mconf)
+////	defer mc.Close()
+//	var headers mail.HeaderSlice = mail.HeaderSlice{}
+////	if nil == err {
+//		headers, _ = web.imapCon.LoadMailHeaders()
+//		//		mails, _ = mc.LoadNMails(4)
+//		// Reverse the retrieved mail array
+//		sort.Sort(headers)
+////	}
+//	jsonRet, err := json.Marshal(headers)
+//	if (nil != err) {
+//		log.Fatal(err)
+//	}
+//	w.Write(jsonRet)
+//}
 
 /**************************************************************************************************
  ***								Private methods												***

@@ -28,11 +28,21 @@ type MailCon struct {
 }
 
 type Mail struct {
+	// the unique ID of this mail as retrieved from the server
+	UID uint32
 	// the header information of the email
 	Header *Header
+	// all flags of the mail
+	Flags *Flags
 	// the content of the mail
 	Content string
 }
+
+type MailInformation string
+const (
+	OVERVIEW string = "overview"	// UID, Header, Flags
+	FULL string = "full"			// UID, Header, Flags, Content
+)
 
 type Header struct {
 	// size of the mail
@@ -48,6 +58,16 @@ type Header struct {
 	// the folder this email is stored in in the mailbox ("/" = root)
 	Folder string
 	// TODO: Flags - Unread, Read, ...
+}
+
+// Holds the following information of a mail: Seen, Deleted, Answered
+type Flags struct {
+	// Whether the mail has been read already
+	Seen bool
+	// Whether the mail has been deleted
+	Deleted bool
+	// Whether the mail was answered
+	Answered bool
 }
 
 // Used to enable sorting methods
@@ -124,13 +144,41 @@ func (mc *MailCon) LoadNMails(n int) ([]Mail, error) {
 	return mc.LoadNMailsFromFolder("/", n, true)
 }
 
-func (mc *MailCon) LoadMailHeaders() ([]Header, error) {
-	mails, err := mc.LoadNMailsFromFolder("/", -1, false)
-	var headers []Header = []Header{}
-	for _, curMail := range mails {
-		headers = append(headers, *curMail.Header)
+/**
+ * @return All returned mails without their content (UID, Header and Flags are set).
+ */
+func (mc *MailCon) LoadMailOverview(folder string) ([]Mail, error) {
+	// Check if there is no given folder and assume root in this case (= INBOX)
+	if 0 == len(folder) { folder = "/" }
+	return mc.LoadNMailsFromFolder(folder, -1, false)
+}
+
+//func (mc *MailCon) LoadMailHeaders() ([]Header, error) {
+//	mails, err := mc.LoadNMailsFromFolder("/", -1, false)
+//	var headers []Header = []Header{}
+//	for _, curMail := range mails {
+//		headers = append(headers, *curMail.Header)
+//	}
+//	return headers, err
+//}
+
+func (mc *MailCon) LoadContentForMail(uid uint32) (string, error) {
+	if uid < 1 {
+		return nil, errors.New(fmt.Sprintf("Couldn't retrieve mail content, because mail " +
+			"UID (%d) needs to be greater than 0"));
 	}
-	return headers, err
+	set, _ := imap.NewSeqSet(fmt.Sprintf("%d", uid))
+	// Add the content flag to retrieve the content from the server
+	var itemsToFetch []string = []string{"RFC822.TEXT"}
+	cmd, err := mc.waitFor(mc.client.UIDFetch(set, itemsToFetch...))
+	if nil != err {
+		return nil, errors.New(fmt.Sprintf("Couldn't retrieve content for mail with UID: %d", uid))
+	}
+	var mailContent string
+	for _, resp := range cmd.Data {
+		mailContent = imap.AsString(resp.MessageInfo().Attrs["RFC822.TEXT"])
+	}
+	return mailContent, nil
 }
 
 /**
@@ -158,7 +206,8 @@ func (mc *MailCon) LoadNMailsFromFolder(folder string, n int, withContent bool) 
 	}
 	set, _ := imap.NewSeqSet(nbrMailsExp)
 	// 3) Fetch a number of mails from the given mailbox folder
-	var itemsToFetch []string = []string{"FLAGS", "INTERNALDATE", "RFC822.SIZE", "RFC822.HEADER"}
+	var itemsToFetch []string = []string{"UID", "FLAGS", "INTERNALDATE", "RFC822.SIZE",
+		"RFC822.HEADER"}
 	if withContent {
 		itemsToFetch = append(itemsToFetch, "RFC822.TEXT")
 	}
@@ -169,20 +218,25 @@ func (mc *MailCon) LoadNMailsFromFolder(folder string, n int, withContent bool) 
 		// 4) Transform the retrieved messages into mails with headers
 		var mails []Mail = []Mail{}
 		for _, resp := range cmd.Data {
+			// a) Parse the Header
 			mailHeader, err := parseHeader(resp.MessageInfo())
 			if nil != err {
 				mc.Logger.Printf("Couldn't parse header of mail\n"+
 					"Original error: %s", err.Error())
 			}
-			mailHeader.Size = resp.MessageInfo().Size
-			mailHeader.Date = resp.MessageInfo().InternalDate
 			mailHeader.Folder = mailboxFolder
+			// b) Read the flags
+			flags := readFlags(resp.MessageInfo())
+			// c) Read the content if requested
 			var mailContent string
 			if withContent {
 				mailContent = imap.AsString(resp.MessageInfo().Attrs["RFC822.TEXT"])
 			}
+			// d) Build the mail object
 			mails = append(mails, Mail{
+				UID : resp.MessageInfo().UID,
 				Header:  mailHeader,
+				Flags: flags,
 				Content: mailContent,
 			})
 		}
@@ -299,7 +353,10 @@ func parseHeader(mi *imap.MessageInfo) (*Header, error) {
 		return nil, errors.New("Couldn't parse Mail Header, because no header was provided " +
 			"in the given MessageInfo object")
 	} else {
-		return parseHeaderStr(imap.AsString(mailHeader))
+		curHeader, err := parseHeaderStr(imap.AsString(mailHeader))
+		curHeader.Size = mi.Size
+		curHeader.Date = mi.InternalDate
+		return curHeader, err
 	}
 }
 
@@ -349,4 +406,13 @@ func parseHeaderContent(headerContentMap map[string]string) (h *Header, err erro
 		Receiver: strings.TrimPrefix(headerContentMap["to"], " "),
 	}
 	return h, nil
+}
+
+func readFlags(mi *imap.MessageInfo) (f *Flags) {
+	f = &Flags{
+		Seen     : mi.Flags["\\Seen"],
+		Answered : mi.Flags["\\Answered"],
+		Deleted  : mi.Flags["\\Deleted"],
+	}
+	return f;
 }
