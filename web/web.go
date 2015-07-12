@@ -100,8 +100,8 @@ func (web *MailWeb) MailContent(w http.ResponseWriter, r *http.Request) {
 	defer mc.Close()
 	var mailContent string
 	if nil == err {
-		uid, _ := strconv.ParseUint(r.FormValue("uid"), 10, 32)
-		mailContent, _ = mc.LoadContentForMail(uid)
+		uid, _ := strconv.ParseInt(r.FormValue("uid"), 10, 32)
+		mailContent, _ = mc.LoadContentForMail(r.FormValue("folder"), uint32(uid))
 	}
 	jsonRet, err := json.Marshal(mailContent)
 	if (nil != err) {
