@@ -24,6 +24,8 @@ type MailWeb struct {
 	debug bool
 }
 
+const TEMPLATE_GROUP_NAME string = "template_group"
+
 func NewWeb(mailConf *conf.MailConf, debug bool) *MailWeb {
 	var web *MailWeb = new(MailWeb)
 	web.mconf = mailConf
@@ -46,7 +48,7 @@ func NewWeb(mailConf *conf.MailConf, debug bool) *MailWeb {
 	}
 
 	log.Print(strTmpls)
-	web.templates["main"] = template.Must(template.ParseFiles(strTmpls...))
+	web.templates[TEMPLATE_GROUP_NAME] = template.Must(template.ParseFiles(strTmpls...))
 
 //	for _, curTmpl := range strTmpls {
 //		web.templates[filepath.Base(curTmpl)] = template.Must(
@@ -69,8 +71,14 @@ func (web *MailWeb) Close() error {
 /**************************************************************************************************
  ***									Web methods												***
  **************************************************************************************************/
-func (web *MailWeb) Root(w http.ResponseWriter, r *http.Request) {
-	web.renderTemplate(w, "main", map[string]interface{}{
+func (web *MailWeb) Welcome(w http.ResponseWriter, r *http.Request) {
+	web.renderTemplate(w, "start", map[string]interface{}{
+		"IsDebug" : web.debug,
+	})
+}
+
+func (web *MailWeb) Main(w http.ResponseWriter, r *http.Request) {
+	web.renderTemplate(w, "base", map[string]interface{}{
 		"IsDebug" : web.debug,
 	})
 }
@@ -130,13 +138,17 @@ func (web *MailWeb) MailContent(w http.ResponseWriter, r *http.Request) {
 /**************************************************************************************************
  ***								Private methods												***
  **************************************************************************************************/
-
-func (web *MailWeb) renderTemplate(w http.ResponseWriter, name string, data map[string]interface{}) {
-	curTmpl, ok := web.templates[name]
+/**
+ * @param templateName The name used in the {define} statement in the template .html file.
+ * @param data The data map to be injected when parsing the template file.
+ */
+func (web *MailWeb) renderTemplate(w http.ResponseWriter, templateName string,
+		data map[string]interface{}) {
+	curTmpl, ok := web.templates[TEMPLATE_GROUP_NAME]
 	if !ok {
-		log.Fatalf("Couldn't load template for name '%s' in templates map '%s'", name,
-			web.templates)
+		log.Fatalf("Couldn't find template group for name '%s' in templates map '%s'",
+			TEMPLATE_GROUP_NAME, web.templates)
 	}
-	curTmpl.ExecuteTemplate(w, "base", data)
+	curTmpl.ExecuteTemplate(w, templateName, data)
 }
 
