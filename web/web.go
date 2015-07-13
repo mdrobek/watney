@@ -43,13 +43,6 @@ func NewWeb(mailConf *conf.MailConf, debug bool) *MailWeb {
 	if web.imapCon, err = mail.NewMailCon(web.mconf); nil != err {
 		panic("Couldn't establish connection to imap mail server: %s', err")
 	}
-	// 2) Parse all template files and save them in a map
-//	web.templates = make(map[string]*template.Template)
-//	if strTmpls, err := filepath.Glob("src/mdrobek/watney/static/templates/*.html"); nil != err {
-//		log.Fatalf("Couldn't find templates: %s", err)
-//	} else {
-//		web.templates[TEMPLATE_GROUP_NAME] = template.Must(template.ParseFiles(strTmpls...))
-//	}
 
 	store := sessions.NewCookieStore([]byte("secret123"))
 	// Default our store to use Session cookies, so we don't leave logged in
@@ -129,6 +122,7 @@ func (web *MailWeb) initHandlers() {
 	web.martini.Post("/", binding.Bind(auth.MyUserModel{}), web.authenticate)
 
 	// Private Handlers
+	web.martini.Get("/logout", sessionauth.LoginRequired, web.logout)
 	web.martini.Get("/main", sessionauth.LoginRequired, web.main)
 	web.martini.Post("/mails", sessionauth.LoginRequired, web.mails)
 	web.martini.Post("/mailContent", sessionauth.LoginRequired, web.mailContent)
@@ -152,20 +146,24 @@ func (web *MailWeb) authenticate(session sessions.Session, postedUser auth.MyUse
 		if err != nil {
 			r.JSON(500, err)
 		}
-
-		//			params := req.URL.Query()
-		//			redirect := params.Get(sessionauth.RedirectParam)
 		r.Redirect("/main")
 		return
 	} else {
 		fmt.Println("FAILED!")
-//		r.Redirect(sessionauth.RedirectUrl)
-		r.Template()
+		r.HTML(200, "start", map[string]interface{}{
+			"FailedLogin" : true,
+		})
 		return
 	}
 }
 
 func (web *MailWeb) welcome(r render.Render) {
+	r.HTML(200, "start", nil)
+}
+
+func (web *MailWeb) logout(session sessions.Session, user sessionauth.User, r render.Render) {
+	fmt.Println("Successful logout of user: ", user)
+	sessionauth.Logout(session, user)
 	r.HTML(200, "start", nil)
 }
 
@@ -189,11 +187,6 @@ func (web *MailWeb) mails(r render.Render, req *http.Request) {
 		sort.Sort(mail.MailSlice(mails))
 	}
 	r.JSON(200, mails)
-//	jsonRet, err := json.Marshal(mails)
-//	if (nil != err) {
-//		log.Fatal(err)
-//	}
-//	w.Write(jsonRet)
 }
 
 func (web *MailWeb) mailContent(r render.Render, req *http.Request) {
@@ -205,9 +198,4 @@ func (web *MailWeb) mailContent(r render.Render, req *http.Request) {
 		mailContent, _ = mc.LoadContentForMail(req.FormValue("folder"), uint32(uid))
 	}
 	r.JSON(200, mailContent)
-//	jsonRet, err := json.Marshal(mailContent)
-//	if (nil != err) {
-//		log.Fatal(err)
-//	}
-//	w.Write(jsonRet)
 }
