@@ -107,7 +107,7 @@ body {
     height: 100%;
 }
 /* Have every 2nd row element in a slightly different color to get striped rows */
-div#mails > div.row:nth-of-type(2n) {
+div#mailItems > div.row:nth-of-type(2n) {
     background-color: #514F4A;
 }
 .mail-overview .entry {

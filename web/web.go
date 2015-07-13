@@ -4,24 +4,31 @@ import (
 	"html/template"
 	"log"
 	"net/http"
-	"path/filepath"
 	"mdrobek/watney/mail"
 	"sort"
-	"encoding/json"
 	"errors"
 	"mdrobek/watney/conf"
 	"strconv"
+	"github.com/go-martini/martini"
+	"github.com/martini-contrib/sessions"
+	"github.com/martini-contrib/render"
+	"github.com/martini-contrib/sessionauth"
+	"mdrobek/watney/auth"
+	"github.com/martini-contrib/binding"
+	"fmt"
 )
 
 type MailWeb struct {
+	// The martini package object
+	martini   *martini.ClassicMartini
 	// All initially parsed html templates
 	templates map[string]*template.Template
 	// Mail server configuration
-	mconf *conf.MailConf
+	mconf     *conf.MailConf
 	// Mail server connection
-	imapCon *mail.MailCon
+	imapCon   *mail.MailCon
 	// Whether the app server is run in debugging mode for dev
-	debug bool
+	debug     bool
 }
 
 const TEMPLATE_GROUP_NAME string = "template_group"
@@ -31,31 +38,41 @@ func NewWeb(mailConf *conf.MailConf, debug bool) *MailWeb {
 	web.mconf = mailConf
 	web.debug = debug
 
+	// 1) Create a new IMAP mail server connection
 	var err error
-	web.imapCon, err = mail.NewMailCon(web.mconf)
-	if nil != err {
+	if web.imapCon, err = mail.NewMailCon(web.mconf); nil != err {
 		panic("Couldn't establish connection to imap mail server: %s', err")
 	}
-
-	// init the map
-	if nil == web.templates {
-		web.templates = make(map[string]*template.Template)
-	}
-
-	strTmpls, err := filepath.Glob("src/mdrobek/watney/static/templates/*.html")
-	if nil != err {
-		log.Fatalf("Couldn't find templates: %s", err)
-	}
-
-	log.Print(strTmpls)
-	web.templates[TEMPLATE_GROUP_NAME] = template.Must(template.ParseFiles(strTmpls...))
-
-//	for _, curTmpl := range strTmpls {
-//		web.templates[filepath.Base(curTmpl)] = template.Must(
-//			template.ParseFiles(curTmpl))
+	// 2) Parse all template files and save them in a map
+//	web.templates = make(map[string]*template.Template)
+//	if strTmpls, err := filepath.Glob("src/mdrobek/watney/static/templates/*.html"); nil != err {
+//		log.Fatalf("Couldn't find templates: %s", err)
+//	} else {
+//		web.templates[TEMPLATE_GROUP_NAME] = template.Must(template.ParseFiles(strTmpls...))
 //	}
 
+	store := sessions.NewCookieStore([]byte("secret123"))
+	// Default our store to use Session cookies, so we don't leave logged in
+	// users roaming around
+	store.Options(sessions.Options{MaxAge: 0, })
+
+	web.martini = martini.Classic()
+	web.martini.Use(render.Renderer(render.Options{
+		Directory: "src/mdrobek/watney/static/templates",
+		Extensions: []string{".html"},
+	}))
+	web.martini.Use(sessions.Sessions("watneySession", store))
+	web.martini.Use(sessionauth.SessionUser(auth.GenerateAnonymousUser))
+	sessionauth.RedirectUrl = "/"
+	sessionauth.RedirectParam = "new-next"
+
+	// x) Define and set all handlers
+	web.initHandlers();
 	return web
+}
+
+func (web *MailWeb) Start(port int) {
+	web.martini.RunOnAddr(fmt.Sprintf(":%s", strconv.Itoa(port)))
 }
 
 /**
@@ -69,54 +86,8 @@ func (web *MailWeb) Close() error {
 }
 
 /**************************************************************************************************
- ***									Web methods												***
+ ***									Web Handlers											***
  **************************************************************************************************/
-func (web *MailWeb) Welcome(w http.ResponseWriter, r *http.Request) {
-	web.renderTemplate(w, "start", map[string]interface{}{
-		"IsDebug" : web.debug,
-	})
-}
-
-func (web *MailWeb) Main(w http.ResponseWriter, r *http.Request) {
-	web.renderTemplate(w, "base", map[string]interface{}{
-		"IsDebug" : web.debug,
-	})
-}
-
-func (web *MailWeb) Mails(w http.ResponseWriter, r *http.Request) {
-	mc, err := mail.NewMailCon(web.mconf)
-	defer mc.Close()
-	var mails []mail.Mail = []mail.Mail{}
-	if nil == err {
-		switch r.FormValue("mailInformation") {
-		case mail.FULL: mails, _ = mc.LoadMailsFromFolder(r.FormValue("folder"))
-		case mail.OVERVIEW: fallthrough
-		default: mails, _ = mc.LoadMailOverview(r.FormValue("folder"))
-		}
-		// Reverse the retrieved mail array
-		sort.Sort(mail.MailSlice(mails))
-	}
-	jsonRet, err := json.Marshal(mails)
-	if (nil != err) {
-		log.Fatal(err)
-	}
-	w.Write(jsonRet)
-}
-
-func (web *MailWeb) MailContent(w http.ResponseWriter, r *http.Request) {
-	mc, err := mail.NewMailCon(web.mconf)
-	defer mc.Close()
-	var mailContent string
-	if nil == err {
-		uid, _ := strconv.ParseInt(r.FormValue("uid"), 10, 32)
-		mailContent, _ = mc.LoadContentForMail(r.FormValue("folder"), uint32(uid))
-	}
-	jsonRet, err := json.Marshal(mailContent)
-	if (nil != err) {
-		log.Fatal(err)
-	}
-	w.Write(jsonRet)
-}
 
 //func (web *MailWeb) Headers(w http.ResponseWriter, r *http.Request) {
 ////	mc, err := mail.NewMailCon(web.mconf)
@@ -143,7 +114,7 @@ func (web *MailWeb) MailContent(w http.ResponseWriter, r *http.Request) {
  * @param data The data map to be injected when parsing the template file.
  */
 func (web *MailWeb) renderTemplate(w http.ResponseWriter, templateName string,
-		data map[string]interface{}) {
+data map[string]interface{}) {
 	curTmpl, ok := web.templates[TEMPLATE_GROUP_NAME]
 	if !ok {
 		log.Fatalf("Couldn't find template group for name '%s' in templates map '%s'",
@@ -152,3 +123,91 @@ func (web *MailWeb) renderTemplate(w http.ResponseWriter, templateName string,
 	curTmpl.ExecuteTemplate(w, templateName, data)
 }
 
+func (web *MailWeb) initHandlers() {
+	// Public Handlers
+	web.martini.Get("/", web.welcome)
+	web.martini.Post("/", binding.Bind(auth.MyUserModel{}), web.authenticate)
+
+	// Private Handlers
+	web.martini.Get("/main", sessionauth.LoginRequired, web.main)
+	web.martini.Post("/mails", sessionauth.LoginRequired, web.mails)
+	web.martini.Post("/mailContent", sessionauth.LoginRequired, web.mailContent)
+
+	// Static content
+	web.martini.Use(martini.Static("src/mdrobek/watney/static/resources/libs/",
+		martini.StaticOptions{Prefix:"/libs/"}))
+	web.martini.Use(martini.Static("src/mdrobek/watney/static/resources/js/",
+		martini.StaticOptions{Prefix:"/js/"}))
+	web.martini.Use(martini.Static("src/mdrobek/watney/static/resources/css/",
+		martini.StaticOptions{Prefix:"/css/"}))
+}
+
+func (web *MailWeb) authenticate(session sessions.Session, postedUser auth.MyUserModel,
+		r render.Render, req *http.Request) {
+	user := auth.MyUserModel{}
+	fmt.Println("Checking for given user", postedUser, user, web.mconf)
+	if web.mconf.Username == postedUser.Username && web.mconf.Passwd == postedUser.Password {
+		fmt.Println("AUTHENTICATED!")
+		err := sessionauth.AuthenticateSession(session, &user)
+		if err != nil {
+			r.JSON(500, err)
+		}
+
+		//			params := req.URL.Query()
+		//			redirect := params.Get(sessionauth.RedirectParam)
+		r.Redirect("/main")
+		return
+	} else {
+		fmt.Println("FAILED!")
+//		r.Redirect(sessionauth.RedirectUrl)
+		r.Template()
+		return
+	}
+}
+
+func (web *MailWeb) welcome(r render.Render) {
+	r.HTML(200, "start", nil)
+}
+
+func (web *MailWeb) main(r render.Render) {
+	r.HTML(200, "base", map[string]interface{}{
+		"IsDebug" : web.debug,
+	})
+}
+
+func (web *MailWeb) mails(r render.Render, req *http.Request) {
+	mc, err := mail.NewMailCon(web.mconf)
+	defer mc.Close()
+	var mails []mail.Mail = []mail.Mail{}
+	if nil == err {
+		switch req.FormValue("mailInformation") {
+		case mail.FULL: mails, _ = mc.LoadMailsFromFolder(req.FormValue("folder"))
+		case mail.OVERVIEW: fallthrough
+		default: mails, _ = mc.LoadMailOverview(req.FormValue("folder"))
+		}
+		// Reverse the retrieved mail array
+		sort.Sort(mail.MailSlice(mails))
+	}
+	r.JSON(200, mails)
+//	jsonRet, err := json.Marshal(mails)
+//	if (nil != err) {
+//		log.Fatal(err)
+//	}
+//	w.Write(jsonRet)
+}
+
+func (web *MailWeb) mailContent(r render.Render, req *http.Request) {
+	mc, err := mail.NewMailCon(web.mconf)
+	defer mc.Close()
+	var mailContent string
+	if nil == err {
+		uid, _ := strconv.ParseInt(req.FormValue("uid"), 10, 32)
+		mailContent, _ = mc.LoadContentForMail(req.FormValue("folder"), uint32(uid))
+	}
+	r.JSON(200, mailContent)
+//	jsonRet, err := json.Marshal(mailContent)
+//	if (nil != err) {
+//		log.Fatal(err)
+//	}
+//	w.Write(jsonRet)
+}
