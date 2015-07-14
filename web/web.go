@@ -17,6 +17,8 @@ import (
 	"github.com/martini-contrib/binding"
 	"fmt"
 	"hash/fnv"
+	"github.com/scorredoira/email"
+	"net/smtp"
 )
 
 type MailWeb struct {
@@ -147,6 +149,8 @@ func (web *MailWeb) authenticate(session sessions.Session, postedUser auth.MyUse
 		h := fnv.New32a()
 		h.Write([]byte(postedUser.Username))
 		user.Id = int64(h.Sum32())
+		user.SMTPAuth = smtp.PlainAuth("", postedUser.Username, postedUser.Password,
+			web.mconf.SMTPAddress)
 		user.Login()
 		err := sessionauth.AuthenticateSession(session, &user)
 		if err != nil {
@@ -171,6 +175,9 @@ func (web *MailWeb) welcome(r render.Render) {
 func (web *MailWeb) logout(session sessions.Session, user sessionauth.User, r render.Render) {
 	fmt.Println("Successful logout of user: ", user)
 	sessionauth.Logout(session, user)
+	if web.imapCon.IsAuthenticated() {
+		web.imapCon.Close()
+	}
 	r.HTML(200, "start", nil)
 }
 
@@ -202,4 +209,16 @@ func (web *MailWeb) mailContent(r render.Render, req *http.Request) {
 		mailContent, _ := web.imapCon.LoadContentForMail(req.FormValue("folder"), uint32(uid))
 		r.JSON(200, mailContent)
 	}
+}
+
+func (web *MailWeb) sendMail(r render.Render, curUser auth.MyUserModel, req *http.Request) {
+	m := email.NewMessage("Hi", "this is the body")
+	m.From = "from@example.com"
+	m.To = []string{"to@example.com"}
+	err := m.Attach("picture.png")
+	if err != nil {
+		log.Println(err)
+	}
+	err = email.Send(fmt.Sprintf("%s:%d", web.mconf.SMTPAddress, web.mconf.SMTPPort),
+		curUser.SMTPAuth, m)
 }

@@ -3,14 +3,16 @@ package auth
 import (
 	"github.com/martini-contrib/sessionauth"
 	"fmt"
+	"net/smtp"
 )
 
 // MyUserModel can be any struct that represents a user in my system
 type MyUserModel struct {
-	Id            int64  `form:"id" db:"id"`
-	Username      string `form:"name" db:"username"`
-	Password      string `form:"password" db:"password"`
-	authenticated bool   `form:"-" db:"-"`
+	Id            int64  	`form:"id" db:"id"`
+	Username      string 	`form:"name" db:"username"`
+	Password      string 	`form:"password" db:"password"`
+	SMTPAuth      smtp.Auth	`form:"-" db:"-"`
+	authenticated bool   	`form:"-" db:"-"`
 }
 
 // GetAnonymousUser should generate an anonymous user model

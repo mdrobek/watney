@@ -29,6 +29,10 @@ type MailConf struct {
 	SkipCertificateVerification bool
 	// verbose output
 	Verbose bool
+	// SMTP Host address
+	SMTPAddress string
+	// SMTP Host port
+	SMTPPort int
 }
 
 type WebConf struct {
