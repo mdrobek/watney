@@ -111,26 +111,61 @@ func NewMailCon(conf *conf.MailConf) (newMC *MailCon, err error) {
 		defer newMC.Close()
 		return newMC, err
 	}
-	// Login the current user
-	if _, err = newMC.login(); err != nil {
-		defer newMC.Close()
-		return newMC, err
-	}
 	// Set the client in the NO_OP state to continuously receive updates from the server
 	if _, err = newMC.waitFor(newMC.client.Noop()); err != nil {
 		defer newMC.Close()
 		return newMC, err
 	}
-	// Retrieve the current servers delimiter symbol
-	if cmd, err := newMC.waitFor(newMC.client.List("", "")); err != nil {
-		// ... we couldn't retrieve it, let's assume for now, its our default delimiter
-		newMC.delim = DFLT_MAILBOX_DELIM
-	} else {
-		newMC.delim = cmd.Data[0].MailboxInfo().Delim
-	}
 	// Return the new established connection
 	return newMC, nil
 }
+
+/**
+ * ATTENTION: Does not close connection on authentication fail, e.g., due to wrong credentials.
+ */
+func (mc *MailCon) Authenticate(username, password string) (*MailCon, error) {
+	var err error
+	// Login the current user
+	mc.client.SetLogMask(mc.LogMask)
+	if _, err = mc.waitFor(mc.client.Login(username, password)); err != nil {
+		return mc, err
+	}
+	// Retrieve the current servers delimiter symbol
+	if cmd, err := mc.waitFor(mc.client.List("", "")); err != nil {
+		// ... we couldn't retrieve it, let's assume for now, its our default delimiter
+		mc.delim = DFLT_MAILBOX_DELIM
+	} else {
+		mc.delim = cmd.Data[0].MailboxInfo().Delim
+	}
+	// Set the client in the NO_OP state to continuously receive updates from the server
+	if _, err = mc.waitFor(mc.client.Noop()); err != nil {
+		return mc, err
+	}
+	return mc, nil
+}
+
+func (mc *MailCon) IsAuthenticated() bool {
+	if nil != mc.client && (mc.client.State() == imap.Auth || mc.client.State() == imap.Selected) {
+		return true
+	}
+	return false
+}
+
+
+/**
+@see interface io.Closer
+*/
+func (mc *MailCon) Close() error {
+	var err error
+	if nil != mc.client {
+		_, err = mc.waitFor(mc.client.Logout(30 * time.Second))
+	}
+	return err
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+///									Public Mail Methods											 ///
+////////////////////////////////////////////////////////////////////////////////////////////////////
 
 func (mc *MailCon) LoadMails() ([]Mail, error) {
 	return mc.LoadNMailsFromFolder("/", -1, true)
@@ -178,8 +213,7 @@ func (mc *MailCon) LoadContentForMail(folder string, uid uint32) (string, error)
 	set, _ := imap.NewSeqSet(fmt.Sprintf("%d", uid))
 	// Add the content flag to retrieve the content from the server
 	var (
-		itemsToFetch []string = []string{"UID", "FLAGS", "INTERNALDATE", "RFC822.SIZE",
-			"RFC822.HEADER", "RFC822.TEXT"}
+		itemsToFetch []string = []string{"UID", "FLAGS", "RFC822.TEXT"}
 		cmd *imap.Command
 		mailContent string
 		err error
@@ -257,17 +291,6 @@ func (mc *MailCon) LoadNMailsFromFolder(folder string, n int, withContent bool) 
 	}
 }
 
-/**
-@see interface io.Closer
-*/
-func (mc *MailCon) Close() error {
-	var err error
-	if nil != mc.client {
-		_, err = mc.waitFor(mc.client.Logout(30 * time.Second))
-	}
-	return err
-}
-
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 ///										Private Methods											 ///
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -297,39 +320,44 @@ func (mc *MailCon) dial() (c *imap.Client, err error) {
 	return c, err
 }
 
-func (mc *MailCon) login() (*imap.Command, error) {
+func (mc *MailCon) login(username, passwd string) (*imap.Command, error) {
 	defer mc.client.SetLogMask(mc.LogMask)
-	return mc.waitFor(mc.client.Login(mc.conf.Username, mc.conf.Passwd))
+	fmt.Printf("####### Starting logging and wait for\n")
+	return mc.waitFor(mc.client.Login(username, passwd))
 }
 
-func (mc *MailCon) waitFor(cmd *imap.Command, err error) (*imap.Command, error) {
+func (mc *MailCon) waitFor(cmd *imap.Command, origErr error) (*imap.Command, error) {
 	var (
 		//		rsp   *imap.Response
 		wferr error
 	)
 	// 1) Check if we're missing a command and if so, return with an error
 	if cmd == nil {
-		wferr = errors.New(fmt.Sprintf("WaitFor: Missing command, because: %s", err.Error()))
+		wferr = errors.New(fmt.Sprintf("WaitFor: Missing command, because: %s", origErr.Error()))
 		mc.logMC(wferr.Error(), imap.LogAll)
 		return nil, wferr
-	} else if err == nil {
-		// Start waiting for the result of the given command
-		_, err = cmd.Result(imap.OK)
+	} else if origErr == nil {
+		// The original command executed without an error -> start waiting for the result of the
+		// given command (which is done by waiting for the OK response)
+		if _, okErr := cmd.Result(imap.OK); okErr != nil {
+			// 2) If the result is not OK, build an WaitFor error that contains the original cmd err
+			wferr = errors.New(fmt.Sprintf("WaitFor: Command %s didn't finish correctly\n"+
+				"Original error: %s", cmd.Name(true), origErr.Error()))
+			mc.logMC(wferr.Error(), imap.LogAll)
+			return cmd, wferr
+		}
+	} else if origErr != nil {
+		// There is an error for the original executed command
+		return cmd, origErr
 	}
-	// 2) Check if the result of command has errors, and if so, return those
-	if err != nil {
-		wferr = errors.New(fmt.Sprintf("WaitFor: Command %s didn't finish correctly\n"+
-			"Original error: %s", cmd.Name(true), err.Error()))
-		mc.logMC(wferr.Error(), imap.LogAll)
-		return cmd, err
-	}
+	// All good, no errors
 	return cmd, nil
 
 }
 
 func (mc *MailCon) logMC(msg string, level imap.LogMask) {
 	if mc.LogMask >= level && nil != mc.Logger {
-		mc.Logger.Fatalf("error level %d: "+msg, level)
+		mc.Logger.Printf("error level %s: %s", level, msg)
 	}
 }
 

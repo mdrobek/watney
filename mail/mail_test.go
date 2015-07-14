@@ -50,14 +50,39 @@ func TestCreateMailConnection(t *testing.T) {
 	}
 }
 
-func TestLoadMails(t *testing.T) {
-	mc, err := NewMailCon(&loadConfig(TEST_CONFIG_FILE, t).Mail)
+func TestAuthenticationProcess(t *testing.T) {
+	mailConf := loadConfig(TEST_CONFIG_FILE, t).Mail
+	mc, err := NewMailCon(&mailConf)
 	defer mc.Close()
 	if err != nil {
 		t.Errorf(err.Error())
 	}
 
-	// 1) Test that at least 3 mails have been downloaded from root folder
+	// 1) Try an invalid authentication and expect to fail
+	if _, err := mc.Authenticate("foo@unionwork.org", "bar"); err == nil {
+		t.Errorf("Expected an authentication error due to invalid credentials")
+	}
+
+	// 2) Now authenticate with the correct credentials and expect no error
+	if _, err := mc.Authenticate(mailConf.Username, mailConf.Passwd); err != nil {
+		t.Errorf(err.Error())
+	}
+}
+
+func TestLoadMails(t *testing.T) {
+	mailConf := loadConfig(TEST_CONFIG_FILE, t).Mail
+	mc, err := NewMailCon(&mailConf)
+	defer mc.Close()
+	if err != nil {
+		t.Errorf(err.Error())
+	}
+
+	// 1) Authenticate the given user
+	if _, err := mc.Authenticate(mailConf.Username, mailConf.Passwd); err != nil {
+		t.Fatalf(err.Error())
+	}
+
+	// 2) Test that at least 3 mails have been downloaded from root folder
 	mails, err := mc.LoadNMails(3)
 	if err != nil {
 		t.Errorf(err.Error())
@@ -68,7 +93,7 @@ func TestLoadMails(t *testing.T) {
 	for _, mail := range mails {
 		if 0 == mail.UID { t.Errorf("Loaded mails have a UID that is 0"); }
 	}
-	// 2) Test that at least 3 mails have been downloaded
+	// 3) Test that at least 3 mails have been downloaded
 	mails, err = mc.LoadNMailsFromFolder("Sent", 2, false)
 	if err != nil {
 		t.Errorf(err.Error())
@@ -79,26 +104,23 @@ func TestLoadMails(t *testing.T) {
 }
 
 func TestLoadMailContent(t *testing.T) {
-	mc, err := NewMailCon(&loadConfig(TEST_CONFIG_FILE, t).Mail)
+	mailConf := loadConfig(TEST_CONFIG_FILE, t).Mail
+	mc, err := NewMailCon(&mailConf)
 	defer mc.Close()
 	if err != nil {
 		t.Errorf(err.Error())
 	}
-//	mails, _ := mc.LoadNMails(5);
-//	// Test whether the retrieved mail content equals the server mail content
-//	for _, mail := range mails {
-//		content, _ := mc.LoadContentForMail(mail.UID)
-//		println(mail.UID, "\n", content)
-//		//		if content != mail.Content {
-//		//			t.Errorf("Retrieved content of mail is not equal to server content.")
-//		//		}
-//	}
+	// 1) Authenticate the given user
+	if _, err := mc.Authenticate(mailConf.Username, mailConf.Passwd); err != nil {
+		t.Fatalf(err.Error())
+	}
 	var uid uint32= 4336
-	content, err := mc.LoadContentForMail("/", uid)
-	if nil != err {
+	if _, err := mc.LoadContentForMail("/", uid); nil != err {
 		t.Errorf(err.Error())
 	}
-	println("following from test ", uid, "\n", content)
+//	if 0 == len(content) {
+//		t.Errorf("Loaded content was empty but shouldn't have been!")
+//	}
 }
 
 func TestParseHeader(t *testing.T) {

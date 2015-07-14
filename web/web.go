@@ -16,6 +16,7 @@ import (
 	"mdrobek/watney/auth"
 	"github.com/martini-contrib/binding"
 	"fmt"
+	"hash/fnv"
 )
 
 type MailWeb struct {
@@ -140,8 +141,13 @@ func (web *MailWeb) authenticate(session sessions.Session, postedUser auth.MyUse
 		r render.Render, req *http.Request) {
 	user := auth.MyUserModel{}
 	fmt.Println("Checking for given user", postedUser, user, web.mconf)
-	if web.mconf.Username == postedUser.Username && web.mconf.Passwd == postedUser.Password {
+	if _, err := web.imapCon.Authenticate(postedUser.Username, postedUser.Password); err == nil {
 		fmt.Println("AUTHENTICATED!")
+		user.Username = postedUser.Username
+		h := fnv.New32a()
+		h.Write([]byte(postedUser.Username))
+		user.Id = int64(h.Sum32())
+		user.Login()
 		err := sessionauth.AuthenticateSession(session, &user)
 		if err != nil {
 			r.JSON(500, err)
@@ -152,6 +158,7 @@ func (web *MailWeb) authenticate(session sessions.Session, postedUser auth.MyUse
 		fmt.Println("FAILED!")
 		r.HTML(200, "start", map[string]interface{}{
 			"FailedLogin" : true,
+			"OrigError" : err.Error(),
 		})
 		return
 	}
@@ -174,28 +181,25 @@ func (web *MailWeb) main(r render.Render) {
 }
 
 func (web *MailWeb) mails(r render.Render, req *http.Request) {
-	mc, err := mail.NewMailCon(web.mconf)
-	defer mc.Close()
 	var mails []mail.Mail = []mail.Mail{}
-	if nil == err {
+	if web.imapCon.IsAuthenticated() {
 		switch req.FormValue("mailInformation") {
-		case mail.FULL: mails, _ = mc.LoadMailsFromFolder(req.FormValue("folder"))
-		case mail.OVERVIEW: fallthrough
-		default: mails, _ = mc.LoadMailOverview(req.FormValue("folder"))
+			case mail.FULL: mails, _ = web.imapCon.LoadMailsFromFolder(req.FormValue("folder"))
+			case mail.OVERVIEW: fallthrough
+			default: mails, _ = web.imapCon.LoadMailOverview(req.FormValue("folder"))
 		}
 		// Reverse the retrieved mail array
 		sort.Sort(mail.MailSlice(mails))
+		r.JSON(200, mails)
+	} else {
+		// TODO: return an JSON error cause imap conn is lost
 	}
-	r.JSON(200, mails)
 }
 
 func (web *MailWeb) mailContent(r render.Render, req *http.Request) {
-	mc, err := mail.NewMailCon(web.mconf)
-	defer mc.Close()
-	var mailContent string
-	if nil == err {
+	if web.imapCon.IsAuthenticated() {
 		uid, _ := strconv.ParseInt(req.FormValue("uid"), 10, 32)
-		mailContent, _ = mc.LoadContentForMail(req.FormValue("folder"), uint32(uid))
+		mailContent, _ := web.imapCon.LoadContentForMail(req.FormValue("folder"), uint32(uid))
+		r.JSON(200, mailContent)
 	}
-	r.JSON(200, mailContent)
 }
