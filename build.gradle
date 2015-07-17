@@ -1,4 +1,5 @@
 import org.ajoberstar.grgit.*
+import org.apache.tools.ant.taskdefs.condition.Os
 
 buildscript {
     repositories {
@@ -27,8 +28,13 @@ project.ext {
 def libFolder = "$projectDir/static/resources/libs"
 def closureFolder = file("$libFolder/closure-library")
 def closureCompilerFolder = file("$libFolder/jsCompiler")
+def closureBinFolder = "$closureFolder/closure/bin";
 def soyCompilerFolder = file("$libFolder/soyCompiler")
+def soyTmplFolder = "$projectDir/static/resources/soy"
 def jsSrcDir = file("$projectDir/static/resources/js")
+def jsMainClass = "wat.app";
+
+
 
 //def tmplFolder = "$projectDir/src/main/resources/templates"
 //def jsLibDir = "$projectDir/src/main/resources/javascripts/libs"
@@ -37,12 +43,9 @@ def jsSrcDir = file("$projectDir/static/resources/js")
 //def chromeDriverPath = "$buildDir/chromeDriver"
 //def jasminePath = "$buildDir/jasmine"
 //def closureFolder = "$buildDir/Closure";
-//def closureLibraryFolder = "$closureFolder/library";
 //def closureCompilerFolder = "$closureFolder/compiler";
 //def closureTmplCompilerFolder = "$closureFolder/closure-templates";
 ////def closureTmplErrorFile = "$closureFolder/templ-error.txt";
-//def closureBinFolder = "$closureLibraryFolder/closure/bin";
-//def jsMainClass = "cake.app.AppStart";
 
 /**************************************************************************************
  ***                    Helper tasks for setting up closure                         ***
@@ -94,93 +97,86 @@ task downloadLibs << {
 ///**************************************************************************************
 // ***                   Helper tasks for JS Compilation with closure                 ***
 // **************************************************************************************/
-///**
-// * java -jar SoyToJsSrcCompiler.jar --outputPathFormat simple.js --srcs simple.soy
-// */
-//task buildTemplFile(dependsOn: unpackClosureTemplates, group: "JS Compile") {
-//    String jarPath = new File("$closureTmplCompilerFolder", "SoyToJsSrcCompiler.jar")
-//    String nsParam = "--shouldProvideRequireSoyNamespaces"
-//    String opParamName = "--outputPathFormat"
-//    String opParam = "$jsSrcDir/cake-templates.js"
-//    String srcParamName = "--srcs"
-//    String srcParam = fileTree(dir: "$tmplFolder", include: "**/*.soy").files.collect { it.path }.join(",")
-////    println("\t#### " + srcParam);
-//    doLast {
-//        javaexec
-//        {
-//            workingDir = "$tmplFolder";
-//            main = '-jar';
-//            args = [jarPath, nsParam, opParamName, opParam, srcParamName, srcParam];
-//        }
-//    }
-//}
-//buildTemplFile.mustRunAfter("unpackClosureTemplates")
-//
-///**
-// * Runs the google closure depswriter python script to create a new JS dependency file for all
-// * Cake namespaces and writes it into the /resources/javascripts/cake folder
-// *
-// * CURRENT ASSUMPTIONS:
-// *  - linux system
-// *  - python is installed and executable from within the users environment
-// *  - google closure is available at the above define constant path
-// *
-// * CODE/TASK ENHANCEMENTS:
-// *  - needs code enhancement for Windows systems
-// *  - closure should be downloaded before this task is run
-// *  - at least some output, that python needs to be installed
-// *
-// * Live on console:
-// /home/lion/Projects/Closure/closure/bin/build/depswriter.py \
-// --root_with_prefix="/home/lion/Projects/Cake/main/com.redro.cake.web/src/main/resources/javascripts/cake ../../../cake" \
-// > /home/lion/Projects/Cake/main/com.redro.cake.web/src/main/resources/javascripts/cake/cake-deps.js
-// */
-//task buildDepFile(type: Exec, group: "JS Compile") {
-//    dependsOn(unpackClosureLibrary)
-//    dependsOn(buildTemplFile)
-//    workingDir "$jsSrcDir"
-//    if (Os.isFamily(Os.FAMILY_WINDOWS)) {
-//        // on windows:
-//        commandLine 'cmd', '/c', "$closureBinFolder/build/depswriter.py"
-//    } else {
-//        executable "$closureBinFolder/build/depswriter.py"
-//    }
-//    // HINT: MAGIC! The gradle arg doesn't need the surrounding quotes for both paths
-//    args "--root_with_prefix=$jsSrcDir ../../../cake"
-//    standardOutput = new FileOutputStream(new File("$jsSrcDir/cake-deps.js"))
-//}
+/**
+ * java -jar SoyToJsSrcCompiler.jar --outputPathFormat simple.js --srcs simple.soy
+ */
+task buildTemplFile(dependsOn: downloadLibs, group: "JS Compile") {
+    String jarPath = new File("$soyCompilerFolder", "SoyToJsSrcCompiler.jar")
+    String nsParam = "--shouldProvideRequireSoyNamespaces"
+    String opParamName = "--outputPathFormat"
+    String opParam = "$jsSrcDir/soy-templates.js"
+    String srcParamName = "--srcs"
+    String srcParam = fileTree(dir: "$soyTmplFolder", include: "**/*.soy").files.collect { it.path }.join(",")
+//    println("\t#### " + srcParam);
+    doLast {
+        javaexec
+        {
+            workingDir = "$soyTmplFolder";
+            main = '-jar';
+            args = [jarPath, nsParam, opParamName, opParam, srcParamName, srcParam];
+        }
+    }
+}
+
+/**
+ * Runs the google closure depswriter python script to create a new JS dependency file
+ *
+ * CURRENT ASSUMPTIONS:
+ *  - linux system
+ *  - python is installed and executable from within the users environment
+ *  - google closure is available at the above define constant path
+ *
+ * CODE/TASK ENHANCEMENTS:
+ *  - needs code enhancement for Windows systems
+ *  - closure should be downloaded before this task is run
+ *  - at least some output, that python needs to be installed
+ */
+task buildDepFile(type: Exec, group: "JS Compile") {
+    dependsOn(buildTemplFile)
+    workingDir "$jsSrcDir"
+    if (Os.isFamily(Os.FAMILY_WINDOWS)) {
+        // on windows:
+        commandLine 'cmd', '/c', "$closureBinFolder/build/depswriter.py"
+    } else {
+        executable "$closureBinFolder/build/depswriter.py"
+    }
+    // HINT: MAGIC! The gradle arg doesn't need the surrounding quotes for both paths
+    args "--root_with_prefix=$jsSrcDir ../../../../js/"
+//    --root_with_prefix="static/resources/js ../../../../js/" \
+//    --output_file=static/resources/js/watney-deps.js
+    standardOutput = new FileOutputStream(new File("$jsSrcDir/watney-deps.js"))
+}
 //buildDepFile.mustRunAfter("unpackClosureLibrary")
 //buildDepFile.mustRunAfter("buildTemplFile")
-//
-///**
-// *
-// * On Console:
-// *  ./closurebuilder.py \
-// *    --root=/home/lion/Projects/Cake/main/com.redro.cake.web/src/main/resources/javascripts/cake/ \
-// *    --root=/home/lion/Projects/Cake/main/com.redro.cake.web/src/main/resources/javascripts/libs/closure/ \
-// *    -ncake.gall.galleryStart \
-// *    -c../../../compiler/compiler.jar \
-// *    --output_mode=compiled \
-// *    --compiler_flags="--compilation_level=ADVANCED_OPTIMIZATIONS" \
-// *    > foo.js 2> err.txt
-// */
-//task compileJS(type: Exec, group: "JS Compile") {
-//    dependsOn(unpackClosureCompiler)
-//    dependsOn(unpackClosureLibrary)
-//    workingDir "$jsSrcDir"
-//    if (Os.isFamily(Os.FAMILY_WINDOWS)) {
-//        // on windows:
-//        commandLine 'cmd', '/c', "$closureBinFolder/build/closurebuilder.py"
-//    } else {
-//        executable "$closureBinFolder/build/closurebuilder.py"
-//    }
-//    // HINT: MAGIC! The gradle arg doesn't need the surrounding quotes for both paths
-//    args "--root=$jsSrcDir","--root=$jsLibDir/closure","--namespace=$jsMainClass",
-//            "--compiler_jar=$closureCompilerFolder/compiler.jar","--output_mode=compiled" //,
-//    //"--compiler_flags=--compilation_level=ADVANCED_OPTIMIZATIONS"
-//    standardOutput = new FileOutputStream(file("$jsSrcDir/cake-compiled.js"))
-////    errorOutput = new FileOutputStream(file("$jsSrcDir/cake-compile-error.txt"))
-//}
+
+/**
+ *
+ * On Console:
+ *  ./closurebuilder.py \
+ *    --root=/home/lion/Projects/Cake/main/com.redro.cake.web/src/main/resources/javascripts/cake/ \
+ *    --root=/home/lion/Projects/Cake/main/com.redro.cake.web/src/main/resources/javascripts/libs/closure/ \
+ *    -ncake.gall.galleryStart \
+ *    -c../../../compiler/compiler.jar \
+ *    --output_mode=compiled \
+ *    --compiler_flags="--compilation_level=ADVANCED_OPTIMIZATIONS" \
+ *    > foo.js 2> err.txt
+ */
+task compileJS(type: Exec, group: "JS Compile") {
+    dependsOn(buildDepFile)
+    workingDir "$jsSrcDir"
+    if (Os.isFamily(Os.FAMILY_WINDOWS)) {
+        // on windows:
+        commandLine 'cmd', '/c', "$closureBinFolder/build/closurebuilder.py"
+    } else {
+        executable "$closureBinFolder/build/closurebuilder.py"
+    }
+    // HINT: MAGIC! The gradle arg doesn't need the surrounding quotes for both paths
+    args "--root=$jsSrcDir","--root=$closureFolder","--namespace=$jsMainClass",
+            "--compiler_jar=$closureCompilerFolder/compiler.jar","--output_mode=compiled" //,
+    //"--compiler_flags=--compilation_level=ADVANCED_OPTIMIZATIONS"
+    standardOutput = new FileOutputStream(file("$jsSrcDir/watney-compiled.js"))
+//    errorOutput = new FileOutputStream(file("$jsSrcDir/cake-compile-error.txt"))
+}
 //compileJS.mustRunAfter("unpackClosureLibrary")
 //compileJS.mustRunAfter("unpackClosureCompiler")
 //

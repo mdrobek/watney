@@ -24,8 +24,10 @@ _testmain.go
 *.prof
 
 # project stuff
+build/*
 conf/unionwork.ini
-static/resources/soy/SoyToJsSrcCompiler.jar
-static/resources/libs/closure-library
-static/resources/libs/compiler.jar
+static/resources/js/soyutils_usegoog.js
+static/resources/libs/*
+static/resources/libs/!lib.txt
+.gradle/*
 watney
