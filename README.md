@@ -1,8 +1,13 @@
 # Watney  
-Watney is a a free (as in air to breathe), lightweight, open-source Mail-Client for IMAP Mail-Servers written in Go. It pulls mails from the given IMAP server, displays them in a web app and allows to send mails via SMTP. For everybody who read [The Martian][10] by Andy Weir: Yes, that's the inspiration for the project's name. Let's cross fingers it's as resistant as Mark Watney.
+Watney is a a free (as in air to breathe), lightweight, open-source Mail-Client for IMAP
+Mail-Servers written in Go. It pulls mails from the given IMAP server, displays them in a web app
+and allows to send mails via SMTP. For everybody who read [The Martian][10] by Andy Weir: Yes,
+that's the inspiration for the project's name. Let's cross fingers it's as resistant as Mark Watney.
 
 ## WHY?
-<code>"I mean obviously dude, there's plenty of stuff out there: [horde][7], [webmailLite][8], [mailpile][9]. Just to name a couple of free ones. Not even talking about all the proprietary ones."</code>  
+<code>"I mean obviously dude, there's plenty of stuff out there: [horde][7], [webmailLite][8],
+[mailpile][9]. Just to name a couple of free ones. Not even talking about all the proprietary
+ones."</code>  
 
 First of all: Because I can.  
 Secondly, there's a couple of reasons here:  
@@ -33,7 +38,7 @@ for watney and simplified the development process:
 * [martini-contrib][2] Various plugins for martini, e.g., binding, render, sessionauth and so on
 * [goimap][3] IMAP implementation for go by mxk
 * [smtp mail][4] Simple wrapper to send mail via SMTP for go by scorredoira
-* [google closure][5] Very powerful tools and libraries to imrpove overall web-dev and user
+* [google closure][5] Very powerful tools and libraries to improve overall web-dev and user
 experience
 * [bootstrap][6] Duh! Obviously.
 

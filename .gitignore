@@ -27,6 +27,9 @@ _testmain.go
 build/*
 conf/unionwork.ini
 static/resources/js/soyutils_usegoog.js
+static/resources/js/soy-templates.js
+static/resources/js/watney-compiled.js
+static/resources/js/watney-deps.js
 static/resources/libs/*
 static/resources/libs/!lib.txt
 .gradle/*
