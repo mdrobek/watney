@@ -24,9 +24,11 @@ channels I'm forced to use.
 ## Requirements
 To Build Watney (on your dev machine):
 * [Gradle][11] at least version 2.0 (to execute the build script)
-* [Python][12] at least version 2.7.9  (to compile the JS files with google closure tools)
+* [Python][12] at least version 2.7.9  (to create closure dependency files with the google closure
+tools)
+* [Java][16] at least version 1.7 (to compile JS files with the google closure tools)
 * [Go][13] at least version 1.4.2 (to compile watney into an executable)
-Make sure python, gradle and go can be executed on your command line.  
+Make sure python, gradle, java and go can be executed on your command line.  
 **Note:** Please make sure, that GOPATH is set accordingly, as described [here][14].
   
 To Run Watney (on your server):
@@ -36,9 +38,9 @@ Mail-Client after all.)
 
 ### Get and Build Watney
 1) Download the watney sources from github:  
-<code>$ go get github.com/mdrobek/watney</code>
+<code>$ go get github.com/mdrobek/watney</code>  
 2) Switch to the watney source dir:  
-<code>$ cd $GOPATH/src/github.com/mdrobek/watney</code>
+<code>$ cd $GOPATH/src/github.com/mdrobek/watney</code>  
 3) Build watney (this takes care of pulling in all dependencies as well):  
 <code>$ gradle buildWatney</code>
 
@@ -84,3 +86,4 @@ experience
 [13]: https://golang.org/
 [14]: https://golang.org/doc/code.html
 [15]: https://github.com/tools/godep
+[16]: https://java.com/en/download/

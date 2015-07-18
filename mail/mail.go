@@ -372,8 +372,7 @@ func (mc *MailCon) checkConf() (bool, error) {
 	if nil == mc.conf {
 		return false, errors.New("Can't create MailConnection without config")
 	}
-	if 0 == len(mc.conf.Hostname) || mc.conf.Port < 1 || 0 == len(mc.conf.Username) ||
-		0 == len(mc.conf.Passwd) {
+	if 0 == len(mc.conf.Hostname) || mc.conf.Port < 1 {
 		return false, errors.New("Missing server address or username or password")
 	}
 	if 0 == len(mc.conf.Mailbox) {

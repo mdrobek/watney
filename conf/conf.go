@@ -18,11 +18,6 @@ type MailConf struct {
 	Hostname string
 	// port to connect to the mail server
 	Port int
-	// user name for imap account
-	// TODO: Remove from here
-	Username string
-	// user password (to be outsourced)
-	Passwd string
 	// the name of the mailbox
 	Mailbox string
 	// additional config options for TLS (e.g., skip certificate verification for self-signed certs)
