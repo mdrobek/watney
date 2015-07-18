@@ -22,14 +22,39 @@ channels I'm forced to use.
 * Have a "one-side" main application approach to improve performance and user-experience.
 
 ## Requirements
-You can run watney either by executing the main watney.go file within the Go environment
-(discouraged), or even better, simply compile a binary for your target platform. I'm currently
-working on a build script to pull all dependencies (including Google Closure) to do that
-automatically.
+To Build Watney (on your dev machine):
+* [Gradle][11] at least version 2.0 (to execute the build script)
+* [Python][12] at least version 2.7.9  (to compile the JS files with google closure tools)
+* [Go][13] at least version 1.4.2 (to compile watney into an executable)
+Make sure python, gradle and go can be executed on your command line.  
+**Note:** Please make sure, that GOPATH is set accordingly, as described [here][14].
+  
+To Run Watney (on your server):
+* **None** (Once Watney is a compiled executable, no additional requirements are necessary to run it.)
+* You need to have access to a/your imap server (Duh! What's the point otherwise, it's a
+Mail-Client after all.)
 
-### Build Watney
-Todo
-`gradle compileJS`
+### Get and Build Watney
+1) Download the watney sources from github:  
+<code>$ go get github.com/mdrobek/watney</code>
+2) Switch to the watney source dir:  
+<code>$ cd $GOPATH/src/github.com/mdrobek/watney</code>
+3) Build watney (this takes care of pulling in all dependencies as well):  
+<code>$ gradle buildWatney</code>
+
+### Run Watney
+Watney requires a configuration file on application start. A template has been provided, which
+needs to be copied and filled with your specific information:  
+<code>$ cp conf/watney-templ.ini conf/your-conf.ini</code>  
+
+Please adjust the config file accordingly to your specific needs (it should be self-explanatory).
+
+Watney can now be started as follows:  
+<code>$ watney -c conf/your-conf.ini</code>
+
+*Note*: There is currently a bug that forces watney to search for template files in the wrong
+resource folder!
+
 
 ## Acknowledgements
 Credits to whom credits belong. The following frameworks and code snippets provided a solid basis
@@ -38,9 +63,11 @@ for watney and simplified the development process:
 * [martini-contrib][2] Various plugins for martini, e.g., binding, render, sessionauth and so on
 * [goimap][3] IMAP implementation for go by mxk
 * [smtp mail][4] Simple wrapper to send mail via SMTP for go by scorredoira
+* [godep][15] Extremely helpful tool to download all go dependencies by Keith Rarick
 * [google closure][5] Very powerful tools and libraries to improve overall web-dev and user
 experience
 * [bootstrap][6] Duh! Obviously.
+* [gradle][11] Amazing and powerful software management tool (build tool).
 
 [1]: https://github.com/go-martini/martini
 [2]: https://github.com/martini-contrib
@@ -52,3 +79,8 @@ experience
 [8]: http://www.afterlogic.org/webmail-lite
 [9]: https://www.mailpile.is/
 [10]: https://en.wikipedia.org/wiki/The_Martian_%28Weir_novel%29
+[11]: http://gradle.org/
+[12]: https://www.python.org/
+[13]: https://golang.org/
+[14]: https://golang.org/doc/code.html
+[15]: https://github.com/tools/godep

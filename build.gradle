@@ -1,6 +1,7 @@
 import org.ajoberstar.grgit.*
 import org.apache.tools.ant.taskdefs.condition.Os
 
+
 buildscript {
     repositories {
         jcenter()
@@ -15,9 +16,12 @@ plugins {
     id "de.undercouch.download" version "1.2"
 }
 
-/**************************************************************************************
- ***                                Path definitions                                ***
- **************************************************************************************/
+// Because we have java-like code in the gradle file
+apply plugin: 'java'
+
+/**************************************************************************************************
+ ***                                    Path definitions                                        ***
+ **************************************************************************************************/
 def libFolder = "$projectDir/static/resources/libs"
 def closureFolder = file("$libFolder/closure-library")
 def closureCompilerFolder = file("$libFolder/jsCompiler")
@@ -27,11 +31,41 @@ def soyTmplFolder = "$projectDir/static/resources/soy"
 def jsSrcDir = file("$projectDir/static/resources/js")
 def jsMainClass = "wat.app";
 
-/**************************************************************************************
- ***                    Helper tasks for setting up closure                         ***
- **************************************************************************************/
+
+
+/**************************************************************************************************
+ ***                    Helper tasks for setting up GO dependencies                             ***
+ **************************************************************************************************/
+task downloadGoLibs << {
+    // 1) First check, whether the GOPATH is set correctly, and error if not
+    if (null == System.env.GOPATH) {
+        println "GOPATH environment variable is not set"
+        exit -1
+    }
+    // 2) If we have the GOPATH, check if godep is available, and if not download it
+    if (!file('../../../bin/godep').exists()) {
+        println ">>> Downloading godep to resolve all dependencies"
+        exec {
+            executable "go"
+            args "get", "github.com/tools/godep"
+        }
+    }
+    // 3) Now run godep to download all resolved dependencies
+    println ">>> Start to resolve and download all GO dependencies for watney.\n" +
+            "\tThis may take a while..."
+    exec {
+        executable "../../../bin/godep"
+        args "restore"
+    }
+}
+
+
+/**************************************************************************************************
+ ***                    Helper tasks for setting up client dependencies                         ***
+ **************************************************************************************************/
 // Download the closure library
-task downloadLibs << {
+task downloadClientLibs << {
+    println ">>> Be patient. This may take a while the first time ..."
     // 1) Check for the closure library, and if non-existent, clone it from github
     if (!closureFolder.exists()) {
         println '>>> Cloning closure-library'
@@ -74,13 +108,10 @@ task downloadLibs << {
     }
 }
 
-///**************************************************************************************
-// ***                   Helper tasks for JS Compilation with closure                 ***
-// **************************************************************************************/
 /**
  * java -jar SoyToJsSrcCompiler.jar --outputPathFormat simple.js --srcs simple.soy
  */
-task buildTemplFile(dependsOn: downloadLibs, group: "JS Compile") {
+task buildTemplFile(dependsOn: downloadClientLibs, group: "JS Compile") {
     String jarPath = new File("$soyCompilerFolder", "SoyToJsSrcCompiler.jar")
     String nsParam = "--shouldProvideRequireSoyNamespaces"
     String opParamName = "--outputPathFormat"
@@ -143,3 +174,20 @@ task compileJS(type: Exec, group: "JS Compile") {
     standardOutput = new FileOutputStream(file("$jsSrcDir/watney-compiled.js"))
 //    errorOutput = new FileOutputStream(file("$jsSrcDir/watney-compile-error.txt"))
 }
+
+/**************************************************************************************************
+ ***                               Build and assemble tasks                                     ***
+ **************************************************************************************************/
+
+task buildWatney(dependsOn:[downloadGoLibs, downloadClientLibs, compileJS]) {
+    // 1) Now run go build
+    doLast {
+        println ">>> Building Watney ... "
+        exec {
+            executable "go"
+            args "build", "mdrobek/watney"
+        }
+        println ">>> FINISHED"
+    }
+}
+

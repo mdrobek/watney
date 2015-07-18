@@ -1,0 +1,73 @@
+{
+	"ImportPath": "mdrobek/watney",
+	"GoVersion": "go1.4.2",
+	"Deps": [
+		{
+			"ImportPath": "code.google.com/p/gcfg",
+			"Rev": "c2d3050044d05357eaf6c3547249ba57c5e235cb"
+		},
+		{
+			"ImportPath": "github.com/boj/redistore",
+			"Comment": "v1-9-g9c0e6ba",
+			"Rev": "9c0e6bab4dd444285424f189b8fb0cb03f653242"
+		},
+		{
+			"ImportPath": "github.com/codegangsta/inject",
+			"Comment": "v1.0-rc1-10-g33e0aa1",
+			"Rev": "33e0aa1cb7c019ccc3fbe049a8262a6403d30504"
+		},
+		{
+			"ImportPath": "github.com/garyburd/redigo/internal",
+			"Rev": "a47585eaae68b1d14b02940d2af1b9194f3caa9c"
+		},
+		{
+			"ImportPath": "github.com/garyburd/redigo/redis",
+			"Rev": "a47585eaae68b1d14b02940d2af1b9194f3caa9c"
+		},
+		{
+			"ImportPath": "github.com/go-martini/martini",
+			"Comment": "v1.0-130-g17752b2",
+			"Rev": "17752b20aa29c599c7b6c22f1901d63983c5c25b"
+		},
+		{
+			"ImportPath": "github.com/gorilla/context",
+			"Rev": "215affda49addc4c8ef7e2534915df2c8c35c6cd"
+		},
+		{
+			"ImportPath": "github.com/gorilla/securecookie",
+			"Rev": "e8ab2fa5d114bbc278da9bd20dc67553bed7a3c4"
+		},
+		{
+			"ImportPath": "github.com/gorilla/sessions",
+			"Rev": "f61c3ec2cf65d69e7efedfd4d060fe128882c951"
+		},
+		{
+			"ImportPath": "github.com/martini-contrib/binding",
+			"Rev": "8aaceec3b52c275477f32c95ea5c6e8ccaba04c5"
+		},
+		{
+			"ImportPath": "github.com/martini-contrib/render",
+			"Rev": "ec18f8345a1181146728238980606fb1d6f40e8c"
+		},
+		{
+			"ImportPath": "github.com/martini-contrib/sessionauth",
+			"Rev": "3c15d8cae6c39a8feb3d3f72750084bd50bd52cc"
+		},
+		{
+			"ImportPath": "github.com/martini-contrib/sessions",
+			"Rev": "fa13114fbcf036dff8185d728651d85fcef772db"
+		},
+		{
+			"ImportPath": "github.com/mxk/go-imap/imap",
+			"Rev": "531c36c3f12d6a03ea766b07a77314aa51ec17f3"
+		},
+		{
+			"ImportPath": "github.com/oxtoacart/bpool",
+			"Rev": "4e1c5567d7c2dd59fa4c7c83d34c2f3528b025d6"
+		},
+		{
+			"ImportPath": "github.com/scorredoira/email",
+			"Rev": "a58300b9ee01193986251e7e4cc9bf441b2e82ba"
+		}
+	]
+}
