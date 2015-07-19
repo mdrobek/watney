@@ -60,11 +60,17 @@ body {
 .nav-sidebar > li > a {
     padding-right: 20px;
     padding-left: 20px;
+    font-size: 20px;
+    font-weight: bold;
+    color: #eeeeee;
+}
+.nav-sidebar > li > a:hover {
+    color: #eeeeee;
+    background-color: #317461;
 }
 .nav-sidebar > .active > a,
-.nav-sidebar > .active > a:hover,
 .nav-sidebar > .active > a:focus {
-    color: #fff;
+    color: #eeeeee;
     background-color: #428bca;
 }
 
@@ -116,7 +122,10 @@ div#mailItems > div.row:nth-of-type(2n) {
     padding: 0;
     overflow: hidden;
 }
-.newMail {
+.mail-overview .entry.active {
+    background-color: brown;
+}
+.mail-overview .entry.newMail {
     font-weight: bold;
 }
 .mail-overview .entry:hover {
@@ -157,10 +166,13 @@ div#mailItems > div.row:nth-of-type(2n) {
 }
 .mail-content .content {
     height: 100%;
-    background-color: yellow;
+    background-color: #454b4c;
+    font-size: 18px;
+    padding-top: 20px;
+    color: white;
+    overflow-y: scroll;
+    height: 100%;
 }
-
-
 
 /**************************************************************************************************
  ***                              Welcome/Login page                                            ***

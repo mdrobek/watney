@@ -210,6 +210,8 @@ func (web *MailWeb) mailContent(r render.Render, req *http.Request) {
 		uid, _ := strconv.ParseInt(req.FormValue("uid"), 10, 32)
 		mailContent, _ := web.imapCon.LoadContentForMail(req.FormValue("folder"), uint32(uid))
 		r.JSON(200, mailContent)
+	} else {
+		fmt.Printf("[watney] IMAP Session has timed out.")
 	}
 }
 

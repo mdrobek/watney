@@ -25,6 +25,8 @@ type MailCon struct {
 	Logger *log.Logger
 	// logging flags (taken from imap package)
 	LogMask imap.LogMask
+	// Quit channel to end keep alive method
+	QuitChan chan struct{}
 }
 
 type Mail struct {
@@ -116,6 +118,8 @@ func NewMailCon(conf *conf.MailConf) (newMC *MailCon, err error) {
 		defer newMC.Close()
 		return newMC, err
 	}
+	// Schedule a NOOP keep-alive request every 30 seconds to keep the IMAP connection alive
+	newMC.keepAlive(30)
 	// Return the new established connection
 	return newMC, nil
 }
@@ -159,6 +163,7 @@ func (mc *MailCon) Close() error {
 	var err error
 	if nil != mc.client {
 		fmt.Printf("[watney] Shutting down IMAP connection\n")
+		close(mc.QuitChan)
 		_, err = mc.waitFor(mc.client.Logout(30 * time.Second))
 	}
 	return err
@@ -341,9 +346,9 @@ func (mc *MailCon) waitFor(cmd *imap.Command, origErr error) (*imap.Command, err
 		// The original command executed without an error -> start waiting for the result of the
 		// given command (which is done by waiting for the OK response)
 		if _, okErr := cmd.Result(imap.OK); okErr != nil {
-			// 2) If the result is not OK, build an WaitFor error that contains the original cmd err
-			wferr = errors.New(fmt.Sprintf("WaitFor: Command %s didn't finish correctly\n"+
-				"Original error: %s", cmd.Name(true), origErr.Error()))
+			// 2) If the result is not OK, build an WaitFor error that contains the imap.OK error
+			wferr = errors.New(fmt.Sprintf("WaitFor: Command %s finished, but failed to wait \n"+
+				"for the result with error: %s", cmd.Name(true), okErr.Error()))
 			mc.logMC(wferr.Error(), imap.LogAll)
 			return cmd, wferr
 		}
@@ -399,6 +404,23 @@ func parseHeader(mi *imap.MessageInfo) (*Header, error) {
 		curHeader.Date = mi.InternalDate
 		return curHeader, err
 	}
+}
+
+func (mc *MailCon) keepAlive(every int) {
+	ticker := time.NewTicker(time.Duration(every) * time.Second)
+	mc.QuitChan = make(chan struct{})
+	go func() {
+		for {
+			select {
+			case <- ticker.C:
+				// Send Noop to keep connection alive
+				mc.waitFor(mc.client.Noop())
+			case <- mc.QuitChan:
+				ticker.Stop()
+				return
+			}
+		}
+	}()
 }
 
 /**
@@ -457,3 +479,4 @@ func readFlags(mi *imap.MessageInfo) (f *Flags) {
 	}
 	return f;
 }
+

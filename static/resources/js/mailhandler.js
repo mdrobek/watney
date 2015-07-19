@@ -1,5 +1,5 @@
 /**
- * Created by lion on 22/06/15.
+ * Created by mdrobek on 22/06/15.
  */
 goog.provide('wat.mail.MailHandler');
 
@@ -13,6 +13,8 @@ goog.require('goog.array');
 
 wat.mail.MailHandler = function() {
 };
+
+wat.mail.LAST_ACTIVE_OVERVIEW_ITEM_ID = "";
 
 wat.mail.LOAD_MAILS_URI_ = "/mails";
 

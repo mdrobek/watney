@@ -1,6 +1,6 @@
 /**
  *
- * Created by lion on 30/06/15.
+ * Created by mdrobek on 30/06/15.
  */
 goog.provide('wat.mail');
 goog.provide('wat.mail.MailItem');
@@ -9,9 +9,11 @@ goog.require('wat');
 goog.require('wat.soy.mail');
 goog.require('goog.events');
 goog.require('goog.dom');
+goog.require('goog.dom.classes');
 goog.require('goog.date');
 goog.require('goog.i18n.DateTimeFormat');
 goog.require('goog.soy');
+goog.require('goog.string');
 
 wat.mail.LOAD_MAILCONTENT_URI_ = "/mailContent";
 
@@ -88,16 +90,11 @@ wat.mail.MailItem.prototype.showContent = function() {
     var self = this;
     if (!self.HasContentBeenLoaded) {
         console.log("Content is not available! Starting to fetch content for UID: " + self.UID);
-        self.loadContent_(self.showContent);
+        self.loadContent_();
     } else {
-        var d_mailDetailsFrom = goog.dom.getElement("mailDetails_From"),
-            d_mailDetailsSubject = goog.dom.getElement("mailDetails_Subject"),
-            d_mailDetailsTo = goog.dom.getElement("mailDetails_To"),
-            d_mailDetailsContent = goog.dom.getElement("mailDetails_Content");
-        goog.dom.setTextContent(d_mailDetailsFrom, self.From);
-        goog.dom.setTextContent(d_mailDetailsSubject, self.Subject);
-        goog.dom.setTextContent(d_mailDetailsTo, self.Receiver);
-        goog.dom.setTextContent(d_mailDetailsContent, self.Content);
+        self.deactivateOverviewItem_();
+        self.highlightOverviewItem_();
+        self.fillMailPage_();
     }
 };
 
@@ -109,7 +106,7 @@ wat.mail.MailItem.prototype.showContent = function() {
  * @param {function} localCallback
  * @private
  */
-wat.mail.MailItem.prototype.loadContent_ = function(localCallback) {
+wat.mail.MailItem.prototype.loadContent_ = function() {
     var self = this,
         request = new goog.net.XhrIo(),
         data = new goog.Uri.QueryData();
@@ -117,26 +114,55 @@ wat.mail.MailItem.prototype.loadContent_ = function(localCallback) {
     goog.events.listen(request, goog.net.EventType.COMPLETE, function (event) {
         // request complete
         var request = event.currentTarget;
-        //memoriesJSON;
         if (request.isSuccess()) {
             self.Content = request.getResponseJson();
             self.HasContentBeenLoaded = true;
-            //console.log("Mail Content request was successful: " + self.Content);
-            // Populate the Mail overview with all retrieved mails
-            //var mails = goog.array.map(mailsJSON, function(curMailJSON) {
-            //    var curMail = new wat.mail.Mail(curMailJSON);
-            //    curMail.renderMail();
-            //    return curMail;
-            //});
-            if (null != localCallback) { self.showContent(); }
+            self.showContent();
         } else {
-            //error
+            // error
             console.log("something went wrong loading content for mail: " + this.getLastError());
             console.log("^^^ " + this.getLastErrorCode());
         }
     }, false, self);
     request.send(wat.mail.LOAD_MAILCONTENT_URI_, 'POST', data.toString());
 };
+
+wat.mail.MailItem.prototype.deactivateOverviewItem_ = function() {
+    if ("" != wat.mail.LAST_ACTIVE_OVERVIEW_ITEM_ID) {
+        var d_mailOverview = goog.dom.getElement(wat.mail.LAST_ACTIVE_OVERVIEW_ITEM_ID),
+            d_mailOverviewEntry = goog.dom.getElementByClass("entry", d_mailOverview);
+        if (goog.dom.classes.has(d_mailOverviewEntry, "active")) {
+            wat.mail.LAST_ACTIVE_OVERVIEW_ITEM_ID = "";
+            goog.dom.classes.remove(d_mailOverviewEntry, "active");
+        }
+    }
+};
+
+wat.mail.MailItem.prototype.highlightOverviewItem_ = function() {
+    var self = this,
+        d_mailOverview = goog.dom.getElement(self.DomID),
+        d_mailOverviewEntry = goog.dom.getElementByClass("entry", d_mailOverview);
+    if (!goog.dom.classes.has(d_mailOverviewEntry, "active")) {
+        wat.mail.LAST_ACTIVE_OVERVIEW_ITEM_ID = self.DomID;
+        goog.dom.classes.add(d_mailOverviewEntry, "active");
+    }
+};
+
+wat.mail.MailItem.prototype.fillMailPage_ = function() {
+    var self = this,
+        d_mailDetailsFrom = goog.dom.getElement("mailDetails_From"),
+        d_mailDetailsSubject = goog.dom.getElement("mailDetails_Subject"),
+        d_mailDetailsTo = goog.dom.getElement("mailDetails_To"),
+        d_mailDetailsContent = goog.dom.getElement("mailDetails_Content"),
+        htmlContent = goog.string.newLineToBr(goog.string.canonicalizeNewlines(self.Content));
+    goog.dom.setTextContent(d_mailDetailsFrom, self.From);
+    goog.dom.setTextContent(d_mailDetailsSubject, self.Subject);
+    goog.dom.setTextContent(d_mailDetailsTo, self.Receiver);
+
+    goog.dom.removeChildren(d_mailDetailsContent);
+    goog.dom.appendChild(d_mailDetailsContent, goog.dom.htmlToDocumentFragment(htmlContent));
+};
+
 /**
  *
  * @param {String} subject
