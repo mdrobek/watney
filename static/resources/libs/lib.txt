@@ -1,2 +1,0 @@
-Todo:
-Write about which libraries are required and need to be downloaded to have Watney run properly

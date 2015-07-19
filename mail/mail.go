@@ -158,6 +158,7 @@ func (mc *MailCon) IsAuthenticated() bool {
 func (mc *MailCon) Close() error {
 	var err error
 	if nil != mc.client {
+		fmt.Printf("[watney] Shutting down IMAP connection\n")
 		_, err = mc.waitFor(mc.client.Logout(30 * time.Second))
 	}
 	return err

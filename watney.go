@@ -9,6 +9,8 @@ import (
 	"flag"
 	"os"
 	"fmt"
+	"os/signal"
+	"syscall"
 )
 
 func main() {
@@ -26,7 +28,16 @@ func main() {
 	}
 
 	web := web.NewWeb(&conf.Mail, conf.Web.Debug)
-	defer web.Close()
+
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, os.Interrupt)
+	signal.Notify(c, syscall.SIGTERM)
+	go func() {
+		sig := <-c
+		fmt.Printf("[watney] Received Signal %s\n", sig.String())
+		web.Close()
+		os.Exit(1)
+	}()
 
 	web.Start(conf.Web.Port)
 }

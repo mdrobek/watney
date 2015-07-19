@@ -19,6 +19,7 @@ import (
 	"hash/fnv"
 	"github.com/scorredoira/email"
 	"net/smtp"
+	"github.com/gorilla/securecookie"
 )
 
 type MailWeb struct {
@@ -47,7 +48,7 @@ func NewWeb(mailConf *conf.MailConf, debug bool) *MailWeb {
 		panic("Couldn't establish connection to imap mail server: %s', err")
 	}
 
-	store := sessions.NewCookieStore([]byte("secret123"))
+	store := sessions.NewCookieStore(securecookie.GenerateRandomKey(128))
 	// Default our store to use Session cookies, so we don't leave logged in
 	// users roaming around
 	store.Options(sessions.Options{MaxAge: 0, })
@@ -75,6 +76,7 @@ func (web *MailWeb) Start(port int) {
 	Closes the IMAP mail server connection
  */
 func (web *MailWeb) Close() error {
+	fmt.Printf("[watney] Invoking Shutdown procedure\n")
 	if nil != web.imapCon {
 		return web.imapCon.Close()
 	}

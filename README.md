@@ -11,7 +11,7 @@ ones."</code>
 
 First of all: Because I can.  
 Secondly, there's a couple of reasons here:  
-* They run on interpreted scripts, such as PHP and Python. Enough said!
+* Most of them run on interpreted scripts, such as PHP and Python. Enough said!
 * Seriously, they run on scripts such as PHP or Python, which requires your server to have these
 environments. Older servers might not support the current PHP or Python version. However, Go
 programs can be compiled to native binaries for a target platform, which prevents this issue (at
@@ -32,9 +32,10 @@ Make sure python, gradle, java and go can be executed on your command line.
 **Note:** Please make sure, that GOPATH is set accordingly, as described [here][14].
   
 To Run Watney (on your server):
-* **None** (Once Watney is a compiled executable, no additional requirements are necessary to run it.)
-* You need to have access to a/your imap server (Duh! What's the point otherwise, it's a
-Mail-Client after all.)
+* IMAP Server to pull your mails
+* SMTP Server to send mails
+* **No other requirements** (Once Watney is a compiled executable, no additional requirements are
+necessary to run it.)
 
 ### Get and Build Watney
 1) Download the watney sources from github:  
