@@ -1,6 +1,8 @@
 {namespace wat.soy.mail}
 
 /**
+ * Template to create new mail overview items.
+ *
  * @param DomID
  * @param IsFromToday
  * @param Seen
@@ -9,7 +11,7 @@
  * @param DateString
  * @param TimeString
  */
-{template .mailOverview}
+{template .mailOverviewItem}
     <div id={$DomID} class="row">
         <div class="col-md-12">
             <div class="row entry {if not $Seen} newMail {/if}">
@@ -30,5 +32,17 @@
                 <hr class="mail-separator">
             </div>
         </div>
+    </div>
+{/template}
+
+/**
+ * Template to create new mail reply items.
+ *
+ * @param DomID
+ * @param ShortenedTo
+ */
+{template .mailReplyItem}
+    <div id="{$DomID}" class="mail-reply-item">
+        <div>{$ShortenedTo}</div>
     </div>
 {/template}

@@ -334,7 +334,7 @@ func (mc *MailCon) login(username, passwd string) (*imap.Command, error) {
 
 func (mc *MailCon) waitFor(cmd *imap.Command, origErr error) (*imap.Command, error) {
 	var (
-		//		rsp   *imap.Response
+		//	rsp   *imap.Response
 		wferr error
 	)
 	// 1) Check if we're missing a command and if so, return with an error
@@ -414,7 +414,9 @@ func (mc *MailCon) keepAlive(every int) {
 			select {
 			case <- ticker.C:
 				// Send Noop to keep connection alive
-				mc.waitFor(mc.client.Noop())
+				if _, err := mc.waitFor(mc.client.Noop()); err != nil {
+					mc.logMC(err.Error(), imap.LogAll)
+				}
 			case <- mc.QuitChan:
 				ticker.Stop()
 				return

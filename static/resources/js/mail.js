@@ -81,7 +81,7 @@ wat.mail.MailItem.prototype.Deleted = false;
 wat.mail.MailItem.prototype.renderMail = function() {
     var self = this,
         mailTableElem = goog.dom.getElement("mailItems"),
-        d_mailItem = goog.soy.renderAsElement(wat.soy.mail.mailOverview, this);
+        d_mailItem = goog.soy.renderAsElement(wat.soy.mail.mailOverviewItem, this);
     goog.events.listen(d_mailItem, goog.events.EventType.CLICK, self.showContent, false, self);
     goog.dom.append(mailTableElem, d_mailItem);
 };

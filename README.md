@@ -27,7 +27,7 @@ To Build Watney (on your dev machine):
 * [Python][12] at least version 2.7.9  (to create closure dependency files with the google closure
 tools)
 * [Java][16] at least version 1.7 (to compile JS files with the google closure tools)
-* [Go][13] at least version 1.4.2 (to compile watney into an executable)
+* [Go][13] at least version 1.4.2 (to compile watney into an executable)  
 Make sure python, gradle, java and go can be executed on your command line.  
 **Note:** Please make sure, that GOPATH is set accordingly, as described [here][14].
   

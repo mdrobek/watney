@@ -20,7 +20,7 @@ wat.mail.LOAD_MAILS_URI_ = "/mails";
 
 /**
  * @param {function} localCallback
- * @private
+ * @public
  */
 wat.mail.MailHandler.prototype.loadMails = function(localCallback) {
     var request = new goog.net.XhrIo(),

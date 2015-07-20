@@ -121,6 +121,7 @@ div#mailItems > div.row:nth-of-type(2n) {
     text-align: center;
     padding: 0;
     overflow: hidden;
+    cursor: pointer;
 }
 .mail-overview .entry.active {
     background-color: brown;
@@ -147,8 +148,8 @@ div#mailItems > div.row:nth-of-type(2n) {
 .mail-overview .entry .content .subject {
     overflow: hidden;
     font-size: 20px;
-    padding: 0px;
-    font-family: Console;
+    padding: 0;
+    font-family: Console, serif;
 }
 .mail-overview .entry .content .from {
     font-size: 18px;
@@ -163,15 +164,44 @@ div#mailItems > div.row:nth-of-type(2n) {
 .mail-content .header {
     font-size: 20px;
     color: white;
+    height: 11%;
+}
+.mail-content .control-bar {
+    padding-left: 15px;
+    height: 7%;
 }
 .mail-content .content {
-    height: 100%;
     background-color: #454b4c;
     font-size: 18px;
-    padding-top: 20px;
     color: white;
     overflow-y: scroll;
+    height: 75%;
+    border: 1px solid;
+    margin-left: 3px;
+    margin-right: 0;
+}
+.mail-content .mail-reply-bar {
+    height: 4%;
+    margin: 3px 0 0;
+}
+.mail-content .mail-reply-bar .mail-reply-container {
+    padding: 0;
+}
+.mail-content .mail-reply-bar .mail-reply-item {
+    width: 200px;
     height: 100%;
+    background-color: #6495ED;
+    float: right;
+    color: #FFF;
+    font-size: 22px;
+    padding-top: 3px;
+    padding-left: 2px;
+    margin-right: 10px;
+    border: 2px solid orange;
+    cursor: pointer;
+}
+.mail-content .mail-reply-bar .mail-reply-item:hover {
+    background-color: #317461;
 }
 
 /**************************************************************************************************
