@@ -8,6 +8,12 @@ body {
 }
 
 
+.mainPage {
+    overflow: hidden;
+    background-color: #666c6d;
+    color: #b29c51;
+}
+
 /*
  * Global add-ons
  */
