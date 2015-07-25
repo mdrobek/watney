@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"mdrobek/watney/mail"
 	"sort"
-	"errors"
 	"mdrobek/watney/conf"
 	"strconv"
 	"github.com/go-martini/martini"
@@ -30,7 +29,7 @@ type MailWeb struct {
 	// Mail server configuration
 	mconf     *conf.MailConf
 	// Mail server connection
-	imapCon   *mail.MailCon
+//	imapCon   *mail.MailCon
 	// Whether the app server is run in debugging mode for dev
 	debug     bool
 }
@@ -41,12 +40,6 @@ func NewWeb(mailConf *conf.MailConf, debug bool) *MailWeb {
 	var web *MailWeb = new(MailWeb)
 	web.mconf = mailConf
 	web.debug = debug
-
-	// 1) Create a new IMAP mail server connection
-	var err error
-	if web.imapCon, err = mail.NewMailCon(web.mconf); nil != err {
-		panic("Couldn't establish connection to imap mail server: %s', err")
-	}
 
 	store := sessions.NewCookieStore(securecookie.GenerateRandomKey(128))
 	// Default our store to use Session cookies, so we don't leave logged in
@@ -77,10 +70,11 @@ func (web *MailWeb) Start(port int) {
  */
 func (web *MailWeb) Close() error {
 	fmt.Printf("[watney] Invoking Shutdown procedure\n")
-	if nil != web.imapCon {
-		return web.imapCon.Close()
-	}
-	return errors.New("No imap connection was available to close")
+	return nil
+//	if nil != web.imapCon {
+//		return web.imapCon.Close()
+//	}
+//	return errors.New("No imap connection was available to close")
 }
 
 /**************************************************************************************************
@@ -124,7 +118,7 @@ data map[string]interface{}) {
 func (web *MailWeb) initHandlers() {
 	// Public Handlers
 	web.martini.Get("/", web.welcome)
-	web.martini.Post("/", binding.Bind(auth.MyUserModel{}), web.authenticate)
+	web.martini.Post("/", binding.Bind(auth.WatneyUser{}), web.authenticate)
 
 	// Private Handlers
 	web.martini.Get("/logout", sessionauth.LoginRequired, web.logout)
@@ -141,32 +135,40 @@ func (web *MailWeb) initHandlers() {
 		martini.StaticOptions{Prefix:"/css/"}))
 }
 
-func (web *MailWeb) authenticate(session sessions.Session, postedUser auth.MyUserModel,
+func (web *MailWeb) authenticate(session sessions.Session, postedUser auth.WatneyUser,
 		r render.Render, req *http.Request) {
-	user := auth.MyUserModel{}
+	user := auth.WatneyUser{}
 	fmt.Println("Checking for given user", postedUser, user, web.mconf)
-	if _, err := web.imapCon.Authenticate(postedUser.Username, postedUser.Password); err == nil {
-		fmt.Println("AUTHENTICATED!")
-		user.Username = postedUser.Username
-		h := fnv.New32a()
-		h.Write([]byte(postedUser.Username))
-		user.Id = int64(h.Sum32())
-		user.SMTPAuth = smtp.PlainAuth("", postedUser.Username, postedUser.Password,
-			web.mconf.SMTPAddress)
-		user.Login()
-		err := sessionauth.AuthenticateSession(session, &user)
-		if err != nil {
-			r.JSON(500, err)
-		}
-		r.Redirect("/main")
-		return
-	} else {
-		fmt.Println("FAILED!")
+
+	// 1) Create a new IMAP mail server connection
+	if imapCon, err := mail.NewMailCon(web.mconf); nil != err {
+		fmt.Println("Couldn't establish connection to imap mail server: %s', err")
 		r.HTML(200, "start", map[string]interface{}{
 			"FailedLogin" : true,
 			"OrigError" : err.Error(),
 		})
-		return
+	} else {
+		if _, err := imapCon.Authenticate(postedUser.Username, postedUser.Password); err == nil {
+			fmt.Println("AUTHENTICATED!")
+			user.Username = postedUser.Username
+			h := fnv.New32a()
+			h.Write([]byte(postedUser.Username))
+			user.Id = int64(h.Sum32())
+			user.SMTPAuth = smtp.PlainAuth("", postedUser.Username, postedUser.Password,
+				web.mconf.SMTPAddress)
+			user.ImapCon = imapCon
+			if err := sessionauth.AuthenticateSession(session, &user); err != nil {
+				r.JSON(500, err)
+			}
+			r.Redirect("/main")
+		} else {
+			fmt.Println("FAILED!")
+			imapCon.Close()
+			r.HTML(200, "start", map[string]interface{}{
+				"FailedLogin" : true,
+				"OrigError" : err.Error(),
+			})
+		}
 	}
 }
 
@@ -175,11 +177,8 @@ func (web *MailWeb) welcome(r render.Render) {
 }
 
 func (web *MailWeb) logout(session sessions.Session, user sessionauth.User, r render.Render) {
-	fmt.Println("Successful logout of user: ", user)
 	sessionauth.Logout(session, user)
-	if web.imapCon.IsAuthenticated() {
-		web.imapCon.Close()
-	}
+	user.Logout()
 	r.HTML(200, "start", nil)
 }
 
@@ -189,13 +188,14 @@ func (web *MailWeb) main(r render.Render) {
 	})
 }
 
-func (web *MailWeb) mails(r render.Render, req *http.Request) {
+func (web *MailWeb) mails(r render.Render, user sessionauth.User, req *http.Request) {
 	var mails []mail.Mail = []mail.Mail{}
-	if web.imapCon.IsAuthenticated() {
+	var watneyUser *auth.WatneyUser = user.(*auth.WatneyUser)
+	if nil != watneyUser && watneyUser.IsAuthenticated() {
 		switch req.FormValue("mailInformation") {
-			case mail.FULL: mails, _ = web.imapCon.LoadMailsFromFolder(req.FormValue("folder"))
+			case mail.FULL: mails, _ = watneyUser.ImapCon.LoadMailsFromFolder(req.FormValue("folder"))
 			case mail.OVERVIEW: fallthrough
-			default: mails, _ = web.imapCon.LoadMailOverview(req.FormValue("folder"))
+			default: mails, _ = watneyUser.ImapCon.LoadMailOverview(req.FormValue("folder"))
 		}
 		// Reverse the retrieved mail array
 		sort.Sort(mail.MailSlice(mails))
@@ -205,17 +205,18 @@ func (web *MailWeb) mails(r render.Render, req *http.Request) {
 	}
 }
 
-func (web *MailWeb) mailContent(r render.Render, req *http.Request) {
-	if web.imapCon.IsAuthenticated() {
+func (web *MailWeb) mailContent(r render.Render, user sessionauth.User, req *http.Request) {
+	var watneyUser *auth.WatneyUser = user.(*auth.WatneyUser)
+	if watneyUser.ImapCon.IsAuthenticated() {
 		uid, _ := strconv.ParseInt(req.FormValue("uid"), 10, 32)
-		mailContent, _ := web.imapCon.LoadContentForMail(req.FormValue("folder"), uint32(uid))
+		mailContent, _ := watneyUser.ImapCon.LoadContentForMail(req.FormValue("folder"), uint32(uid))
 		r.JSON(200, mailContent)
 	} else {
 		fmt.Printf("[watney] IMAP Session has timed out.")
 	}
 }
 
-func (web *MailWeb) sendMail(r render.Render, curUser auth.MyUserModel, req *http.Request) {
+func (web *MailWeb) sendMail(r render.Render, curUser auth.WatneyUser, req *http.Request) {
 	m := email.NewMessage("Hi", "this is the body")
 	m.From = "from@example.com"
 	m.To = []string{"to@example.com"}
