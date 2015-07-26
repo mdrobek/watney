@@ -1,6 +1,23 @@
 /*
  * Base structure
  */
+@font-face {
+    font-family: Battlestar;
+    src: url(/css/battlest.ttf);
+}
+
+/* WELCOME PAGE */
+.welcome-text {
+    margin-bottom: 50px;
+    text-align: center;
+    font-family: Battlestar;
+    font-size: 58px;
+}
+.signin-btn {
+   margin-top: 75px;
+    font-family: Battlestar;
+    font-size: 35px;
+}
 
 /* Move down content because we have a fixed navbar that is 50px tall */
 body {
@@ -79,12 +96,21 @@ body {
     color: #eeeeee;
     background-color: #428bca;
 }
+.logout-Btn {
+    font-family: Battlestar;
+    font-size: 20px;
+}
 
+.navbar-brand {
+    font-family: Battlestar;
+    font-size: 45px;
+    padding-top: 18px;
+    padding-left: 2px;
+}
 
 /*
  * Main content
  */
-
 .main {
     padding: 20px;
 }
