@@ -186,17 +186,49 @@ div#mailItems > div.row:nth-of-type(2n) {
     margin-left: 3px;
     margin-right: 0;
 }
-.mail-content .mail-reply-bar {
+.mail-content .mail-window {
+    height: 0;
+}
+.mail-content .mail-window .mail-window-container {
+    height: 0;
+}
+.mail-content .mail-window .mail-window-container .mail-window-item {
+    width: 100%;
+    display: block;
+    -webkit-transition: all 500ms;
+    -moz-transition: all 500ms;
+    -o-transition: all 500ms;
+    transition: all 500ms;
+    height: 0;
+    bottom: 0;
+}
+.mail-content .mail-window .mail-window-container .mail-window-item .content {
+    border: 0;
+}
+.mail-content .mail-window .mail-window-container .mail-window-item.active {
+    background-color: #FF0;
+    display: block;
+    height: 680px;
+    position: relative;
+    bottom: 680px;
+    -webkit-transition: all 500ms;
+    -moz-transition: all 500ms;
+    -o-transition: all 500ms;
+    transition: all 500ms;
+}
+
+.mail-content .mail-window-bar {
     height: 4%;
     margin: 3px 0 0;
 }
-.mail-content .mail-reply-bar .mail-reply-container {
+.mail-content .mail-window-bar .mail-window-bar-container {
     padding: 0;
 }
-.mail-content .mail-reply-bar .mail-reply-item {
-    width: 200px;
+.mail-content .mail-window-bar .mail-window-bar-container .mail-window-bar-item {
+    width: 20%;
     height: 100%;
     background-color: #6495ED;
+    display: inline;
     float: right;
     color: #FFF;
     font-size: 22px;
@@ -206,7 +238,8 @@ div#mailItems > div.row:nth-of-type(2n) {
     border: 2px solid orange;
     cursor: pointer;
 }
-.mail-content .mail-reply-bar .mail-reply-item:hover {
+.mail-content .mail-window-bar .mail-window-bar-container .mail-window-bar-item:hover,
+.mail-content .mail-window-bar .mail-window-bar-container .mail-window-bar-item.active {
     background-color: #317461;
 }
 

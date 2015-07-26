@@ -17,15 +17,15 @@ goog.require('goog.string');
 
 wat.mail.LOAD_MAILCONTENT_URI_ = "/mailContent";
 
-/**
- *
- * @param jsonData
- * @constructor
- */
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 ///                                     Public methods                                           ///
 ////////////////////////////////////////////////////////////////////////////////////////////////////
-
+/**
+ * A MailItem reflects the UI element of a received mail that is shown in the overview and main
+ * mail page.
+ * @param jsonData
+ * @constructor
+ */
 wat.mail.MailItem = function(jsonData) {
     var self = this;
     self.UID = jsonData.UID;
@@ -92,9 +92,11 @@ wat.mail.MailItem.prototype.showContent = function() {
         console.log("Content is not available! Starting to fetch content for UID: " + self.UID);
         self.loadContent_();
     } else {
-        self.deactivateOverviewItem_();
+        self.hideNewMail_();
+        self.deactivateLastOverviewItem_();
         self.highlightOverviewItem_();
         self.fillMailPage_();
+        self.adjustCtrlBtns_();
     }
 };
 
@@ -127,7 +129,13 @@ wat.mail.MailItem.prototype.loadContent_ = function() {
     request.send(wat.mail.LOAD_MAILCONTENT_URI_, 'POST', data.toString());
 };
 
-wat.mail.MailItem.prototype.deactivateOverviewItem_ = function() {
+wat.mail.MailItem.prototype.hideNewMail_ = function() {
+    if (goog.isDefAndNotNull(wat.mail.LAST_ACTIVE_NEW_MAIL_ITEM)) {
+       wat.mail.LAST_ACTIVE_NEW_MAIL_ITEM.hide();
+    }
+};
+
+wat.mail.MailItem.prototype.deactivateLastOverviewItem_ = function() {
     if ("" != wat.mail.LAST_ACTIVE_OVERVIEW_ITEM_ID) {
         var d_mailOverview = goog.dom.getElement(wat.mail.LAST_ACTIVE_OVERVIEW_ITEM_ID),
             d_mailOverviewEntry = goog.dom.getElementByClass("entry", d_mailOverview);
@@ -164,6 +172,21 @@ wat.mail.MailItem.prototype.fillMailPage_ = function() {
 };
 
 /**
+ * Resets all control button events for the current mail (e.g., reply, forward and delete button).
+ * @param subject
+ * @param maxLength
+ * @param appendDots
+ * @private
+ */
+wat.mail.MailItem.prototype.adjustCtrlBtns_ = function() {
+    var self = this,
+        d_replyBtn = goog.dom.getElement("mailReplyBtn");
+    goog.events.removeAll();
+    goog.events.listen(d_replyBtn, goog.events.EventType.CLICK, wat.app.mailHandler.createReply,
+        false, self);
+};
+
+/**
  *
  * @param {String} subject
  * @param {Number} maxLength
@@ -178,3 +201,4 @@ wat.mail.MailItem.prototype.shrinkField_ = function(subject, maxLength, appendDo
         shortenedSubject = subject.substr(0, shortenedLength);
     return appendDots ? (shortenedSubject + " ...") : shortenedSubject;
 };
+

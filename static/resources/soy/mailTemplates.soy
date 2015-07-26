@@ -41,8 +41,20 @@
  * @param DomID
  * @param ShortenedTo
  */
-{template .mailReplyItem}
-    <div id="{$DomID}" class="mail-reply-item">
+{template .newMailWindowItem}
+    <div id="{$DomID}" class="col-md-12 mail-window-item">
+        <div class="content">{$ShortenedTo}</div>
+    </div>
+{/template}
+
+/**
+ * Template to create new mail reply items.
+ *
+ * @param DomID
+ * @param ShortenedTo
+ */
+{template .newMailBarItem}
+    <div id="{$DomID}" class="mail-window-bar-item">
         <div>{$ShortenedTo}</div>
     </div>
 {/template}
