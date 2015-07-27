@@ -66,34 +66,18 @@ wat.mail.NewMail.prototype.addNewMail = function(opt_to) {
 };
 
 wat.mail.NewMail.prototype.toggleVisible = function() {
-    console.log("TOGGLE");
-    var self = this,
-        d_newMailBarItem = goog.dom.getElement(self.WindowBarItemDomID);
+    var self = this;
     // 1) A click event has occurred ...
     if (self.PreviewActive) {
-        goog.events.unlistenByKey(self.MOUSEOVER_KEY);
-        goog.events.unlistenByKey(self.MOUSEOUT_KEY);
+        // We want to get rid of hover events
+        self.unregisterHoverEvents();
         // Preview is now active view
         self.PreviewActive = false;
     } else if (self.Visible) {
-        // New_Mail is visible because of previous click event
-        self.hide();
-        self.MOUSEOVER_KEY = goog.events.listen(d_newMailBarItem, goog.events.EventType.MOUSEOVER,
-            function(ev) {
-            ev.stopPropagation();
-            console.log("ENTERING!" + ev.target);
-            self.show();
-            self.PreviewActive = true;
-        }, false, self);
-        self.MOUSEOUT_KEY = goog.events.listen(d_newMailBarItem, goog.events.EventType.MOUSEOUT,
-            function(ev) {
-            ev.stopPropagation();
-            console.log("LEAVING! " + ev.target);
-            self.hide();
-            self.PreviewActive = false;
-        }, false, self);
+        // New_Mail is visible because of previous click event => we want hover events
+        self.hideAndHoverEvents();
     } else {
-        // New_Mail is hidden because of previous click event
+        // New_Mail is hidden because of previous click event => we don't want hover events
         self.show();
     }
 };
@@ -101,18 +85,59 @@ wat.mail.NewMail.prototype.toggleVisible = function() {
 wat.mail.NewMail.prototype.hide = function() {
     // Only return if we're not forcing to hide and its marked sticky
     //if (!this.Visible) return;
-    console.log("HIDE");
     var d_newMailWindowItem = goog.dom.getElement(this.WindowDomID);
     goog.dom.classes.remove(d_newMailWindowItem, "active");
     this.Visible = false;
 };
 
+wat.mail.NewMail.prototype.hideAndHoverEvents = function() {
+    this.hide();
+    this.registerHoverEvents();
+};
+
 wat.mail.NewMail.prototype.show = function() {
     //if (this.Visible) return;
-    console.log("SHOW");
+    if (goog.isDefAndNotNull(wat.mail.LAST_ACTIVE_NEW_MAIL_ITEM)
+        && this != wat.mail.LAST_ACTIVE_NEW_MAIL_ITEM) {
+        wat.mail.LAST_ACTIVE_NEW_MAIL_ITEM.hideAndHoverEvents();
+    }
     var d_newMailWindowItem = goog.dom.getElement(this.WindowDomID);
     if (!goog.dom.classes.has(d_newMailWindowItem, "active")) {
         goog.dom.classes.add(d_newMailWindowItem, "active");
     }
+    wat.mail.LAST_ACTIVE_NEW_MAIL_ITEM = this;
     this.Visible = true;
+};
+
+wat.mail.NewMail.prototype.registerHoverEvents = function() {
+    // 1) Check if the events are already active, and if so, don't register them again
+    var self = this,
+        d_newMailBarItem = goog.dom.getElement(self.WindowBarItemDomID);
+    if (null == self.MOUSEOVER_KEY) {
+        self.MOUSEOVER_KEY = goog.events.listen(d_newMailBarItem, goog.events.EventType.MOUSEOVER,
+            function (ev) {
+                if (goog.isDefAndNotNull(wat.mail.LAST_ACTIVE_NEW_MAIL_ITEM)
+                    && self != wat.mail.LAST_ACTIVE_NEW_MAIL_ITEM) {
+                    wat.mail.LAST_ACTIVE_NEW_MAIL_ITEM.hideAndHoverEvents();
+                }
+                ev.stopPropagation();
+                self.show();
+                self.PreviewActive = true;
+            }, false, self);
+    }
+    if (null == self.MOUSEOUT_KEY) {
+        self.MOUSEOUT_KEY = goog.events.listen(d_newMailBarItem, goog.events.EventType.MOUSEOUT,
+            function (ev) {
+                ev.stopPropagation();
+                self.hide();
+                self.PreviewActive = false;
+            }, false, self);
+    }
+};
+
+wat.mail.NewMail.prototype.unregisterHoverEvents = function() {
+    goog.events.unlistenByKey(this.MOUSEOVER_KEY);
+    goog.events.unlistenByKey(this.MOUSEOUT_KEY);
+    this.MOUSEOVER_KEY = null;
+    this.MOUSEOUT_KEY = null;
 };

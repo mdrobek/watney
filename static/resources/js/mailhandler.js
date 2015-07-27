@@ -65,12 +65,21 @@ wat.mail.MailHandler.prototype.loadMails = function(localCallback) {
 wat.mail.MailHandler.prototype.createReply = function() {
     var self = this,
         newMail = new wat.mail.NewMail("foo@bar.com");
-    // 1) Check if another new mail item is currently active
-    if (goog.isDefAndNotNull(wat.mail.LAST_ACTIVE_NEW_MAIL_ITEM)) {
-       wat.mail.LAST_ACTIVE_NEW_MAIL_ITEM.hide();
-    }
+    wat.mail.MailHandler.hideActiveNewMail();
     // Here's still a bug, because the hover listeners are not registered at this point
     // => hovering over this element won't work
     newMail.addNewMail();
     wat.mail.LAST_ACTIVE_NEW_MAIL_ITEM = newMail;
 };
+
+
+/**
+ * Check if another new mail item is currently active and hide it, if so
+ * @static
+ */
+wat.mail.MailHandler.hideActiveNewMail = function() {
+    if (goog.isDefAndNotNull(wat.mail.LAST_ACTIVE_NEW_MAIL_ITEM)) {
+        wat.mail.LAST_ACTIVE_NEW_MAIL_ITEM.hideAndHoverEvents();
+    }
+};
+

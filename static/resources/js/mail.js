@@ -92,7 +92,7 @@ wat.mail.MailItem.prototype.showContent = function() {
         console.log("Content is not available! Starting to fetch content for UID: " + self.UID);
         self.loadContent_();
     } else {
-        self.hideNewMail_();
+        wat.mail.MailHandler.hideActiveNewMail();
         self.deactivateLastOverviewItem_();
         self.highlightOverviewItem_();
         self.fillMailPage_();
@@ -127,12 +127,6 @@ wat.mail.MailItem.prototype.loadContent_ = function() {
         }
     }, false, self);
     request.send(wat.mail.LOAD_MAILCONTENT_URI_, 'POST', data.toString());
-};
-
-wat.mail.MailItem.prototype.hideNewMail_ = function() {
-    if (goog.isDefAndNotNull(wat.mail.LAST_ACTIVE_NEW_MAIL_ITEM)) {
-       wat.mail.LAST_ACTIVE_NEW_MAIL_ITEM.hide();
-    }
 };
 
 wat.mail.MailItem.prototype.deactivateLastOverviewItem_ = function() {
@@ -181,7 +175,7 @@ wat.mail.MailItem.prototype.fillMailPage_ = function() {
 wat.mail.MailItem.prototype.adjustCtrlBtns_ = function() {
     var self = this,
         d_replyBtn = goog.dom.getElement("mailReplyBtn");
-    goog.events.removeAll();
+    goog.events.removeAll(d_replyBtn);
     goog.events.listen(d_replyBtn, goog.events.EventType.CLICK, wat.app.mailHandler.createReply,
         false, self);
 };
