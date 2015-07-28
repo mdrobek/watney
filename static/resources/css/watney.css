@@ -207,8 +207,9 @@ div#mailItems > div.row:nth-of-type(2n) {
     font-size: 18px;
     color: white;
     overflow-y: scroll;
-    height: 75%;
-    border: 1px solid;
+    height: 74%;
+    border: 1px solid white;
+    border-radius: 10px 10px 10px 10px;
     margin-left: 3px;
     margin-right: 0;
 }
@@ -227,25 +228,41 @@ div#mailItems > div.row:nth-of-type(2n) {
     transition: all 500ms;
     height: 0;
     bottom: 0;
-}
-.mail-content .mail-window .mail-window-container .mail-window-item .content {
-    border: 0;
+    overflow: hidden;
 }
 .mail-content .mail-window .mail-window-container .mail-window-item.active {
-    background-color: #FF0;
+    background-color: #666c6d;
     display: block;
-    height: 680px;
+    border-radius: 10px 10px 10px 10px;
+    border: 1px solid white;
+    /* TODO: Look for a way to replace fixed pixel height */
+    height: 830px;
     position: relative;
-    bottom: 680px;
+    bottom: 830px;
     -webkit-transition: all 500ms;
     -moz-transition: all 500ms;
     -o-transition: all 500ms;
     transition: all 500ms;
+    overflow: visible;
 }
-
+.mail-content .mail-window .mail-window-container .mail-window-item .newmail-content {
+    border: 0;
+}
+.newmail-content .newMail-close-btn {
+    margin-top: -10px;
+    margin-right: -25px;
+    float: right;
+    font-size: 24px;
+    color: white;
+    cursor: pointer;
+}
+.newmail-content .newMail-close-btn:hover {
+    color: #317461;
+}
 .mail-content .mail-window-bar {
-    height: 4%;
+    height: 5%;
     margin: 3px 0 0;
+    padding-top: 4px;
 }
 .mail-content .mail-window-bar .mail-window-bar-container {
     padding: 0;
@@ -263,6 +280,7 @@ div#mailItems > div.row:nth-of-type(2n) {
     margin-right: 10px;
     border: 2px solid orange;
     cursor: pointer;
+    border-radius: 10px;
 }
 .mail-content .mail-window-bar .mail-window-bar-container .mail-window-bar-item:hover,
 .mail-content .mail-window-bar .mail-window-bar-container .mail-window-bar-item.active {

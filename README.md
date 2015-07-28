@@ -19,7 +19,7 @@ least to a certain degree).
 * It'd be nice to improve on the "just get me my mails" approach to "Can I also see my IMs from
 various messengers" thing. Basically an information hub, that aggregates all different information
 channels I'm forced to use.
-* Have a "one-side" main application approach to improve performance and user-experience.
+* Have a "one-site" main application approach to improve performance and user-experience.
 
 ## Requirements
 To Build Watney (on your dev machine):

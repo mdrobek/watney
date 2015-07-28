@@ -72,13 +72,14 @@ wat.mail.MailHandler.prototype.createReply = function() {
     wat.mail.LAST_ACTIVE_NEW_MAIL_ITEM = newMail;
 };
 
-
 /**
  * Check if another new mail item is currently active and hide it, if so
+ * @param {wat.mail.NewMail} curNewMail
  * @static
  */
-wat.mail.MailHandler.hideActiveNewMail = function() {
-    if (goog.isDefAndNotNull(wat.mail.LAST_ACTIVE_NEW_MAIL_ITEM)) {
+wat.mail.MailHandler.hideActiveNewMail = function(curNewMail) {
+    if (goog.isDefAndNotNull(wat.mail.LAST_ACTIVE_NEW_MAIL_ITEM)
+        && curNewMail != wat.mail.LAST_ACTIVE_NEW_MAIL_ITEM) {
         wat.mail.LAST_ACTIVE_NEW_MAIL_ITEM.hideAndHoverEvents();
     }
 };

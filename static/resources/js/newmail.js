@@ -96,11 +96,7 @@ wat.mail.NewMail.prototype.hideAndHoverEvents = function() {
 };
 
 wat.mail.NewMail.prototype.show = function() {
-    //if (this.Visible) return;
-    if (goog.isDefAndNotNull(wat.mail.LAST_ACTIVE_NEW_MAIL_ITEM)
-        && this != wat.mail.LAST_ACTIVE_NEW_MAIL_ITEM) {
-        wat.mail.LAST_ACTIVE_NEW_MAIL_ITEM.hideAndHoverEvents();
-    }
+    wat.mail.MailHandler.hideActiveNewMail(this);
     var d_newMailWindowItem = goog.dom.getElement(this.WindowDomID);
     if (!goog.dom.classes.has(d_newMailWindowItem, "active")) {
         goog.dom.classes.add(d_newMailWindowItem, "active");
@@ -116,10 +112,7 @@ wat.mail.NewMail.prototype.registerHoverEvents = function() {
     if (null == self.MOUSEOVER_KEY) {
         self.MOUSEOVER_KEY = goog.events.listen(d_newMailBarItem, goog.events.EventType.MOUSEOVER,
             function (ev) {
-                if (goog.isDefAndNotNull(wat.mail.LAST_ACTIVE_NEW_MAIL_ITEM)
-                    && self != wat.mail.LAST_ACTIVE_NEW_MAIL_ITEM) {
-                    wat.mail.LAST_ACTIVE_NEW_MAIL_ITEM.hideAndHoverEvents();
-                }
+                wat.mail.MailHandler.hideActiveNewMail(self);
                 ev.stopPropagation();
                 self.show();
                 self.PreviewActive = true;

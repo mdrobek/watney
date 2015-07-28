@@ -43,7 +43,31 @@
  */
 {template .newMailWindowItem}
     <div id="{$DomID}" class="col-md-12 mail-window-item">
-        <div class="content">{$ShortenedTo}</div>
+        <div class="newmail-content">
+            <span class="glyphicon glyphicon-remove-sign newMail-close-btn" aria-hidden="true"></span>
+            <div class="row header">
+                <div class="col-md-12">
+                    <div class="row">
+                        <div class="col-md-1">From:</div>
+                        <div id="mailDetails_From" class="col-md-11">
+                            hansmueller@foobar.com
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-1">Subject:</div>
+                        <div id="mailDetails_Subject" class="col-md-11">
+                            TestMail to show how it looks on huge subjects
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-1">To:</div>
+                        <div id="mailDetails_To" class="col-md-11">
+                            {$ShortenedTo}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 {/template}
 
