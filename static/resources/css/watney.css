@@ -248,15 +248,27 @@ div#mailItems > div.row:nth-of-type(2n) {
 .mail-content .mail-window .mail-window-container .mail-window-item .newmail-content {
     border: 0;
 }
-.newmail-content .newMail-close-btn {
+.newmail-content .newMail-window-close-btn {
     margin-top: -10px;
-    margin-right: -25px;
+    margin-right: -53px;
     float: right;
     font-size: 24px;
-    color: white;
+    color: #FFF;
     cursor: pointer;
 }
-.newmail-content .newMail-close-btn:hover {
+.newmail-content .newMail-window-close-btn:hover {
+    color: #317461;
+}
+.newmail-content .newMail-window-min-btn {
+    margin-top: -10px;
+    margin-right: 1px;
+    float: right;
+    font-size: 24px;
+    color: #FFF;
+    cursor: pointer;
+
+}
+.newmail-content .newMail-window-min-btn:hover {
     color: #317461;
 }
 .mail-content .mail-window-bar {
@@ -282,11 +294,30 @@ div#mailItems > div.row:nth-of-type(2n) {
     cursor: pointer;
     border-radius: 10px;
 }
+.newmail-content .newmail-text {
+    background-color: #666C6D;
+    height: 80%;
+    width: 100%;
+    margin-top: 10px;
+}
+
+
 .mail-content .mail-window-bar .mail-window-bar-container .mail-window-bar-item:hover,
 .mail-content .mail-window-bar .mail-window-bar-container .mail-window-bar-item.active {
     background-color: #317461;
 }
 
+.mail-window-bar-item .newMail-bar-close-btn {
+    margin-top: -10px;
+    margin-right: -7px;
+    float: right;
+    font-size: 16px;
+    color: #FFF;
+    cursor: pointer;
+}
+.mail-window-bar-item .newMail-bar-close-btn:hover {
+    color: #317461;
+}
 /**************************************************************************************************
  ***                              Welcome/Login page                                            ***
  **************************************************************************************************/
