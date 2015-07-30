@@ -176,7 +176,7 @@ wat.mail.MailItem.prototype.adjustCtrlBtns_ = function() {
     var self = this,
         d_replyBtn = goog.dom.getElement("mailReplyBtn");
     goog.events.removeAll(d_replyBtn);
-    goog.events.listen(d_replyBtn, goog.events.EventType.CLICK, wat.app.mailHandler.createReply,
+    goog.events.listen(d_replyBtn, goog.events.EventType.CLICK, self.createReply_,
         false, self);
 };
 
@@ -196,3 +196,8 @@ wat.mail.MailItem.prototype.shrinkField_ = function(subject, maxLength, appendDo
     return appendDots ? (shortenedSubject + " ...") : shortenedSubject;
 };
 
+
+wat.mail.MailItem.prototype.createReply_ = function() {
+    var self = this;
+    wat.app.mailHandler.createReply(self.Receiver, self.From, self.Subject, self.Content);
+};

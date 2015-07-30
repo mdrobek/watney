@@ -39,7 +39,10 @@
  * Template to create new mail reply items.
  *
  * @param DomID
+ * @param ShortenedFrom
  * @param ShortenedTo
+ * @param Subject
+ * @param OrigMail
  */
 {template .newMailWindowItem}
     <div id="{$DomID}" class="col-md-12 mail-window-item">
@@ -53,22 +56,36 @@
                     <div class="row">
                         <div class="col-md-1">From:</div>
                         <div id="newMail_Window_From" class="col-md-11">
-                            hansmueller@foobar.com
+                            {$ShortenedFrom}
                         </div>
                     </div>
                     <div class="row">
                         <div class="col-md-1">Subject:</div>
-                        <input id="newMail_Window__Subject" class="col-md-11"/>
+                        <div class="col-md-11">
+                            <input id="newMail_Window_Subject" class="newmail-subject"
+                                value="{$Subject}"/>
+                        </div>
                     </div>
                     <div class="row">
                         <div class="col-md-1">To:</div>
-                        <input id="newMail_Window_To" class="col-md-11" value="{$ShortenedTo}"/>
+                        <div class="col-md-11">
+                            <input id="newMail_Window_To" class="newmail-to"
+                                value="{$ShortenedTo}"/>
+                        </div>
                     </div>
                 </div>
             </div>
             <div class="row newmail">
                 <div class="col-md-12">
-                    <input id="newMail_Window_Text" class="newmail-text"/>
+                    <textarea id="newMail_Window_Text" class="newmail-text">
+                        {$OrigMail}
+                    </textarea>
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-md-12">
+                    <button type="button" class="btn btn-lg btn-success pull-right
+                        newmail-send-btn">Send</button>
                 </div>
             </div>
         </div>

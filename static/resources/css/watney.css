@@ -294,13 +294,26 @@ div#mailItems > div.row:nth-of-type(2n) {
     cursor: pointer;
     border-radius: 10px;
 }
+.newmail-content .newmail-subject {
+    background-color: #666C6D;
+    width: 100%;
+}
+.newmail-content .newmail-to {
+    background-color: #666C6D;
+    width: 100%;
+}
 .newmail-content .newmail-text {
     background-color: #666C6D;
-    height: 80%;
+    height: 77%;
     width: 100%;
     margin-top: 10px;
+    color: white;
+    font-size: 20px;
+    overflow-y: scroll;
 }
-
+.newmail-content .newmail-send-btn {
+    margin-top: 10px;
+}
 
 .mail-content .mail-window-bar .mail-window-bar-container .mail-window-bar-item:hover,
 .mail-content .mail-window-bar .mail-window-bar-container .mail-window-bar-item.active {

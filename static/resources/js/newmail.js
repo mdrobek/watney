@@ -18,11 +18,20 @@ wat.mail.ItemCounter = 0;
  * NewMail reflects the UI model for a new email to be sent (e.g., a reply or an entire new mail).
  * @constructor
  */
-wat.mail.NewMail = function(from) {
+wat.mail.NewMail = function(from, opt_to, opt_subject, opt_text) {
     var self = this;
     self.WindowDomID = "newMailWindowItem_" + wat.mail.ItemCounter;
     self.WindowBarItemDomID = "newMailBarItem_" + wat.mail.ItemCounter++;
     self.From = from;
+    if (goog.isDefAndNotNull(opt_to)) {
+        self.To = opt_to;
+    }
+    if (goog.isDefAndNotNull(opt_subject)) {
+        self.Subject = "Re: " + opt_subject;
+    }
+    if (goog.isDefAndNotNull(opt_text)) {
+        self.Text = "\n\n\n\n" + opt_text;
+    }
 };
 
 wat.mail.NewMail.prototype.WindowBarItemDomID;
@@ -40,17 +49,20 @@ wat.mail.NewMail.prototype.MOUSEOUT_KEY;
 ///                                    Private methods                                           ///
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-wat.mail.NewMail.prototype.addNewMail = function(opt_to) {
+wat.mail.NewMail.prototype.addNewMail = function() {
     var self = this,
         d_windowContainerElem = goog.dom.getElement("newMailWindowItems"),
         d_newMailWindowItem = goog.soy.renderAsElement(wat.soy.mail.newMailWindowItem, {
             DomID: self.WindowDomID,
-            ShortenedTo: self.From
+            ShortenedFrom: self.From,
+            ShortenedTo: self.To,
+            Subject: self.Subject,
+            OrigMail: self.Text
         }),
         d_barContainerElem = goog.dom.getElement("newMailBarItems"),
         d_newMailBarItem = goog.soy.renderAsElement(wat.soy.mail.newMailBarItem, {
             DomID: self.WindowBarItemDomID,
-            ShortenedTo: self.From
+            ShortenedTo: self.To,
         });
     goog.events.listen(d_newMailBarItem, goog.events.EventType.CLICK, self.toggleVisible, true,
         self);

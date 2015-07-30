@@ -62,12 +62,9 @@ wat.mail.MailHandler.prototype.loadMails = function(localCallback) {
     request.send(wat.mail.LOAD_MAILS_URI_, 'POST', data.toString());
 };
 
-wat.mail.MailHandler.prototype.createReply = function() {
-    var self = this,
-        newMail = new wat.mail.NewMail("foo@bar.com");
-    wat.mail.MailHandler.hideActiveNewMail();
-    // Here's still a bug, because the hover listeners are not registered at this point
-    // => hovering over this element won't work
+wat.mail.MailHandler.prototype.createReply = function(from, to, subject, origText) {
+    var newMail = new wat.mail.NewMail(from, to, subject, origText);
+    wat.mail.MailHandler.hideActiveNewMail(wat.mail.LAST_ACTIVE_NEW_MAIL_ITEM);
     newMail.addNewMail();
     wat.mail.LAST_ACTIVE_NEW_MAIL_ITEM = newMail;
 };
