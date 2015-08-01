@@ -122,6 +122,7 @@ func (web *MailWeb) initHandlers() {
 	// Private Handlers
 	web.martini.Get("/logout", sessionauth.LoginRequired, web.logout)
 	web.martini.Get("/main", sessionauth.LoginRequired, web.main)
+	web.martini.Post("/userInfo", sessionauth.LoginRequired, web.userInfo)
 	web.martini.Post("/mails", sessionauth.LoginRequired, web.mails)
 	web.martini.Post("/mailContent", sessionauth.LoginRequired, web.mailContent)
 	web.martini.Post("/sendMail", sessionauth.LoginRequired, web.sendMail)
@@ -252,4 +253,20 @@ func (web *MailWeb) sendMail(r render.Render, curUser sessionauth.User, req *htt
 			"error": "Authentication has expired",
 		})
 	}
+}
+
+func (web *MailWeb) userInfo(r render.Render, curUser sessionauth.User, req *http.Request) {
+	var watneyUser *auth.WatneyUser = curUser.(*auth.WatneyUser)
+	if watneyUser.ImapCon.IsAuthenticated() {
+		r.JSON(200, map[string]interface{} {
+			"email" : watneyUser.Username,
+		})
+	} else {
+		fmt.Printf("[watney] Request for User information - but IMAP Session has timed out.")
+		// 419 - Authentication has timed out
+		r.JSON(419, map[string]interface{}{
+			"error": "Authentication has expired",
+		})
+	}
+
 }

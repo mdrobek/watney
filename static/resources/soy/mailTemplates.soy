@@ -47,10 +47,10 @@
 {template .newMailWindowItem}
     <div id="{$DomID}" class="col-md-12 mail-window-item">
         <div class="newmail-content">
-            <span class="glyphicon glyphicon glyphicon-minus-sign newMail-window-min-btn"
-                aria-hidden="true"></span>
-            <span class="glyphicon glyphicon-remove-sign newMail-window-close-btn"
-                aria-hidden="true"></span>
+            <span id="{$DomID}_MinimizeBtn" class="glyphicon glyphicon glyphicon-minus-sign
+                newMail-window-min-btn" aria-hidden="true"></span>
+            <span id="{$DomID}_CloseBtn" class="glyphicon glyphicon-remove-sign
+                newMail-window-close-btn" aria-hidden="true"></span>
             <div class="row header">
                 <div class="col-md-12">
                     <div class="row">

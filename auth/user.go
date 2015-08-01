@@ -11,6 +11,7 @@ import (
 // MyUserModel can be any struct that represents a user in my system
 type WatneyUser struct {
 	Id            int64			`form:"id" db:"id"`
+	// Currently has to be the email address used for the SMTP server
 	Username      string		`form:"name" db:"username"`
 	// Is always empty, after the authentication step has been finished
 	Password      string		`form:"password" db:"password"`

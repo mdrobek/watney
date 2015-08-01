@@ -299,8 +299,8 @@ func (mc *MailCon) LoadNMailsFromFolder(folder string, n int, withContent bool) 
 	}
 }
 
-
-func (mc *MailCon) SendMail(a smtp.Auth, from string, to []string, subject string, body string) error {
+func (mc *MailCon) SendMail(a smtp.Auth, from string, to []string, subject string,
+		body string) error {
 	m := email.NewMessage(subject, body)
 	m.From = from
 	m.To = to
@@ -315,6 +315,11 @@ func (mc *MailCon) SendMail(a smtp.Auth, from string, to []string, subject strin
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 ///										Private Methods											 ///
 ////////////////////////////////////////////////////////////////////////////////////////////////////
+/**
+ * ATTENTION: Override method for smtp.SendMail. Needed to be written, since the tls.Config object
+ * can't be handed over to the original method, which needs to be modified, in case the server
+ * certificate is self-signed.
+ */
 func (mc *MailCon) sendMailSkipCert(a smtp.Auth, from string, to []string, msg []byte) error {
 	c, err := smtp.Dial(fmt.Sprintf("%s:%d", mc.conf.SMTPAddress, mc.conf.SMTPPort))
 	if err != nil {

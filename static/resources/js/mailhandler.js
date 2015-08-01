@@ -7,6 +7,7 @@ goog.require('wat');
 goog.require('wat.mail');
 goog.require('wat.mail.MailItem');
 goog.require('wat.mail.NewMail');
+goog.require('goog.events');
 goog.require("goog.net.XhrIo");
 goog.require("goog.Uri.QueryData");
 goog.require('goog.json');

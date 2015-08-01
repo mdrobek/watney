@@ -198,6 +198,7 @@ wat.mail.MailItem.prototype.shrinkField_ = function(subject, maxLength, appendDo
 
 
 wat.mail.MailItem.prototype.createReply_ = function() {
-    var self = this;
-    wat.app.mailHandler.createReply(self.Receiver, self.From, self.Subject, self.Content);
+    var self = this,
+        from = goog.isDefAndNotNull(wat.app.userMail) ? wat.app.userMail : self.Receiver;
+    wat.app.mailHandler.createReply(from, self.From, self.Subject, self.Content);
 };
