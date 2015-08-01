@@ -62,14 +62,14 @@
                     <div class="row">
                         <div class="col-md-1">Subject:</div>
                         <div class="col-md-11">
-                            <input id="newMail_Window_Subject" class="newmail-subject"
+                            <input id="{$DomID}_newMail_Window_Subject" class="newmail-subject"
                                 value="{$Subject}"/>
                         </div>
                     </div>
                     <div class="row">
                         <div class="col-md-1">To:</div>
                         <div class="col-md-11">
-                            <input id="newMail_Window_To" class="newmail-to"
+                            <input id="{$DomID}_newMail_Window_To" class="newmail-to"
                                 value="{$ShortenedTo}"/>
                         </div>
                     </div>
@@ -77,15 +77,18 @@
             </div>
             <div class="row newmail">
                 <div class="col-md-12">
-                    <textarea id="newMail_Window_Text" class="newmail-text">
+                    <textarea id="{$DomID}_newMail_Window_Text" class="newmail-text">
                         {$OrigMail}
                     </textarea>
                 </div>
             </div>
             <div class="row">
-                <div class="col-md-12">
-                    <button type="button" class="btn btn-lg btn-success pull-right
-                        newmail-send-btn">Send</button>
+                <div class="col-md-10">
+                    <div id="{$DomID}_ErrMsg" class="newmail-error-field"></div>
+                </div>
+                <div class="col-md-2">
+                    <button id="{$DomID}_SendBtn" type="button" class="btn btn-lg btn-success
+                        pull-right newmail-send-btn">Send</button>
                 </div>
             </div>
         </div>

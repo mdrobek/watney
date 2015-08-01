@@ -16,7 +16,6 @@ import (
 	"github.com/martini-contrib/binding"
 	"fmt"
 	"hash/fnv"
-	"github.com/scorredoira/email"
 	"net/smtp"
 	"github.com/gorilla/securecookie"
 )
@@ -125,6 +124,7 @@ func (web *MailWeb) initHandlers() {
 	web.martini.Get("/main", sessionauth.LoginRequired, web.main)
 	web.martini.Post("/mails", sessionauth.LoginRequired, web.mails)
 	web.martini.Post("/mailContent", sessionauth.LoginRequired, web.mailContent)
+	web.martini.Post("/sendMail", sessionauth.LoginRequired, web.sendMail)
 
 	// Static content
 	web.martini.Use(martini.Static("src/mdrobek/watney/static/resources/libs/",
@@ -201,7 +201,12 @@ func (web *MailWeb) mails(r render.Render, user sessionauth.User, req *http.Requ
 		sort.Sort(mail.MailSlice(mails))
 		r.JSON(200, mails)
 	} else {
-		// TODO: return an JSON error cause imap conn is lost
+		fmt.Printf("[watney] User tried to retrieve mail overview - ",
+			" but IMAP Session has timed out.")
+		// 419 - Authentication has timed out
+		r.JSON(419, map[string]interface{} {
+			"error": "Authentication has expired",
+		} )
 	}
 }
 
@@ -212,18 +217,39 @@ func (web *MailWeb) mailContent(r render.Render, user sessionauth.User, req *htt
 		mailContent, _ := watneyUser.ImapCon.LoadContentForMail(req.FormValue("folder"), uint32(uid))
 		r.JSON(200, mailContent)
 	} else {
-		fmt.Printf("[watney] IMAP Session has timed out.")
+		fmt.Printf("[watney] User tried to retrieve content of mail - ",
+			" but IMAP Session has timed out.")
+		// 419 - Authentication has timed out
+		r.JSON(419, map[string]interface{} {
+			"error": "Authentication has expired",
+		} )
 	}
 }
 
-func (web *MailWeb) sendMail(r render.Render, curUser auth.WatneyUser, req *http.Request) {
-	m := email.NewMessage("Hi", "this is the body")
-	m.From = "from@example.com"
-	m.To = []string{"to@example.com"}
-	err := m.Attach("picture.png")
-	if err != nil {
-		log.Println(err)
+func (web *MailWeb) sendMail(r render.Render, curUser sessionauth.User, req *http.Request) {
+	var watneyUser *auth.WatneyUser = curUser.(*auth.WatneyUser)
+	if watneyUser.ImapCon.IsAuthenticated() {
+		var subject, from, body string
+		subject = req.FormValue("subject")
+		from = req.FormValue("from")
+		to := []string{req.FormValue("to")}
+		body = req.FormValue("body")
+		fmt.Printf("%s -> %s : %s\n%s", from, to, subject, body)
+		err := watneyUser.ImapCon.SendMail(watneyUser.SMTPAuth, from, to, subject, body)
+		if err != nil {
+			fmt.Printf("[watney][ERROR] Error while sending mail: %s", err.Error())
+			r.JSON(200, map[string]interface{} {
+				"error": "Mail couldn't be sent",
+				"sendMailError": err.Error(),
+			})
+		} else {
+			r.JSON(200, nil)
+		}
+	} else {
+		fmt.Printf("[watney] User tried to send mail - but IMAP Session has timed out.")
+		// 419 - Authentication has timed out
+		r.JSON(419, map[string]interface{}{
+			"error": "Authentication has expired",
+		})
 	}
-	err = email.Send(fmt.Sprintf("%s:%d", web.mconf.SMTPAddress, web.mconf.SMTPPort),
-		curUser.SMTPAuth, m)
 }

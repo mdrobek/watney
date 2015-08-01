@@ -314,6 +314,14 @@ div#mailItems > div.row:nth-of-type(2n) {
 .newmail-content .newmail-send-btn {
     margin-top: 10px;
 }
+.newmail-content .newmail-error-field {
+    width: 100%;
+    font-weight: bold;
+    color: #F00;
+    font-size: 21px;
+    margin-top: 10px;
+}
+
 
 .mail-content .mail-window-bar .mail-window-bar-container .mail-window-bar-item:hover,
 .mail-content .mail-window-bar .mail-window-bar-container .mail-window-bar-item.active {

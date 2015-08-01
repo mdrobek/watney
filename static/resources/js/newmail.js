@@ -34,19 +34,27 @@ wat.mail.NewMail = function(from, opt_to, opt_subject, opt_text) {
     }
 };
 
-wat.mail.NewMail.prototype.WindowBarItemDomID;
-wat.mail.NewMail.prototype.WindowDomID;
-wat.mail.NewMail.prototype.From;
-wat.mail.NewMail.prototype.To;
-wat.mail.NewMail.prototype.Text;
+/**
+ *
+ * @type {string}
+ * @static
+ * @private
+ */
+wat.mail.NewMail.SEND_MAIL_URI_ = "/sendMail";
+
+wat.mail.NewMail.prototype.WindowBarItemDomID = "";
+wat.mail.NewMail.prototype.WindowDomID = "";
+wat.mail.NewMail.prototype.From = "";
+wat.mail.NewMail.prototype.To = "";
+wat.mail.NewMail.prototype.Text = "";
 wat.mail.NewMail.prototype.Visible = false;
-wat.mail.NewMail.prototype.HoverEventsActive = false;
 wat.mail.NewMail.prototype.PreviewActive = false;
-wat.mail.NewMail.prototype.MOUSEROVER_KEY;
-wat.mail.NewMail.prototype.MOUSEOUT_KEY;
+wat.mail.NewMail.prototype.MOUSEOVER_KEY = null;
+wat.mail.NewMail.prototype.MOUSEOUT_KEY = null;
+
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
-///                                    Private methods                                           ///
+///                                    Public methods                                            ///
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 wat.mail.NewMail.prototype.addNewMail = function() {
@@ -62,7 +70,7 @@ wat.mail.NewMail.prototype.addNewMail = function() {
         d_barContainerElem = goog.dom.getElement("newMailBarItems"),
         d_newMailBarItem = goog.soy.renderAsElement(wat.soy.mail.newMailBarItem, {
             DomID: self.WindowBarItemDomID,
-            ShortenedTo: self.To,
+            ShortenedTo: self.To
         });
     goog.events.listen(d_newMailBarItem, goog.events.EventType.CLICK, self.toggleVisible, true,
         self);
@@ -73,9 +81,12 @@ wat.mail.NewMail.prototype.addNewMail = function() {
     var timer = new goog.Timer(100);
     timer.start();
     goog.events.listenOnce(timer, goog.Timer.TICK, function() {
+        timer.stop();
         self.show();
+        self.registerSendBtnEvent_();
     });
 };
+
 
 wat.mail.NewMail.prototype.toggleVisible = function() {
     var self = this;
@@ -145,4 +156,62 @@ wat.mail.NewMail.prototype.unregisterHoverEvents = function() {
     goog.events.unlistenByKey(this.MOUSEOUT_KEY);
     this.MOUSEOVER_KEY = null;
     this.MOUSEOUT_KEY = null;
+};
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+///                                   Private methods                                            ///
+////////////////////////////////////////////////////////////////////////////////////////////////////
+wat.mail.NewMail.prototype.registerSendBtnEvent_ = function() {
+    var self = this,
+        d_sendBtn = goog.dom.getElement(self.WindowDomID+"_SendBtn");
+    goog.events.listen(d_sendBtn, goog.events.EventType.CLICK, self.sendMail_, true, self);
+};
+
+wat.mail.NewMail.prototype.sendMail_ = function() {
+    var self = this,
+        request = new goog.net.XhrIo(),
+        data = new goog.Uri.QueryData(),
+        d_to = goog.dom.getElement(self.WindowDomID+"_newMail_Window_To"),
+        d_subject = goog.dom.getElement(self.WindowDomID+"_newMail_Window_Subject"),
+        d_body = goog.dom.getElement(self.WindowDomID+"_newMail_Window_Text");
+    data.add("from", self.From);
+    data.add("to", d_to.value);
+    data.add("subject", d_subject.value);
+    data.add("body", d_body.value);
+
+    // 1) Clean the error field from previous tries
+    goog.dom.setTextContent(goog.dom.getElement(self.WindowDomID+"_ErrMsg"), "");
+    // 2) Add the COMPLETE send listener
+    goog.events.listen(request, goog.net.EventType.COMPLETE, self.sendMailResponse_, true, self);
+    // 3) Send the request (mail)
+    request.send(wat.mail.NewMail.SEND_MAIL_URI_, 'POST', data.toString());
+};
+
+wat.mail.NewMail.prototype.sendMailResponse_ = function(event) {
+    // request complete
+    var self = this,
+        request = event.currentTarget;
+    if (request.isSuccess()) {
+        var responseJSON = request.getResponseJson();
+        // Check if the send mail request was successful ...
+        if (goog.isDefAndNotNull(responseJSON) && goog.isDefAndNotNull(responseJSON.error)) {
+            // ... and if not, print the error msg
+            goog.dom.setTextContent(goog.dom.getElement(self.WindowDomID+"_ErrMsg"),
+                responseJSON.sendMailError);
+        } else {
+            // x) Remove the DOM elements for the new_mail window and bar item
+            var d_windowItem = goog.dom.getElement(self.WindowDomID),
+                d_windowBarItem = goog.dom.getElement(self.WindowBarItemDomID);
+            goog.dom.removeNode(d_windowItem);
+            goog.dom.removeNode(d_windowBarItem);
+            // x) If this was the last active new_mail item, reset the state
+            if (goog.isDefAndNotNull(wat.mail.LAST_ACTIVE_NEW_MAIL_ITEM)
+                && wat.mail.LAST_ACTIVE_NEW_MAIL_ITEM == self) {
+                wat.mail.LAST_ACTIVE_NEW_MAIL_ITEM = null;
+            }
+        }
+    } else {
+        //error
+        console.log("something went wrong: " + event.error);
+    }
 };

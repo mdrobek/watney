@@ -11,6 +11,8 @@ import (
 	"os"
 	"strings"
 	"time"
+	"github.com/scorredoira/email"
+	"net/smtp"
 )
 
 type MailCon struct {
@@ -297,9 +299,69 @@ func (mc *MailCon) LoadNMailsFromFolder(folder string, n int, withContent bool) 
 	}
 }
 
+
+func (mc *MailCon) SendMail(a smtp.Auth, from string, to []string, subject string, body string) error {
+	m := email.NewMessage(subject, body)
+	m.From = from
+	m.To = to
+	if mc.conf.SkipCertificateVerification {
+		return mc.sendMailSkipCert(a, from, m.Tolist(), m.Bytes())
+	} else {
+		return email.Send(fmt.Sprintf("%s:%d", mc.conf.SMTPAddress, mc.conf.SMTPPort), a, m)
+	}
+}
+
+
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 ///										Private Methods											 ///
 ////////////////////////////////////////////////////////////////////////////////////////////////////
+func (mc *MailCon) sendMailSkipCert(a smtp.Auth, from string, to []string, msg []byte) error {
+	c, err := smtp.Dial(fmt.Sprintf("%s:%d", mc.conf.SMTPAddress, mc.conf.SMTPPort))
+	if err != nil {
+		return err
+	}
+	defer c.Close()
+	if err = c.Hello("localhost"); err != nil {
+		return err
+	}
+	if ok, _ := c.Extension("STARTTLS"); ok {
+		config := &tls.Config{
+			ServerName: mc.conf.SMTPAddress,
+			InsecureSkipVerify: mc.conf.SkipCertificateVerification,
+		}
+		if err = c.StartTLS(config); err != nil {
+			return err
+		}
+	}
+	if a != nil {
+		if err = c.Auth(a); err != nil {
+			return err
+		}
+	}
+	if err = c.Mail(from); err != nil {
+		return err
+	}
+	for _, addr := range to {
+		if err = c.Rcpt(addr); err != nil {
+			return err
+		}
+	}
+	w, err := c.Data()
+	if err != nil {
+		return err
+	}
+	_, err = w.Write(msg)
+	if err != nil {
+		return err
+	}
+	err = w.Close()
+	if err != nil {
+		return err
+	}
+	return c.Quit()
+}
+
+
 
 func (mc *MailCon) dial() (c *imap.Client, err error) {
 	// Decide what method to use for dialing into the server

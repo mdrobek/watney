@@ -40,10 +40,10 @@ wat.mail.MailHandler.prototype.loadMails = function(localCallback) {
     var request = new goog.net.XhrIo(),
         data = new goog.Uri.QueryData();
     data.add("mailInformation", "overview");
+    // We don't need to add the folder data entry, since it defaults to INBOX
     goog.events.listen(request, goog.net.EventType.COMPLETE, function (event) {
         // request complete
         var request = event.currentTarget;
-            //memoriesJSON;
         if (request.isSuccess()) {
             var mailsJSON = request.getResponseJson();
             // Populate the Mail overview with all retrieved mails
