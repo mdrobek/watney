@@ -16,8 +16,6 @@ goog.require('goog.i18n.DateTimeFormat');
 goog.require('goog.soy');
 goog.require('goog.string');
 
-wat.mail.LOAD_MAILCONTENT_URI_ = "/mailContent";
-
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 ///                                     Public methods                                           ///
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -32,8 +30,8 @@ wat.mail.MailItem = function(jsonData) {
     self.Mail = jsonData;
     self.DomID = "mailItem_" + self.Mail.UID;
     self.Date = goog.date.fromIsoString(self.Mail.Header.Date);
-    self.DateString = (new goog.i18n.DateTimeFormat("dd/mm/yyyy")).format(self.Date);
-    self.TimeString = (new goog.i18n.DateTimeFormat("HH:MM")).format(self.Date);
+    self.DateString = (new goog.i18n.DateTimeFormat("dd/MM/yyyy")).format(self.Date);
+    self.TimeString = (new goog.i18n.DateTimeFormat("HH:mm")).format(self.Date);
     self.ShortFrom = wat.mail.MailHandler.shrinkField(self.Mail.Header.Sender, 45, true);
     self.ShortSubject = wat.mail.MailHandler.shrinkField(self.Mail.Header.Subject, 33, true);
     // Is the given date of the mail today?
@@ -110,7 +108,7 @@ wat.mail.MailItem.prototype.loadContent_ = function() {
             console.log("^^^ " + this.getLastErrorCode());
         }
     }, false, self);
-    request.send(wat.mail.LOAD_MAILCONTENT_URI_, 'POST', data.toString());
+    request.send(wat.mail.LOAD_MAILCONTENT_URI, 'POST', data.toString());
 };
 
 wat.mail.MailItem.prototype.deactivateLastOverviewItem_ = function() {
@@ -155,10 +153,16 @@ wat.mail.MailItem.prototype.fillMailPage_ = function() {
  */
 wat.mail.MailItem.prototype.adjustCtrlBtns_ = function() {
     var self = this,
-        d_replyBtn = goog.dom.getElement("mailReplyBtn");
+        d_replyBtn = goog.dom.getElement("mailReplyBtn"),
+        d_deleteBtn = goog.dom.getElement("mailDeleteBtn");
     goog.events.removeAll(d_replyBtn);
+    goog.events.removeAll(d_deleteBtn);
     goog.events.listen(d_replyBtn, goog.events.EventType.CLICK, self.createReply_,
         false, self);
+    goog.events.listen(d_deleteBtn, goog.events.EventType.CLICK, function() {
+        self.Mail.Flags.Deleted = true;
+        self.sendDeletionRequest_();
+    }, false, self);
 };
 
 
@@ -168,4 +172,31 @@ wat.mail.MailItem.prototype.createReply_ = function() {
             : self.Mail.Header.Receiver;
     wat.app.mailHandler.createReply(from, self.Mail.Header.Sender, self.Mail.Header.Subject,
         self.Mail.Content);
+};
+
+wat.mail.MailItem.prototype.sendDeletionRequest_ = function() {
+    var self = this,
+        request = new goog.net.XhrIo(),
+        deletionFlags = new wat.mail.MailFlags(false, true, false, false, false, false),
+        data = new goog.Uri.QueryData();
+    data.add("uid", self.Mail.UID);
+    data.add("add", true);
+    data.add("flags", goog.json.serialize(deletionFlags));
+    goog.events.listen(request, goog.net.EventType.COMPLETE, function (event) {
+        // request complete
+        var request = event.currentTarget;
+        if (request.isSuccess()) {
+            self.setDeleted_();
+        } else {
+            //error
+            console.log("something went wrong: " + this.getLastError());
+            console.log("^^^ " + this.getLastErrorCode());
+        }
+    });
+    request.send(wat.mail.UPDATE_FLAGS_URI, 'POST', data.toString());
+
+};
+
+wat.mail.MailItem.prototype.setDeleted_ = function() {
+    console.log("Has been deleted successfully");
 };

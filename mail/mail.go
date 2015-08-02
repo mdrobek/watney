@@ -13,6 +13,7 @@ import (
 	"time"
 	"github.com/scorredoira/email"
 	"net/smtp"
+	"sync"
 )
 
 type MailCon struct {
@@ -29,6 +30,8 @@ type MailCon struct {
 	LogMask imap.LogMask
 	// Quit channel to end keep alive method
 	QuitChan chan struct{}
+	// Mutex to synchronize IMAP access
+	mutex *sync.Mutex
 }
 
 type Mail struct {
@@ -67,11 +70,17 @@ type Header struct {
 // Holds the following information of a mail: Seen, Deleted, Answered
 type Flags struct {
 	// Whether the mail has been read already
-	Seen bool
-	// Whether the mail has been deleted
-	Deleted bool
+	Seen bool			`flag: "\\Seen"`
+	// Message is "deleted" for removal by later EXPUNGE
+	Deleted bool		`flag: "\\Deleted"`
 	// Whether the mail was answered
-	Answered bool
+	Answered bool		`flag: "\\Answered"`
+	// Message is "flagged" for urgent/special attention
+	Flagged bool		`flag: "\\Flagged"`
+	// Message has not completed composition (marked as a draft).
+	Draft bool			`flag: "\\Draft"`
+	// Message is "recently" arrived in this mailbox.
+	Recent bool			`flag: "\\Recent"`
 }
 
 // Used to enable sorting methods
@@ -99,6 +108,7 @@ const (
 func NewMailCon(conf *conf.MailConf) (newMC *MailCon, err error) {
 	newMC = new(MailCon)
 	newMC.conf = conf
+	newMC.mutex = &sync.Mutex{}
 	// Check if the given configuration is valid
 	if confOK, err := newMC.checkConf(); !confOK {
 		return newMC, err
@@ -130,6 +140,8 @@ func NewMailCon(conf *conf.MailConf) (newMC *MailCon, err error) {
  * ATTENTION: Does not close connection on authentication fail, e.g., due to wrong credentials.
  */
 func (mc *MailCon) Authenticate(username, password string) (*MailCon, error) {
+	mc.mutex.Lock()
+	defer mc.mutex.Unlock()
 	var err error
 	// Login the current user
 	mc.client.SetLogMask(mc.LogMask)
@@ -162,6 +174,8 @@ func (mc *MailCon) IsAuthenticated() bool {
 @see interface io.Closer
 */
 func (mc *MailCon) Close() error {
+	mc.mutex.Lock()
+	defer mc.mutex.Unlock()
 	var err error
 	if nil != mc.client {
 		fmt.Printf("[watney] Shutting down IMAP connection\n")
@@ -196,16 +210,9 @@ func (mc *MailCon) LoadMailOverview(folder string) ([]Mail, error) {
 	return mc.LoadNMailsFromFolder(folder, -1, false)
 }
 
-//func (mc *MailCon) LoadMailHeaders() ([]Header, error) {
-//	mails, err := mc.LoadNMailsFromFolder("/", -1, false)
-//	var headers []Header = []Header{}
-//	for _, curMail := range mails {
-//		headers = append(headers, *curMail.Header)
-//	}
-//	return headers, err
-//}
-
 func (mc *MailCon) LoadContentForMail(folder string, uid uint32) (string, error) {
+	mc.mutex.Lock()
+	defer mc.mutex.Unlock()
 	println("Loading mail content for UID: ", uid)
 	if uid < 1 {
 		return "", errors.New(fmt.Sprintf("Couldn't retrieve mail content, because mail " +
@@ -215,7 +222,7 @@ func (mc *MailCon) LoadContentForMail(folder string, uid uint32) (string, error)
 	if len(folder) > 0 && folder != "/" {
 		mailboxFolder = mc.conf.Mailbox + mc.delim + folder
 	}
-	if _, err := mc.waitFor(mc.client.Select(mailboxFolder, true)); err != nil {
+	if _, err := mc.waitFor(mc.client.Select(mailboxFolder, false)); err != nil {
 		return "", err
 	}
 	set, _ := imap.NewSeqSet(fmt.Sprintf("%d", uid))
@@ -244,6 +251,8 @@ func (mc *MailCon) LoadContentForMail(folder string, uid uint32) (string, error)
 					False - Only loads the headers of all mails
 */
 func (mc *MailCon) LoadNMailsFromFolder(folder string, n int, withContent bool) ([]Mail, error) {
+	mc.mutex.Lock()
+	defer mc.mutex.Unlock()
 	// 1) First check if we need to select a specific folder in the mailbox or if it is root
 	var mailboxFolder string = mc.conf.Mailbox
 	if len(folder) > 0 && folder != "/" {
@@ -299,8 +308,32 @@ func (mc *MailCon) LoadNMailsFromFolder(folder string, n int, withContent bool) 
 	}
 }
 
+func (mc *MailCon) RemoveMailFlags(uid string, flags imap.Field) error {
+	return mc.UpdateMailFlags(uid, flags, false)
+}
+func (mc *MailCon) AddMailFlags(uid string, flags imap.Field) error {
+	return mc.UpdateMailFlags(uid, flags, true)
+}
+
+/**
+ * @param add True  - Sets the flag(s) as activated
+ *			  False - Removes the flag(s) (sets them as deactivated)
+ */
+func (mc *MailCon) UpdateMailFlags(uid string, flags imap.Field, add bool) error {
+	mc.mutex.Lock()
+	defer mc.mutex.Unlock()
+	var task string
+	if add { task = "+" } else { task = "-" }
+	set, _ := imap.NewSeqSet(uid)
+	_, err := mc.waitFor(mc.client.UIDStore(set, strings.Replace("*FLAGS", "*", task, 1), flags))
+	return err
+}
+
+
 func (mc *MailCon) SendMail(a smtp.Auth, from string, to []string, subject string,
 		body string) error {
+	mc.mutex.Lock()
+	defer mc.mutex.Unlock()
 	m := email.NewMessage(subject, body)
 	m.From = from
 	m.To = to
@@ -545,7 +578,21 @@ func readFlags(mi *imap.MessageInfo) (f *Flags) {
 		Seen     : mi.Flags["\\Seen"],
 		Answered : mi.Flags["\\Answered"],
 		Deleted  : mi.Flags["\\Deleted"],
+		Flagged  : mi.Flags["\\Flagged"],
+		Draft    : mi.Flags["\\Draft"],
+		Recent   : mi.Flags["\\Recent"],
 	}
 	return f;
+}
+
+func SerializeFlags(flags *Flags) imap.Field {
+	var fieldFlags []imap.Field = make([]imap.Field, 0)
+	if flags.Seen 	  { fieldFlags = append(fieldFlags, "\\Seen")	    }
+	if flags.Answered { fieldFlags = append(fieldFlags, "\\Answered")	}
+	if flags.Deleted  { fieldFlags = append(fieldFlags, "\\Deleted")	}
+	if flags.Flagged  { fieldFlags = append(fieldFlags, "\\Flagged")	}
+	if flags.Draft    { fieldFlags = append(fieldFlags, "\\Draft")		}
+	if flags.Recent   { fieldFlags = append(fieldFlags, "\\Recent")	    }
+	return fieldFlags
 }
 

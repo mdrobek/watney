@@ -28,6 +28,9 @@ wat.app.start = function() {
     });
 };
 
+/**
+ * TODO: Outsource later on to a user model
+ */
 wat.app.loadUser = function() {
     var request = new goog.net.XhrIo();
     // We don't need to add the folder data entry, since it defaults to INBOX

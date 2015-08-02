@@ -26,7 +26,6 @@ wat.mail.MailHandler = function() {};
  */
 wat.mail.LAST_ACTIVE_NEW_MAIL_ITEM;
 wat.mail.LAST_ACTIVE_OVERVIEW_ITEM_ID = "";
-wat.mail.LOAD_MAILS_URI_ = "/mails";
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 ///                                   Private members                                            ///
@@ -60,7 +59,7 @@ wat.mail.MailHandler.prototype.loadMails = function(localCallback) {
             console.log("^^^ " + this.getLastErrorCode());
         }
     });
-    request.send(wat.mail.LOAD_MAILS_URI_, 'POST', data.toString());
+    request.send(wat.mail.LOAD_MAILS_URI, 'POST', data.toString());
 };
 
 wat.mail.MailHandler.prototype.createReply = function(from, to, subject, origText) {

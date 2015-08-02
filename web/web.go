@@ -18,6 +18,7 @@ import (
 	"hash/fnv"
 	"net/smtp"
 	"github.com/gorilla/securecookie"
+	"encoding/json"
 )
 
 type MailWeb struct {
@@ -125,6 +126,7 @@ func (web *MailWeb) initHandlers() {
 	web.martini.Post("/userInfo", sessionauth.LoginRequired, web.userInfo)
 	web.martini.Post("/mails", sessionauth.LoginRequired, web.mails)
 	web.martini.Post("/mailContent", sessionauth.LoginRequired, web.mailContent)
+	web.martini.Post("/updateFlags", sessionauth.LoginRequired, web.updateFlags)
 	web.martini.Post("/sendMail", sessionauth.LoginRequired, web.sendMail)
 
 	// Static content
@@ -263,6 +265,37 @@ func (web *MailWeb) userInfo(r render.Render, curUser sessionauth.User, req *htt
 		})
 	} else {
 		fmt.Printf("[watney] Request for User information - but IMAP Session has timed out.")
+		// 419 - Authentication has timed out
+		r.JSON(419, map[string]interface{}{
+			"error": "Authentication has expired",
+		})
+	}
+}
+
+func (web *MailWeb) updateFlags(r render.Render, curUser sessionauth.User, req *http.Request) {
+	var (
+		watneyUser *auth.WatneyUser = curUser.(*auth.WatneyUser)
+		uid string
+		addFlags bool
+		flags mail.Flags
+		err error
+	)
+	if watneyUser.ImapCon.IsAuthenticated() {
+		uid = req.FormValue("uid")
+		if addFlags, err = strconv.ParseBool(req.FormValue("add")); err != nil {
+			r.JSON(200, map[string]interface{} {
+				"error" : fmt.Sprintf("Couldn't parse string '%s' into bool"),
+			})
+		}
+		if err = json.Unmarshal([]byte(req.FormValue("flags")), &flags); err != nil {
+			fmt.Println("error:", err)
+			r.Error(500)
+		} else {
+			watneyUser.ImapCon.UpdateMailFlags(uid, mail.SerializeFlags(&flags), addFlags)
+			r.Status(200)
+		}
+	} else {
+		fmt.Printf("[watney] Request for mail flag update - but IMAP Session has timed out.")
 		// 419 - Authentication has timed out
 		r.JSON(419, map[string]interface{}{
 			"error": "Authentication has expired",

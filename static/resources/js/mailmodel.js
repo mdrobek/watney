@@ -9,11 +9,32 @@ goog.provide('wat.mail.ReceivedMail');
 
 goog.require('wat');
 
-wat.mail.MailFlags = function() {};
-wat.mail.MailFlags.prototype.Seen = false;
-wat.mail.MailFlags.prototype.Answered = false;
-wat.mail.MailFlags.prototype.Deleted = false;
+wat.mail.LOAD_MAILS_URI = "/mails";
+wat.mail.LOAD_MAILCONTENT_URI = "/mailContent";
+wat.mail.UPDATE_FLAGS_URI = "/updateFlags";
 
+
+wat.mail.MailFlags = function(opt_Seen, opt_Deleted, opt_Answered, opt_Flagged, opt_Draft,
+                              opt_Recent) {
+    this.Seen = opt_Seen;
+    this.Deleted = opt_Deleted;
+    this.Answered = opt_Answered;
+    this.Flagged = opt_Flagged;
+    this.Draft = opt_Draft;
+    this.Recent = opt_Recent;
+};
+// Whether the mail has been read already
+wat.mail.MailFlags.prototype.Seen = false;
+// Message is "deleted" for removal by later EXPUNGE
+wat.mail.MailFlags.prototype.Deleted = false;
+// Whether the mail was answered
+wat.mail.MailFlags.prototype.Answered = false;
+// Message is "flagged" for urgent/special attention
+wat.mail.MailFlags.prototype.Flagged = false;
+// Message has not completed composition (marked as a draft).
+wat.mail.MailFlags.prototype.Draft = false;
+// Message is "recently" arrived in this mailbox.
+wat.mail.MailFlags.prototype.Recent = false;
 
 
 
