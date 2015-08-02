@@ -4,6 +4,7 @@
 goog.provide('wat.mail.NewMail');
 
 goog.require('wat.mail');
+goog.require('wat.mail.BaseMail');
 goog.require('wat.soy.mail');
 goog.require('goog.events');
 goog.require('goog.dom');
@@ -22,16 +23,7 @@ wat.mail.NewMail = function(from, opt_to, opt_subject, opt_text) {
     var self = this;
     self.WindowDomID = "newMailWindowItem_" + wat.mail.ItemCounter;
     self.WindowBarItemDomID = "newMailBarItem_" + wat.mail.ItemCounter++;
-    self.From = from;
-    if (goog.isDefAndNotNull(opt_to)) {
-        self.To = opt_to;
-    }
-    if (goog.isDefAndNotNull(opt_subject)) {
-        self.Subject = "Re: " + opt_subject;
-    }
-    if (goog.isDefAndNotNull(opt_text)) {
-        self.Text = "\n\n\n\n" + opt_text;
-    }
+    self.Mail = new wat.mail.BaseMail(from, opt_to, opt_subject, opt_text);
 };
 
 /**
@@ -44,13 +36,14 @@ wat.mail.NewMail.SEND_MAIL_URI_ = "/sendMail";
 
 wat.mail.NewMail.prototype.WindowBarItemDomID = "";
 wat.mail.NewMail.prototype.WindowDomID = "";
-wat.mail.NewMail.prototype.From = "";
-wat.mail.NewMail.prototype.To = "";
-wat.mail.NewMail.prototype.Text = "";
+/**
+ * @type {wat.mail.BaseMail}
+ */
+wat.mail.NewMail.prototype.Mail = null;
 wat.mail.NewMail.prototype.Visible = false;
 wat.mail.NewMail.prototype.PreviewActive = false;
-wat.mail.NewMail.prototype.MOUSEOVER_KEY = null;
-wat.mail.NewMail.prototype.MOUSEOUT_KEY = null;
+wat.mail.NewMail.prototype.MouseOver_Key = null;
+wat.mail.NewMail.prototype.MouseOut_Key = null;
 
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -62,15 +55,15 @@ wat.mail.NewMail.prototype.addNewMail = function() {
         d_windowContainerElem = goog.dom.getElement("newMailWindowItems"),
         d_newMailWindowItem = goog.soy.renderAsElement(wat.soy.mail.newMailWindowItem, {
             DomID: self.WindowDomID,
-            ShortenedFrom: self.From,
-            ShortenedTo: self.To,
-            Subject: self.Subject,
-            OrigMail: self.Text
+            ShortenedFrom: wat.mail.MailHandler.shrinkField(self.Mail.Header.Sender,35, true),
+            ShortenedTo: wat.mail.MailHandler.shrinkField(self.Mail.Header.Receiver, 35, true),
+            Subject: self.Mail.Header.Subject,
+            OrigMail: self.Mail.Content
         }),
         d_barContainerElem = goog.dom.getElement("newMailBarItems"),
         d_newMailBarItem = goog.soy.renderAsElement(wat.soy.mail.newMailBarItem, {
             DomID: self.WindowBarItemDomID,
-            ShortenedTo: self.To
+            ShortenedTo: wat.mail.MailHandler.shrinkField(self.Mail.Header.Receiver, 35, true)
         });
     // Listener for Click on item in the lower Bar
     goog.events.listen(d_newMailBarItem, goog.events.EventType.CLICK, self.toggleVisible, true,
@@ -133,8 +126,8 @@ wat.mail.NewMail.prototype.registerHoverEvents = function() {
     // 1) Check if the events are already active, and if so, don't register them again
     var self = this,
         d_newMailBarItem = goog.dom.getElement(self.WindowBarItemDomID);
-    if (null == self.MOUSEOVER_KEY) {
-        self.MOUSEOVER_KEY = goog.events.listen(d_newMailBarItem, goog.events.EventType.MOUSEOVER,
+    if (null == self.MouseOver_Key) {
+        self.MouseOver_Key = goog.events.listen(d_newMailBarItem, goog.events.EventType.MOUSEOVER,
             function (ev) {
                 wat.mail.MailHandler.hideActiveNewMail(self);
                 ev.stopPropagation();
@@ -142,8 +135,8 @@ wat.mail.NewMail.prototype.registerHoverEvents = function() {
                 self.PreviewActive = true;
             }, false, self);
     }
-    if (null == self.MOUSEOUT_KEY) {
-        self.MOUSEOUT_KEY = goog.events.listen(d_newMailBarItem, goog.events.EventType.MOUSEOUT,
+    if (null == self.MouseOut_Key) {
+        self.MouseOut_Key = goog.events.listen(d_newMailBarItem, goog.events.EventType.MOUSEOUT,
             function (ev) {
                 ev.stopPropagation();
                 self.hide();
@@ -153,10 +146,10 @@ wat.mail.NewMail.prototype.registerHoverEvents = function() {
 };
 
 wat.mail.NewMail.prototype.unregisterHoverEvents = function() {
-    goog.events.unlistenByKey(this.MOUSEOVER_KEY);
-    goog.events.unlistenByKey(this.MOUSEOUT_KEY);
-    this.MOUSEOVER_KEY = null;
-    this.MOUSEOUT_KEY = null;
+    goog.events.unlistenByKey(this.MouseOver_Key);
+    goog.events.unlistenByKey(this.MouseOut_Key);
+    this.MouseOver_Key = null;
+    this.MouseOut_Key = null;
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -188,7 +181,7 @@ wat.mail.NewMail.prototype.sendMail_ = function() {
         d_to = goog.dom.getElement(self.WindowDomID+"_newMail_Window_To"),
         d_subject = goog.dom.getElement(self.WindowDomID+"_newMail_Window_Subject"),
         d_body = goog.dom.getElement(self.WindowDomID+"_newMail_Window_Text");
-    data.add("from", self.From);
+    data.add("from", self.Mail.Header.Sender);
     data.add("to", d_to.value);
     data.add("subject", d_subject.value);
     data.add("body", d_body.value);

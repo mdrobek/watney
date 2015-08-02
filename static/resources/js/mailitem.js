@@ -2,10 +2,11 @@
  *
  * Created by mdrobek on 30/06/15.
  */
-goog.provide('wat.mail');
 goog.provide('wat.mail.MailItem');
 
 goog.require('wat');
+goog.require('wat.mail');
+goog.require('wat.mail.ReceivedMail');
 goog.require('wat.soy.mail');
 goog.require('goog.events');
 goog.require('goog.dom');
@@ -23,57 +24,42 @@ wat.mail.LOAD_MAILCONTENT_URI_ = "/mailContent";
 /**
  * A MailItem reflects the UI element of a received mail that is shown in the overview and main
  * mail page.
- * @param jsonData
+ * @param {wat.mail.ReceivedMail} jsonData
  * @constructor
  */
 wat.mail.MailItem = function(jsonData) {
     var self = this;
-    self.UID = jsonData.UID;
-    self.DomID = "mailItem_" + self.UID;
-    self.Date = goog.date.fromIsoString(jsonData.Header.Date);
+    self.Mail = jsonData;
+    self.DomID = "mailItem_" + self.Mail.UID;
+    self.Date = goog.date.fromIsoString(self.Mail.Header.Date);
     self.DateString = (new goog.i18n.DateTimeFormat("dd/mm/yyyy")).format(self.Date);
     self.TimeString = (new goog.i18n.DateTimeFormat("HH:MM")).format(self.Date);
-    self.Folder = jsonData.Header.Folder;
-    self.Receiver = jsonData.Header.Receiver;
-    self.From = jsonData.Header.Sender;
-    self.ShortFrom = self.shrinkField_(self.From, 45, true);
-    self.Size = jsonData.Header.Size;
-    self.Subject = jsonData.Header.Subject;
-    self.ShortSubject = self.shrinkField_(self.Subject, 33, true);
+    self.ShortFrom = wat.mail.MailHandler.shrinkField(self.Mail.Header.Sender, 45, true);
+    self.ShortSubject = wat.mail.MailHandler.shrinkField(self.Mail.Header.Subject, 33, true);
     // Is the given date of the mail today?
     self.IsFromToday = goog.date.isSameDay(self.Date);
-    self.Seen = jsonData.Flags.Seen;
-    self.Answered = jsonData.Flags.Answered;
-    self.Deleted = jsonData.Flags.Deleted;
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 ///                                 Member declaration                                           ///
 ////////////////////////////////////////////////////////////////////////////////////////////////////
-
-// Number - universal ID of this mail as retrieved from the server
-wat.mail.MailItem.prototype.UID = null;
+/**
+ * @type {wat.mail.ReceivedMail}
+ */
+wat.mail.MailItem.prototype.Mail = null;
 wat.mail.MailItem.prototype.DomID = null;
-
-// goog.date.Date
+/**
+ * @type {goog.date.Date}
+ */
 wat.mail.MailItem.prototype.Date = null;
 wat.mail.MailItem.prototype.DateString = null;
 wat.mail.MailItem.prototype.TimeString = null;
 
-wat.mail.MailItem.prototype.Folder = null;
-wat.mail.MailItem.prototype.Receiver = null;
-wat.mail.MailItem.prototype.From = null;
 wat.mail.MailItem.prototype.ShortFrom = null;
-wat.mail.MailItem.prototype.Size = null;
 wat.mail.MailItem.prototype.ShortSubject = null;
-wat.mail.MailItem.prototype.Subject = null;
-wat.mail.MailItem.prototype.Content = null;
 wat.mail.MailItem.prototype.HasContentBeenLoaded = false;
 
 wat.mail.MailItem.prototype.IsFromToday = false;
-wat.mail.MailItem.prototype.Seen = false;
-wat.mail.MailItem.prototype.Answered = false;
-wat.mail.MailItem.prototype.Deleted = false;
 
 /**
  *
@@ -89,10 +75,9 @@ wat.mail.MailItem.prototype.renderMail = function() {
 wat.mail.MailItem.prototype.showContent = function() {
     var self = this;
     if (!self.HasContentBeenLoaded) {
-        console.log("Content is not available! Starting to fetch content for UID: " + self.UID);
         self.loadContent_();
     } else {
-        wat.mail.MailHandler.hideActiveNewMail();
+        wat.mail.MailHandler.hideActiveNewMail(null);
         self.deactivateLastOverviewItem_();
         self.highlightOverviewItem_();
         self.fillMailPage_();
@@ -105,19 +90,18 @@ wat.mail.MailItem.prototype.showContent = function() {
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /**
- * @param {function} localCallback
  * @private
  */
 wat.mail.MailItem.prototype.loadContent_ = function() {
     var self = this,
         request = new goog.net.XhrIo(),
         data = new goog.Uri.QueryData();
-    data.add("uid", self.UID);
+    data.add("uid", self.Mail.UID);
     goog.events.listen(request, goog.net.EventType.COMPLETE, function (event) {
         // request complete
         var request = event.currentTarget;
         if (request.isSuccess()) {
-            self.Content = request.getResponseJson();
+            self.Mail.Content = request.getResponseJson();
             self.HasContentBeenLoaded = true;
             self.showContent();
         } else {
@@ -156,10 +140,10 @@ wat.mail.MailItem.prototype.fillMailPage_ = function() {
         d_mailDetailsSubject = goog.dom.getElement("mailDetails_Subject"),
         d_mailDetailsTo = goog.dom.getElement("mailDetails_To"),
         d_mailDetailsContent = goog.dom.getElement("mailDetails_Content"),
-        htmlContent = goog.string.newLineToBr(goog.string.canonicalizeNewlines(self.Content));
-    goog.dom.setTextContent(d_mailDetailsFrom, self.From);
-    goog.dom.setTextContent(d_mailDetailsSubject, self.Subject);
-    goog.dom.setTextContent(d_mailDetailsTo, self.Receiver);
+        htmlContent = goog.string.newLineToBr(goog.string.canonicalizeNewlines(self.Mail.Content));
+    goog.dom.setTextContent(d_mailDetailsFrom, self.Mail.Header.Sender);
+    goog.dom.setTextContent(d_mailDetailsSubject, self.Mail.Header.Subject);
+    goog.dom.setTextContent(d_mailDetailsTo, self.Mail.Header.Receiver);
 
     goog.dom.removeChildren(d_mailDetailsContent);
     goog.dom.appendChild(d_mailDetailsContent, goog.dom.htmlToDocumentFragment(htmlContent));
@@ -167,9 +151,6 @@ wat.mail.MailItem.prototype.fillMailPage_ = function() {
 
 /**
  * Resets all control button events for the current mail (e.g., reply, forward and delete button).
- * @param subject
- * @param maxLength
- * @param appendDots
  * @private
  */
 wat.mail.MailItem.prototype.adjustCtrlBtns_ = function() {
@@ -180,25 +161,11 @@ wat.mail.MailItem.prototype.adjustCtrlBtns_ = function() {
         false, self);
 };
 
-/**
- *
- * @param {String} subject
- * @param {Number} maxLength
- * @param {Boolean} appendDots Whether to append 3 dots ' ...' at the end of the shortened subject
- * @private
- */
-wat.mail.MailItem.prototype.shrinkField_ = function(subject, maxLength, appendDots) {
-    // 1) If we're smaller than the given length, just return
-    if (subject.length <= maxLength) return subject;
-    // 2) Otherwise, check if we need to append dots ...
-    var shortenedLength = appendDots ? maxLength - 4 : maxLength,
-        shortenedSubject = subject.substr(0, shortenedLength);
-    return appendDots ? (shortenedSubject + " ...") : shortenedSubject;
-};
-
 
 wat.mail.MailItem.prototype.createReply_ = function() {
     var self = this,
-        from = goog.isDefAndNotNull(wat.app.userMail) ? wat.app.userMail : self.Receiver;
-    wat.app.mailHandler.createReply(from, self.From, self.Subject, self.Content);
+        from = goog.isDefAndNotNull(wat.app.userMail) ? wat.app.userMail
+            : self.Mail.Header.Receiver;
+    wat.app.mailHandler.createReply(from, self.Mail.Header.Sender, self.Mail.Header.Subject,
+        self.Mail.Content);
 };

@@ -3,6 +3,7 @@
  */
 goog.provide('wat.app');
 
+goog.require('wat.mail');
 goog.require('wat.mail.MailHandler');
 goog.require('goog.events');
 goog.require("goog.net.XhrIo");

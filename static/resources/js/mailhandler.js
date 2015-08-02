@@ -64,12 +64,15 @@ wat.mail.MailHandler.prototype.loadMails = function(localCallback) {
 };
 
 wat.mail.MailHandler.prototype.createReply = function(from, to, subject, origText) {
-    var newMail = new wat.mail.NewMail(from, to, subject, origText);
+    var newMail = new wat.mail.NewMail(from, to, "Re: "+subject, "\n\n\n\n"+origText);
     wat.mail.MailHandler.hideActiveNewMail(wat.mail.LAST_ACTIVE_NEW_MAIL_ITEM);
     newMail.addNewMail();
     wat.mail.LAST_ACTIVE_NEW_MAIL_ITEM = newMail;
 };
 
+////////////////////////////////////////////////////////////////////////////////////////////////////
+///                                    STATIC Methods                                            ///
+////////////////////////////////////////////////////////////////////////////////////////////////////
 /**
  * Check if another new mail item is currently active and hide it, if so
  * @param {wat.mail.NewMail} curNewMail
@@ -81,4 +84,21 @@ wat.mail.MailHandler.hideActiveNewMail = function(curNewMail) {
         wat.mail.LAST_ACTIVE_NEW_MAIL_ITEM.hideAndHoverEvents();
     }
 };
+
+/**
+ *
+ * @param {String} subject
+ * @param {Number} maxLength
+ * @param {Boolean} appendDots Whether to append 3 dots ' ...' at the end of the shortened subject
+ * @static
+ */
+wat.mail.MailHandler.shrinkField = function(subject, maxLength, appendDots) {
+    // 1) If we're smaller than the given length, just return
+    if (subject.length <= maxLength) return subject;
+    // 2) Otherwise, check if we need to append dots ...
+    var shortenedLength = appendDots ? maxLength - 4 : maxLength,
+        shortenedSubject = subject.substr(0, shortenedLength);
+    return appendDots ? (shortenedSubject + " ...") : shortenedSubject;
+};
+
 

@@ -133,13 +133,10 @@ task buildTemplFile(dependsOn: downloadClientLibs, group: "JS Compile") {
  * Runs the google closure depswriter python script to create a new JS dependency file
  *
  * CURRENT ASSUMPTIONS:
- *  - linux system
  *  - python is installed and executable from within the users environment
  *  - google closure is available at the above define constant path
  *
  * CODE/TASK ENHANCEMENTS:
- *  - needs code enhancement for Windows systems
- *  - closure should be downloaded before this task is run
  *  - at least some output, that python needs to be installed
  */
 task buildDepFile(type: Exec, group: "JS Compile") {
