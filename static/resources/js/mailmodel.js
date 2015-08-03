@@ -6,13 +6,13 @@ goog.provide('wat.mail.MailHeader');
 goog.provide('wat.mail.MailFlags');
 goog.provide('wat.mail.BaseMail');
 goog.provide('wat.mail.ReceivedMail');
+goog.provide('wat.mail.Mailbox');
 
 goog.require('wat');
 
 wat.mail.LOAD_MAILS_URI = "/mails";
 wat.mail.LOAD_MAILCONTENT_URI = "/mailContent";
 wat.mail.UPDATE_FLAGS_URI = "/updateFlags";
-
 
 wat.mail.MailFlags = function(opt_Seen, opt_Deleted, opt_Answered, opt_Flagged, opt_Draft,
                               opt_Recent) {
@@ -35,8 +35,9 @@ wat.mail.MailFlags.prototype.Flagged = false;
 wat.mail.MailFlags.prototype.Draft = false;
 // Message is "recently" arrived in this mailbox.
 wat.mail.MailFlags.prototype.Recent = false;
-
-
+// Common used flags
+wat.mail.SEEN_FLAG = new wat.mail.MailFlags(true, false, false, false, false, false);
+wat.mail.DELETE_FLAG = new wat.mail.MailFlags(false, true, false, false, false, false);
 
 wat.mail.MailHeader = function(sender, receiver, subject) {
     this.Sender = sender;
@@ -70,7 +71,6 @@ wat.mail.BaseMail.prototype.Content = null;
 
 
 
-
 wat.mail.ReceivedMail = function() {
     this.Flags = new wat.mail.MailFlags();
 };
@@ -79,3 +79,8 @@ goog.inherits(wat.mail.ReceivedMail, wat.mail.BaseMail);
  * @type {wat.mail.MailFlags}
  */
 wat.mail.ReceivedMail.prototype.Flags = null;
+
+
+
+wat.mail.Mailbox.INBOX = "INBOX";
+wat.mail.Mailbox.TRASH = "TRASH";

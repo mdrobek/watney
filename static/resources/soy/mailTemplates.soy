@@ -14,7 +14,7 @@
 {template .mailOverviewItem}
     <div id={$DomID} class="row">
         <div class="col-md-12">
-            <div class="row entry {if not $Mail.Flags.Seen} newMail {/if}">
+            <div id="{$DomID}_Seen" class="row entry {if not $Mail.Flags.Seen} newMail {/if}">
                 <div class="col-md-9 content">
                     <div class="subject">
                         <div>{$ShortSubject}</div>

@@ -5,6 +5,7 @@ goog.provide('wat.app');
 
 goog.require('wat.mail');
 goog.require('wat.mail.MailHandler');
+goog.require('wat.mail.Mailbox');
 goog.require('goog.events');
 goog.require("goog.net.XhrIo");
 goog.require("goog.Uri.QueryData");
@@ -21,11 +22,7 @@ wat.app.start = function() {
 
     // 2) Start loading mails
     wat.app.mailHandler = new wat.mail.MailHandler();
-    wat.app.mailHandler.loadMails(function(mails) {
-        if (null != mails && mails.length > 0) {
-            mails[0].showContent();
-        }
-    });
+    wat.app.mailHandler.loadMails(wat.mail.Mailbox.INBOX);
 };
 
 /**

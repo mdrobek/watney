@@ -15,6 +15,7 @@ goog.require('goog.date');
 goog.require('goog.i18n.DateTimeFormat');
 goog.require('goog.soy');
 goog.require('goog.string');
+goog.require('goog.date.Date');
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 ///                                     Public methods                                           ///
@@ -75,6 +76,7 @@ wat.mail.MailItem.prototype.showContent = function() {
     if (!self.HasContentBeenLoaded) {
         self.loadContent_();
     } else {
+        self.changeSeenStatus_(true);
         wat.mail.MailHandler.hideActiveNewMail(null);
         self.deactivateLastOverviewItem_();
         self.highlightOverviewItem_();
@@ -110,6 +112,7 @@ wat.mail.MailItem.prototype.loadContent_ = function() {
     }, false, self);
     request.send(wat.mail.LOAD_MAILCONTENT_URI, 'POST', data.toString());
 };
+
 
 wat.mail.MailItem.prototype.deactivateLastOverviewItem_ = function() {
     if ("" != wat.mail.LAST_ACTIVE_OVERVIEW_ITEM_ID) {
@@ -160,8 +163,7 @@ wat.mail.MailItem.prototype.adjustCtrlBtns_ = function() {
     goog.events.listen(d_replyBtn, goog.events.EventType.CLICK, self.createReply_,
         false, self);
     goog.events.listen(d_deleteBtn, goog.events.EventType.CLICK, function() {
-        self.Mail.Flags.Deleted = true;
-        self.sendDeletionRequest_();
+        self.changeDeletionStatus_(true);
     }, false, self);
 };
 
@@ -174,29 +176,106 @@ wat.mail.MailItem.prototype.createReply_ = function() {
         self.Mail.Content);
 };
 
-wat.mail.MailItem.prototype.sendDeletionRequest_ = function() {
+/**
+ * Change the Deleted flag of the mail to the given new state.
+ * @param {boolean} newDeletedState
+ *      True  -> If the mail hasn't been deleted yet, it will be tagged on the client and server as
+ *               deleted (the \Deleted flag will be added)
+ *      False -> Same as True, but the opposite
+ */
+wat.mail.MailItem.prototype.changeDeletionStatus_ = function(newDeletedState) {
+    // 1) Check if the flag has to be changed
+    if (this.Mail.Flags.Deleted === newDeletedState) { /* nothing to do here */ return; }
+    var self = this,
+        nextItem = wat.app.mailHandler.getNextItem(self);
+    // 1) First apply all client-side effects -> better user experience
+    self.Mail.Flags.Deleted = newDeletedState;
+    // 2) Highlight the next item (if there is one)
+    if (null != nextItem) nextItem.showContent();
+    else {
+        // 2a) TODO: Clean the mail page:
+        //      * reset from, to, subject
+        //      * deactivate control btns (reply, delete)
+        //      * reset content area
+    }
+    // 3) Remove the deleted item from the overview list
+    goog.dom.removeNode(goog.dom.getElement(self.DomID));
+    // 4) Now send information to server
+    self.updateFlagsRequest_(wat.mail.DELETE_FLAG, newDeletedState, function(request) {
+        // TODO: Revert changes in client state of Deleted flag
+    });
+};
+
+
+/**
+ * Change the Seen flag of the mail to the given new state.
+ * @param {boolean} newSeenState
+ *      True  -> If the mail hasn't been seen yet, it will be tagged on the client and server as
+ *               seen (the \Seen flag will be added)
+ *      False -> Same as True, but the opposite
+ */
+wat.mail.MailItem.prototype.changeSeenStatus_ = function(newSeenState) {
+    // 1) Check if the flag has to be changed
+    if (this.Mail.Flags.Seen === newSeenState) { /* nothing to do here */ return; }
+    // 2) First apply all client-side effects -> better user experience
+    var self = this,
+        d_seenMailItem = goog.dom.getElement(self.DomID+"_Seen");
+    self.Mail.Flags.Seen = newSeenState;
+    if (newSeenState) {
+        if (goog.dom.classes.has(d_seenMailItem, "newMail")) {
+            goog.dom.classes.remove(d_seenMailItem, "newMail");
+        }
+    } else {
+        if (!goog.dom.classes.has(d_seenMailItem, "newMail")) {
+            goog.dom.classes.add(d_seenMailItem, "newMail");
+        }
+    }
+    // 3) Now send information to server
+    self.updateFlagsRequest_(wat.mail.SEEN_FLAG, newSeenState, function(request) {
+        // TODO: Revert changes in client state of Seen flag
+    });
+};
+
+/**
+ *
+ * @param {wat.mail.MailFlags} flag
+ * @param {boolean} addFlags True - The given flags will be added to the mail mail
+ *                           False - The given flags will be removed from the mail
+ * @param {function} errorCb
+ * @private
+ */
+wat.mail.MailItem.prototype.updateFlagsRequest_ = function(flag, addFlags, errorCb) {
     var self = this,
         request = new goog.net.XhrIo(),
-        deletionFlags = new wat.mail.MailFlags(false, true, false, false, false, false),
         data = new goog.Uri.QueryData();
     data.add("uid", self.Mail.UID);
-    data.add("add", true);
-    data.add("flags", goog.json.serialize(deletionFlags));
+    // True -> flags will be added | False -> Flags will be removed
+    data.add("add", addFlags);
+    data.add("flags", goog.json.serialize(flag));
     goog.events.listen(request, goog.net.EventType.COMPLETE, function (event) {
         // request complete
         var request = event.currentTarget;
-        if (request.isSuccess()) {
-            self.setDeleted_();
-        } else {
-            //error
-            console.log("something went wrong: " + this.getLastError());
-            console.log("^^^ " + this.getLastErrorCode());
+        if (!request.isSuccess()) {
+            // error
+            console.log("something went wrong loading content for mail: " + request.getLastError());
+            console.log("^^^ " + request.getLastErrorCode());
+            if (goog.isDefAndNotNull(errorCb)) errorCb(request);
         }
-    });
+    }, false, self);
     request.send(wat.mail.UPDATE_FLAGS_URI, 'POST', data.toString());
-
 };
 
-wat.mail.MailItem.prototype.setDeleted_ = function() {
-    console.log("Has been deleted successfully");
+wat.mail.MailItem.prototype.removeOverviewItem_ = function() {
+    goog.dom.removeNode(goog.dom.getElement(this.DomID));
+};
+
+/**
+ * @param {wat.mail.MailItem} mail1
+ * @param {wat.mail.MailItem} mail2
+ * @returns {number} 0 - If both mails are of the same date.<br>
+ * >0 - mail1 is earlier than mail2.
+ * <0 - mail1 is later than mail2.
+ */
+wat.mail.MailItem.comparator = function (mail1, mail2) {
+    return goog.date.Date.compare(mail1.Date, mail2.Date)*-1;
 };
