@@ -31,7 +31,7 @@ wat.mail.LAST_ACTIVE_OVERVIEW_ITEM_ID = "";
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 ///                                   Private members                                            ///
 ////////////////////////////////////////////////////////////////////////////////////////////////////
-wat.mail.MailHandler.prototype.mails = [];
+wat.mail.MailHandler.prototype.curSelectedMailbox_ = "";
 wat.mail.MailHandler.prototype.inboxMails_ =
     new goog.structs.AvlTree(wat.mail.MailItem.comparator);
 wat.mail.MailHandler.prototype.trashMails_ =
@@ -39,8 +39,38 @@ wat.mail.MailHandler.prototype.trashMails_ =
 // Todo: introduce draft mails
 
 /**
+ * @param {string} toMailbox
+ * @public
+ */
+wat.mail.MailHandler.prototype.switchMailbox = function(toMailbox) {
+    if (this.curSelectedMailbox_ === toMailbox) return;
+    var self = this,
+        curMailbox = self.getMailboxForString_(toMailbox);
+    // 1) Clean overview item list
+    goog.dom.removeChildren(goog.dom.getElement("mailItems"));
+    // 2) Check, whether we need to retrieve the Mails for the given mailbox ...
+    if (0 == curMailbox.getCount()) {
+        // 2a) ... and if so, do it
+        self.loadMails(toMailbox);
+    } else {
+        // 2b) ... otherwise just render the mails
+        self.renderMailboxContent_(toMailbox);
+    }
+    self.curSelectedMailbox_ = toMailbox;
+};
+
+/**
+ *
+ * @param {wat.mail.MailItem} deletedMail
+ */
+wat.mail.MailHandler.prototype.addDeletedMail = function(deletedMail) {
+    // 1) Check if mail is still in inbox and remove it, if so
+    if (this.inboxMails_.contains(deletedMail)) this.inboxMails_.remove(deletedMail);
+    this.trashMails_.add(deletedMail);
+};
+
+/**
  * @param {string} mailbox
- * @param {function} localCallback
  * @public
  */
 wat.mail.MailHandler.prototype.loadMails = function(mailbox) {
@@ -48,9 +78,8 @@ wat.mail.MailHandler.prototype.loadMails = function(mailbox) {
         request = new goog.net.XhrIo(),
         data = new goog.Uri.QueryData();
     data.add("mailInformation", "overview");
-    // We don't need to add the folder data entry, since it defaults to INBOX
+    data.add("mailbox", mailbox);
     goog.events.listen(request, goog.net.EventType.COMPLETE, function (event) {
-        // request complete
         var request = event.currentTarget;
         if (request.isSuccess()) {
             var mailsJSON = request.getResponseJson();
@@ -133,7 +162,23 @@ wat.mail.MailHandler.prototype.createReply = function(from, to, subject, origTex
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 /**
  *
+ * @param {string} forMailbox
+ * @private
+ */
+wat.mail.MailHandler.prototype.renderMailboxContent_ = function(forMailbox) {
+    var selectedMailbox = this.getMailboxForString_(forMailbox);
+    selectedMailbox.inOrderTraverse(function(curMail) {
+        curMail.renderMail();
+    });
+    if (selectedMailbox.getCount() > 0) {
+        selectedMailbox.getKthValue(0).showContent();
+    }
+};
+
+/**
+ *
  * @param {wat.mail.BaseMail} forMail
+ * @returns {goog.structs.AvlTree|*}
  * @private
  */
 wat.mail.MailHandler.prototype.getMailbox_ = function(forMail) {
@@ -144,29 +189,19 @@ wat.mail.MailHandler.prototype.getMailbox_ = function(forMail) {
 
 /**
  *
- * @param {string} forMailbox
+ * @param {string} forMailboxString
+ * @returns {goog.structs.AvlTree|*}
  * @private
  */
-wat.mail.MailHandler.prototype.renderMailboxContent_ = function(forMailbox) {
-    var selectedMailbox;
-    switch (forMailbox) {
-        case wat.mail.Mailbox.TRASH: {
-            selectedMailbox = this.trashMails_;
-            break;
-        }
+wat.mail.MailHandler.prototype.getMailboxForString_ = function(forMailboxString) {
+    switch (forMailboxString) {
+        case wat.mail.Mailbox.TRASH:
+            return this.trashMails_;
         case wat.mail.Mailbox.INBOX:
-        default: {
-            selectedMailbox = this.inboxMails_;
-        }
-    }
-    selectedMailbox.inOrderTraverse(function(curMail) {
-        curMail.renderMail();
-    });
-    if (selectedMailbox.getCount() > 0) {
-        selectedMailbox.getKthValue(0).showContent();
+        default:
+            return this.inboxMails_;
     }
 };
-
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 ///                                    STATIC Methods                                            ///
 ////////////////////////////////////////////////////////////////////////////////////////////////////

@@ -19,10 +19,26 @@ wat.app.userMail = null;
 wat.app.start = function() {
     // 1) Load user details
     wat.app.loadUser();
-
-    // 2) Start loading mails
+    // 2) Add all events to the mailbox buttons on the left nav bar
+    wat.app.addMailboxEvents();
+    // 3) Start loading mails
     wat.app.mailHandler = new wat.mail.MailHandler();
-    wat.app.mailHandler.loadMails(wat.mail.Mailbox.INBOX);
+    wat.app.mailHandler.switchMailbox(wat.mail.Mailbox.INBOX);
+};
+
+wat.app.addMailboxEvents = function() {
+    var d_inbox = goog.dom.getElement("Inbox_Btn"),
+        d_sent = goog.dom.getElement("Sent_Btn"),
+        d_trash = goog.dom.getElement("Trash_Btn");
+    goog.events.listen(d_inbox, goog.events.EventType.CLICK, function() {
+        wat.app.mailHandler.switchMailbox(wat.mail.Mailbox.INBOX);
+    }, false, self);
+    goog.events.listen(d_sent, goog.events.EventType.CLICK, function() {
+        // TODO: Not yet implemented!
+    }, false, self);
+    goog.events.listen(d_trash, goog.events.EventType.CLICK, function() {
+        wat.app.mailHandler.switchMailbox(wat.mail.Mailbox.TRASH);
+    }, false, self);
 };
 
 /**

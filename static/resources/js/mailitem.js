@@ -190,7 +190,9 @@ wat.mail.MailItem.prototype.changeDeletionStatus_ = function(newDeletedState) {
         nextItem = wat.app.mailHandler.getNextItem(self);
     // 1) First apply all client-side effects -> better user experience
     self.Mail.Flags.Deleted = newDeletedState;
-    // 2) Highlight the next item (if there is one)
+    // 2) Add the mail to the Deleted mailbox
+    wat.app.mailHandler.addDeletedMail(self);
+    // 3) Highlight the next item (if there is one)
     if (null != nextItem) nextItem.showContent();
     else {
         // 2a) TODO: Clean the mail page:
@@ -198,9 +200,9 @@ wat.mail.MailItem.prototype.changeDeletionStatus_ = function(newDeletedState) {
         //      * deactivate control btns (reply, delete)
         //      * reset content area
     }
-    // 3) Remove the deleted item from the overview list
+    // 4) Remove the deleted item from the overview list
     goog.dom.removeNode(goog.dom.getElement(self.DomID));
-    // 4) Now send information to server
+    // 5) Now send information to server
     self.updateFlagsRequest_(wat.mail.DELETE_FLAG, newDeletedState, function(request) {
         // TODO: Revert changes in client state of Deleted flag
     });

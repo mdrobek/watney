@@ -1,10 +1,11 @@
 {{ define "leftnav" }}
 <div class="col-sm-2 col-md-1 sidebar">
     <ul class="nav nav-sidebar">
-        <li class="active"><a href="#">Inbox <span class="sr-only">(current)</span></a>
+        <li id="Inbox_Btn" class="active">
+            <a href="#">Inbox <span class="sr-only">(current)</span></a>
         </li>
-        <li><a href="#">Sent</a></li>
-        <li><a href="#">Trash</a></li>
+        <li id="Sent_Btn"><a href="#">Sent</a></li>
+        <li id="Trash_Btn"><a href="#">Trash</a></li>
     </ul>
 </div>
 {{ end }}

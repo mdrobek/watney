@@ -196,9 +196,9 @@ func (web *MailWeb) mails(r render.Render, user sessionauth.User, req *http.Requ
 	var watneyUser *auth.WatneyUser = user.(*auth.WatneyUser)
 	if nil != watneyUser && watneyUser.IsAuthenticated() {
 		switch req.FormValue("mailInformation") {
-			case mail.FULL: mails, _ = watneyUser.ImapCon.LoadMailsFromFolder(req.FormValue("folder"))
+			case mail.FULL: mails, _ = watneyUser.ImapCon.LoadMailsFromFolder(req.FormValue("mailbox"))
 			case mail.OVERVIEW: fallthrough
-			default: mails, _ = watneyUser.ImapCon.LoadMailOverview(req.FormValue("folder"))
+			default: mails, _ = watneyUser.ImapCon.LoadMailOverview(req.FormValue("mailbox"))
 		}
 		// Reverse the retrieved mail array
 		sort.Sort(mail.MailSlice(mails))
