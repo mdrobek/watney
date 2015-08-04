@@ -258,6 +258,7 @@ func (mc *MailCon) LoadNMailsFromFolder(folder string, n int, withContent bool) 
 	if len(folder) > 0 && folder != "/" {
 		mailboxFolder = mc.conf.Mailbox + mc.delim + folder
 	}
+	fmt.Println("Mailbox in mail.go: %s", folder)
 	if _, err := mc.waitFor(mc.client.Select(mailboxFolder, true)); err != nil {
 		return []Mail{}, err
 	}

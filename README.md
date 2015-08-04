@@ -55,9 +55,6 @@ Please adjust the config file accordingly to your specific needs (it should be s
 Watney can now be started as follows:  
 <code>$ watney -c conf/your-conf.ini</code>
 
-*Note*: There is currently a bug that forces watney to search for template files in the wrong
-resource folder!
-
 
 ## Acknowledgements
 Credits to whom credits belong. The following frameworks and code snippets provided a solid basis

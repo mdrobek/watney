@@ -82,5 +82,5 @@ wat.mail.ReceivedMail.prototype.Flags = null;
 
 
 
-wat.mail.Mailbox.INBOX = "INBOX";
-wat.mail.Mailbox.TRASH = "TRASH";
+wat.mail.Mailbox.INBOX = "/";
+wat.mail.Mailbox.TRASH = "Trash";

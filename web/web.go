@@ -48,7 +48,7 @@ func NewWeb(mailConf *conf.MailConf, debug bool) *MailWeb {
 
 	web.martini = martini.Classic()
 	web.martini.Use(render.Renderer(render.Options{
-		Directory: "src/mdrobek/watney/static/templates",
+		Directory: "static/templates",
 		Extensions: []string{".html"},
 	}))
 	web.martini.Use(sessions.Sessions("watneySession", store))
@@ -130,11 +130,11 @@ func (web *MailWeb) initHandlers() {
 	web.martini.Post("/sendMail", sessionauth.LoginRequired, web.sendMail)
 
 	// Static content
-	web.martini.Use(martini.Static("src/mdrobek/watney/static/resources/libs/",
+	web.martini.Use(martini.Static("static/resources/libs/",
 		martini.StaticOptions{Prefix:"/libs/"}))
-	web.martini.Use(martini.Static("src/mdrobek/watney/static/resources/js/",
+	web.martini.Use(martini.Static("static/resources/js/",
 		martini.StaticOptions{Prefix:"/js/"}))
-	web.martini.Use(martini.Static("src/mdrobek/watney/static/resources/css/",
+	web.martini.Use(martini.Static("static/resources/css/",
 		martini.StaticOptions{Prefix:"/css/"}))
 }
 
