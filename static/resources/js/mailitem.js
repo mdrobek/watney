@@ -26,10 +26,11 @@ goog.require('goog.date.Date');
  * @param {wat.mail.ReceivedMail} jsonData
  * @constructor
  */
-wat.mail.MailItem = function(jsonData) {
+wat.mail.MailItem = function(jsonData, folder) {
     var self = this;
     self.Mail = jsonData;
     self.DomID = "mailItem_" + self.Mail.UID;
+    self.Folder = folder;
     self.Date = goog.date.fromIsoString(self.Mail.Header.Date);
     self.DateString = (new goog.i18n.DateTimeFormat("dd/MM/yyyy")).format(self.Date);
     self.TimeString = (new goog.i18n.DateTimeFormat("HH:mm")).format(self.Date);
@@ -46,18 +47,18 @@ wat.mail.MailItem = function(jsonData) {
  * @type {wat.mail.ReceivedMail}
  */
 wat.mail.MailItem.prototype.Mail = null;
-wat.mail.MailItem.prototype.DomID = null;
+wat.mail.MailItem.prototype.DomID = "";
+wat.mail.MailItem.prototype.Folder = "";
 /**
  * @type {goog.date.Date}
  */
 wat.mail.MailItem.prototype.Date = null;
-wat.mail.MailItem.prototype.DateString = null;
-wat.mail.MailItem.prototype.TimeString = null;
+wat.mail.MailItem.prototype.DateString = "";
+wat.mail.MailItem.prototype.TimeString = "";
 
-wat.mail.MailItem.prototype.ShortFrom = null;
-wat.mail.MailItem.prototype.ShortSubject = null;
+wat.mail.MailItem.prototype.ShortFrom = "";
+wat.mail.MailItem.prototype.ShortSubject = "";
 wat.mail.MailItem.prototype.HasContentBeenLoaded = false;
-
 wat.mail.MailItem.prototype.IsFromToday = false;
 
 /**
@@ -97,6 +98,7 @@ wat.mail.MailItem.prototype.loadContent_ = function() {
         request = new goog.net.XhrIo(),
         data = new goog.Uri.QueryData();
     data.add("uid", self.Mail.UID);
+    data.add("folder", self.Folder);
     goog.events.listen(request, goog.net.EventType.COMPLETE, function (event) {
         // request complete
         var request = event.currentTarget;
@@ -190,11 +192,12 @@ wat.mail.MailItem.prototype.changeDeletionStatus_ = function(newDeletedState) {
         nextItem = wat.app.mailHandler.getNextItem(self);
     // 1) First apply all client-side effects -> better user experience
     self.Mail.Flags.Deleted = newDeletedState;
-    // 2) Add the mail to the Deleted mailbox
-    wat.app.mailHandler.addDeletedMail(self);
+    // 2) Remove mail from current folder and add it to trash or inbox
+    wat.app.mailHandler.moveDeletedMail(self, newDeletedState);
     // 3) Highlight the next item (if there is one)
     if (null != nextItem) nextItem.showContent();
     else {
+        console.log("MailItem.changeDeletionStatus_ : NOT YET IMPLEMENTED");
         // 2a) TODO: Clean the mail page:
         //      * reset from, to, subject
         //      * deactivate control btns (reply, delete)
@@ -204,6 +207,7 @@ wat.mail.MailItem.prototype.changeDeletionStatus_ = function(newDeletedState) {
     goog.dom.removeNode(goog.dom.getElement(self.DomID));
     // 5) Now send information to server
     self.updateFlagsRequest_(wat.mail.DELETE_FLAG, newDeletedState, function(request) {
+        console.log("MailItem.changeDeletionStatus_ : NOT YET IMPLEMENTED");
         // TODO: Revert changes in client state of Deleted flag
     });
 };

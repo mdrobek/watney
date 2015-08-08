@@ -5,8 +5,9 @@ goog.provide('wat.app');
 
 goog.require('wat.mail');
 goog.require('wat.mail.MailHandler');
-goog.require('wat.mail.Mailbox');
+goog.require('wat.mail.MailboxFolder');
 goog.require('goog.events');
+goog.require('goog.array');
 goog.require("goog.net.XhrIo");
 goog.require("goog.Uri.QueryData");
 
@@ -23,22 +24,38 @@ wat.app.start = function() {
     wat.app.addMailboxEvents();
     // 3) Start loading mails
     wat.app.mailHandler = new wat.mail.MailHandler();
-    wat.app.mailHandler.switchMailbox(wat.mail.Mailbox.INBOX);
+    wat.app.mailHandler.switchMailboxFolder(wat.mail.MailboxFolder.INBOX);
 };
 
 wat.app.addMailboxEvents = function() {
-    var d_inbox = goog.dom.getElement("Inbox_Btn"),
-        d_sent = goog.dom.getElement("Sent_Btn"),
-        d_trash = goog.dom.getElement("Trash_Btn");
-    goog.events.listen(d_inbox, goog.events.EventType.CLICK, function() {
-        wat.app.mailHandler.switchMailbox(wat.mail.Mailbox.INBOX);
-    }, false, self);
-    goog.events.listen(d_sent, goog.events.EventType.CLICK, function() {
-        // TODO: Not yet implemented!
-    }, false, self);
-    goog.events.listen(d_trash, goog.events.EventType.CLICK, function() {
-        wat.app.mailHandler.switchMailbox(wat.mail.Mailbox.TRASH);
-    }, false, self);
+    var self = this,
+        btns = [{
+                domName: "Inbox_Btn",
+                mailboxFolder: wat.mail.MailboxFolder.INBOX
+            }, {
+                domName: "Sent_Btn",
+                mailboxFolder: wat.mail.MailboxFolder.SENT
+            }, {
+                domName: "Trash_Btn",
+                mailboxFolder: wat.mail.MailboxFolder.TRASH
+            }];
+    goog.array.forEach(btns, function(curBtn) {
+        var d_newClickedBtn = goog.dom.getElement(curBtn.domName);
+        goog.events.listen(d_newClickedBtn, goog.events.EventType.CLICK, function() {
+            if (wat.app.mailHandler.SelectedMailbox === curBtn.mailboxFolder) return;
+            // 1) Remove highlight of other buttons
+            goog.array.forEach(btns, function(curBtn) {
+                var d_curBtn = goog.dom.getElement(curBtn.domName);
+                if (goog.dom.classes.has(d_curBtn, "active")) {
+                    goog.dom.classes.remove(d_curBtn, "active");
+                }
+            });
+            // 2) Add highlight for new button
+            goog.dom.classes.add(d_newClickedBtn, "active");
+            // 3) Switch to the new mailbox
+            wat.app.mailHandler.switchMailboxFolder(curBtn.mailboxFolder);
+        }, false, self);
+    });
 };
 
 /**

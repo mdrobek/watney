@@ -6,7 +6,7 @@ goog.provide('wat.mail.MailHeader');
 goog.provide('wat.mail.MailFlags');
 goog.provide('wat.mail.BaseMail');
 goog.provide('wat.mail.ReceivedMail');
-goog.provide('wat.mail.Mailbox');
+goog.provide('wat.mail.MailboxFolder');
 
 goog.require('wat');
 
@@ -82,5 +82,6 @@ wat.mail.ReceivedMail.prototype.Flags = null;
 
 
 
-wat.mail.Mailbox.INBOX = "/";
-wat.mail.Mailbox.TRASH = "Trash";
+wat.mail.MailboxFolder.INBOX = "/";
+wat.mail.MailboxFolder.SENT = "Sent";
+wat.mail.MailboxFolder.TRASH = "Trash";

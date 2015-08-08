@@ -44,7 +44,7 @@ func NewWeb(mailConf *conf.MailConf, debug bool) *MailWeb {
 	store := sessions.NewCookieStore(securecookie.GenerateRandomKey(128))
 	// Default our store to use Session cookies, so we don't leave logged in
 	// users roaming around
-	store.Options(sessions.Options{MaxAge: 0, })
+	store.Options(sessions.Options{MaxAge: 86400, })
 
 	web.martini = martini.Classic()
 	web.martini.Use(render.Renderer(render.Options{
@@ -145,7 +145,7 @@ func (web *MailWeb) authenticate(session sessions.Session, postedUser auth.Watne
 
 	// 1) Create a new IMAP mail server connection
 	if imapCon, err := mail.NewMailCon(web.mconf); nil != err {
-		fmt.Println("Couldn't establish connection to imap mail server: %s', err")
+		fmt.Printf("Couldn't establish connection to imap mail server: %s\n", err.Error())
 		r.HTML(200, "start", map[string]interface{}{
 			"FailedLogin" : true,
 			"OrigError" : err.Error(),
@@ -175,7 +175,8 @@ func (web *MailWeb) authenticate(session sessions.Session, postedUser auth.Watne
 	}
 }
 
-func (web *MailWeb) welcome(r render.Render) {
+func (web *MailWeb) welcome(session sessions.Session, r render.Render) {
+	session.Clear()
 	r.HTML(200, "start", nil)
 }
 

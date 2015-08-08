@@ -13,6 +13,7 @@ goog.require('goog.Uri.QueryData');
 goog.require('goog.json');
 goog.require('goog.array');
 goog.require('goog.structs.AvlTree');
+goog.require('goog.structs.Map');
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 ///                                     Constructor                                              ///
@@ -31,42 +32,74 @@ wat.mail.LAST_ACTIVE_OVERVIEW_ITEM_ID = "";
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 ///                                   Private members                                            ///
 ////////////////////////////////////////////////////////////////////////////////////////////////////
-wat.mail.MailHandler.prototype.curSelectedMailbox_ = "";
+wat.mail.MailHandler.prototype.SelectedMailbox = "";
 wat.mail.MailHandler.prototype.inboxMails_ =
     new goog.structs.AvlTree(wat.mail.MailItem.comparator);
 wat.mail.MailHandler.prototype.trashMails_ =
     new goog.structs.AvlTree(wat.mail.MailItem.comparator);
+wat.mail.MailHandler.prototype.sentMails_ =
+    new goog.structs.AvlTree(wat.mail.MailItem.comparator);
 // Todo: introduce draft mails
+
+/**
+ * MailboxFolderName -> bool
+ * @type {goog.structs.Map}
+ */
+wat.mail.MailHandler.prototype.retrievedFolders = new goog.structs.Map();
 
 /**
  * @param {string} toMailbox
  * @public
  */
-wat.mail.MailHandler.prototype.switchMailbox = function(toMailbox) {
-    if (this.curSelectedMailbox_ === toMailbox) return;
-    var self = this,
-        curMailbox = self.getMailboxForString_(toMailbox);
+wat.mail.MailHandler.prototype.switchMailboxFolder = function(toMailbox) {
+    if (this.SelectedMailbox === toMailbox) return;
+    var self = this;
     // 1) Clean overview item list
     goog.dom.removeChildren(goog.dom.getElement("mailItems"));
     // 2) Check, whether we need to retrieve the Mails for the given mailbox ...
-    if (0 == curMailbox.getCount()) {
+    if (!self.retrievedFolders.containsKey(toMailbox) || !self.retrievedFolders.get(toMailbox)) {
         // 2a) ... and if so, do it
         self.loadMails(toMailbox);
     } else {
         // 2b) ... otherwise just render the mails
         self.renderMailboxContent_(toMailbox);
     }
-    self.curSelectedMailbox_ = toMailbox;
+    self.SelectedMailbox = toMailbox;
+};
+
+/**
+ * Add a given mail to the trash bin folder.
+ * @param {wat.mail.MailItem[]} mails
+ * @param {goog.structs.AvlTree} mailbox
+ */
+wat.mail.MailHandler.prototype.addMailsToFolder = function(mails, mailbox) {
+    var consideredMails = mails;
+    if (mailbox === this.inboxMails_) {
+        // Special treatment for INBOX, since it is the root folder
+        // Flags: !Deleted, !Draft
+        consideredMails = goog.array.filter(mails, function(curMail) {
+            return !curMail.Mail.Flags.Deleted && !curMail.Mail.Flags.Draft;
+        });
+    }
+    goog.array.forEach(consideredMails, function(curMail) { mailbox.add(curMail); })
 };
 
 /**
  *
- * @param {wat.mail.MailItem} deletedMail
+ * @param {wat.mail.MailItem} mail
+ * @param {boolean} newDeletionState
  */
-wat.mail.MailHandler.prototype.addDeletedMail = function(deletedMail) {
-    // 1) Check if mail is still in inbox and remove it, if so
-    if (this.inboxMails_.contains(deletedMail)) this.inboxMails_.remove(deletedMail);
-    this.trashMails_.add(deletedMail);
+wat.mail.MailHandler.prototype.moveDeletedMail = function(mail, newDeletionState) {
+    var mailbox = this.getMailboxFolder_(mail);
+    mailbox.remove(mail);
+    if (newDeletionState) {
+        this.trashMails_.add(mail);
+        mail.Folder = wat.mail.MailboxFolder.TRASH;
+    }
+    else {
+        this.inboxMails_.add(mail);
+        mail.Folder = wat.mail.MailboxFolder.INBOX;
+    }
 };
 
 /**
@@ -82,22 +115,13 @@ wat.mail.MailHandler.prototype.loadMails = function(mailbox) {
     goog.events.listen(request, goog.net.EventType.COMPLETE, function (event) {
         var request = event.currentTarget;
         if (request.isSuccess()) {
-            var mailsJSON = request.getResponseJson();
-            // Populate the Mail overview with all retrieved mails
-            goog.array.forEach(mailsJSON, function(curMailJSON) {
-                var curMail = new wat.mail.MailItem(curMailJSON);
-                if (curMail.Mail.Flags.Deleted) {
-                    self.trashMails_.add(curMail);
-                    return;
-                }
-                if (curMail.Mail.Flags.Draft) {
-                    // Todo!
-                    return;
-                }
-                // It's neither, so put it into the INBOX
-                self.inboxMails_.add(curMail);
+            var mailsJSON = request.getResponseJson(),
+                mails = goog.array.map(mailsJSON, function(curMailJSON) {
+                return new wat.mail.MailItem(curMailJSON, mailbox);
             });
+            self.addMailsToFolder(mails, self.getMailboxFolderForString_(mailbox));
             self.renderMailboxContent_(mailbox);
+            self.retrievedFolders.set(mailbox, true);
         } else {
             //error
             console.log("something went wrong: " + this.getLastError());
@@ -116,7 +140,7 @@ wat.mail.MailHandler.prototype.loadMails = function(mailbox) {
  */
 wat.mail.MailHandler.prototype.getNextItem = function(curMailItem) {
     var self = this,
-        curMailbox = self.getMailbox_(curMailItem),
+        curMailbox = self.getMailboxFolder_(curMailItem),
         nextItem = null;
     if (goog.isDefAndNotNull(curMailbox)) {
         // 1) If there's less than or 1 mail in the mailbox, no 'next' item exists
@@ -166,7 +190,7 @@ wat.mail.MailHandler.prototype.createReply = function(from, to, subject, origTex
  * @private
  */
 wat.mail.MailHandler.prototype.renderMailboxContent_ = function(forMailbox) {
-    var selectedMailbox = this.getMailboxForString_(forMailbox);
+    var selectedMailbox = this.getMailboxFolderForString_(forMailbox);
     selectedMailbox.inOrderTraverse(function(curMail) {
         curMail.renderMail();
     });
@@ -181,8 +205,9 @@ wat.mail.MailHandler.prototype.renderMailboxContent_ = function(forMailbox) {
  * @returns {goog.structs.AvlTree|*}
  * @private
  */
-wat.mail.MailHandler.prototype.getMailbox_ = function(forMail) {
+wat.mail.MailHandler.prototype.getMailboxFolder_ = function(forMail) {
     if (this.inboxMails_.contains(forMail)) return this.inboxMails_;
+    if (this.sentMails_.contains(forMail)) return this.sentMails_;
     if (this.trashMails_.contains(forMail)) return this.trashMails_;
     return null;
 };
@@ -193,11 +218,13 @@ wat.mail.MailHandler.prototype.getMailbox_ = function(forMail) {
  * @returns {goog.structs.AvlTree|*}
  * @private
  */
-wat.mail.MailHandler.prototype.getMailboxForString_ = function(forMailboxString) {
+wat.mail.MailHandler.prototype.getMailboxFolderForString_ = function(forMailboxString) {
     switch (forMailboxString) {
-        case wat.mail.Mailbox.TRASH:
+        case wat.mail.MailboxFolder.TRASH:
             return this.trashMails_;
-        case wat.mail.Mailbox.INBOX:
+        case wat.mail.MailboxFolder.SENT:
+            return this.sentMails_;
+        case wat.mail.MailboxFolder.INBOX:
         default:
             return this.inboxMails_;
     }
