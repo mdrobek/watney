@@ -20,6 +20,8 @@ type MailCon struct {
 	io.Closer
 	// imap server connection client
 	client *imap.Client
+	// current active mailbox (this does not contain one of the sub folders, e.g., Sent, Trash, ..)
+	mailbox string
 	// delimiter for the current imap server
 	delim string
 	// configuration to be used to connect to the imap mail server
@@ -61,10 +63,10 @@ type Header struct {
 	// sender of the mail (From:)
 	Sender string
 	// receiver address of this mail (To:)
+	// TODO: Receiver can be multiple mail addresses!
 	Receiver string
 	// the folder this email is stored in in the mailbox ("/" = root)
 	Folder string
-	// TODO: Flags - Unread, Read, ...
 }
 
 // Holds the following information of a mail: Seen, Deleted, Answered
@@ -108,6 +110,7 @@ const (
 func NewMailCon(conf *conf.MailConf) (newMC *MailCon, err error) {
 	newMC = new(MailCon)
 	newMC.conf = conf
+	newMC.mailbox = DFLT_MAILBOX_NAME
 	newMC.mutex = &sync.Mutex{}
 	// Check if the given configuration is valid
 	if confOK, err := newMC.checkConf(); !confOK {
@@ -218,9 +221,9 @@ func (mc *MailCon) LoadContentForMail(folder string, uid uint32) (string, error)
 		return "", errors.New(fmt.Sprintf("Couldn't retrieve mail content, because mail " +
 			"UID (%d) needs to be greater than 0"));
 	}
-	var mailboxFolder string = mc.conf.Mailbox
+	var mailboxFolder string = mc.mailbox
 	if len(folder) > 0 && folder != "/" {
-		mailboxFolder = mc.conf.Mailbox + mc.delim + folder
+		mailboxFolder = fmt.Sprintf("%s%s%s", mc.mailbox, mc.delim, folder)
 	}
 	if _, err := mc.waitFor(mc.client.Select(mailboxFolder, false)); err != nil {
 		return "", err
@@ -254,9 +257,9 @@ func (mc *MailCon) LoadNMailsFromFolder(folder string, n int, withContent bool) 
 	mc.mutex.Lock()
 	defer mc.mutex.Unlock()
 	// 1) First check if we need to select a specific folder in the mailbox or if it is root
-	var mailboxFolder string = mc.conf.Mailbox
+	var mailboxFolder string = mc.mailbox
 	if len(folder) > 0 && folder != "/" {
-		mailboxFolder = mc.conf.Mailbox + mc.delim + folder
+		mailboxFolder = fmt.Sprintf("%s%s%s", mc.mailbox, mc.delim, folder)
 	}
 	fmt.Println("Mailbox in mail.go: %s", folder)
 	if _, err := mc.waitFor(mc.client.Select(mailboxFolder, true)); err != nil {
@@ -309,40 +312,62 @@ func (mc *MailCon) LoadNMailsFromFolder(folder string, n int, withContent bool) 
 	}
 }
 
-func (mc *MailCon) RemoveMailFlags(uid string, flags imap.Field) error {
-	return mc.UpdateMailFlags(uid, flags, false)
+func (mc *MailCon) RemoveMailFlags(uid string, f *Flags) error {
+	return mc.UpdateMailFlags(uid, f, false)
 }
-func (mc *MailCon) AddMailFlags(uid string, flags imap.Field) error {
-	return mc.UpdateMailFlags(uid, flags, true)
+func (mc *MailCon) AddMailFlags(uid string, f *Flags) error {
+	return mc.UpdateMailFlags(uid, f, true)
 }
 
 /**
  * @param add True  - Sets the flag(s) as activated
  *			  False - Removes the flag(s) (sets them as deactivated)
  */
-func (mc *MailCon) UpdateMailFlags(uid string, flags imap.Field, add bool) error {
+func (mc *MailCon) UpdateMailFlags(uid string, f *Flags, add bool) error {
 	mc.mutex.Lock()
 	defer mc.mutex.Unlock()
 	var task string
 	if add { task = "+" } else { task = "-" }
 	set, _ := imap.NewSeqSet(uid)
-	_, err := mc.waitFor(mc.client.UIDStore(set, strings.Replace("*FLAGS", "*", task, 1), flags))
+	_, err := mc.waitFor(mc.client.UIDStore(set, strings.Replace("*FLAGS", "*", task, 1),
+		SerializeFlags(f)))
 	return err
 }
 
-
-func (mc *MailCon) SendMail(a smtp.Auth, from string, to []string, subject string,
-		body string) error {
+/**
+ * TODO: Not yet mirrored as a Web-Handler
+ */
+func (mc *MailCon) AddMailToFolder(h *Header, f *Flags, content string) (err error) {
 	mc.mutex.Lock()
 	defer mc.mutex.Unlock()
+	return mc.addMailToFolder_internal(h, f, content)
+}
+
+func (mc *MailCon) SendMail(a smtp.Auth, from string, to []string, subject string,
+		body string) (err error) {
+	mc.mutex.Lock()
+	defer mc.mutex.Unlock()
+	// 1) Create new SMTP message and send it
 	m := email.NewMessage(subject, body)
 	m.From = from
 	m.To = to
 	if mc.conf.SkipCertificateVerification {
-		return mc.sendMailSkipCert(a, from, m.Tolist(), m.Bytes())
+		err = mc.sendMailSkipCert(a, from, m.Tolist(), m.Bytes())
 	} else {
-		return email.Send(fmt.Sprintf("%s:%d", mc.conf.SMTPAddress, mc.conf.SMTPPort), a, m)
+		err = email.Send(fmt.Sprintf("%s:%d", mc.conf.SMTPAddress, mc.conf.SMTPPort), a, m)
 	}
+	// 2) If that worked well, add this mail to the 'Sent' folder of the users inbox
+	if nil == err {
+		// Todo: Think about having this in its own go-routine -> how to handle a possible error?
+		err = mc.addMailToFolder_internal(&Header{
+			Date: time.Now(),
+			Subject: subject,
+			Sender: from,
+			Receiver: strings.Join(to, ", "),
+			Folder: "Sent",
+		}, &Flags{Seen:true}, body)
+	}
+	return err
 }
 
 
@@ -350,57 +375,21 @@ func (mc *MailCon) SendMail(a smtp.Auth, from string, to []string, subject strin
 ///										Private Methods											 ///
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 /**
- * ATTENTION: Override method for smtp.SendMail. Needed to be written, since the tls.Config object
- * can't be handed over to the original method, which needs to be modified, in case the server
- * certificate is self-signed.
+ * Doesn't lock!
  */
-func (mc *MailCon) sendMailSkipCert(a smtp.Auth, from string, to []string, msg []byte) error {
-	c, err := smtp.Dial(fmt.Sprintf("%s:%d", mc.conf.SMTPAddress, mc.conf.SMTPPort))
-	if err != nil {
-		return err
-	}
-	defer c.Close()
-	if err = c.Hello("localhost"); err != nil {
-		return err
-	}
-	if ok, _ := c.Extension("STARTTLS"); ok {
-		config := &tls.Config{
-			ServerName: mc.conf.SMTPAddress,
-			InsecureSkipVerify: mc.conf.SkipCertificateVerification,
-		}
-		if err = c.StartTLS(config); err != nil {
-			return err
-		}
-	}
-	if a != nil {
-		if err = c.Auth(a); err != nil {
-			return err
-		}
-	}
-	if err = c.Mail(from); err != nil {
-		return err
-	}
-	for _, addr := range to {
-		if err = c.Rcpt(addr); err != nil {
-			return err
-		}
-	}
-	w, err := c.Data()
-	if err != nil {
-		return err
-	}
-	_, err = w.Write(msg)
-	if err != nil {
-		return err
-	}
-	err = w.Close()
-	if err != nil {
-		return err
-	}
-	return c.Quit()
+func (mc *MailCon) addMailToFolder_internal(h *Header, f *Flags, content string) (err error) {
+	var (
+		// Create the msg:
+		// Header info + empty line + content + empty line
+		msg string = strings.Join([]string{SerializeHeader(h), "", content, ""}, "\r\n")
+		lit imap.Literal = imap.NewLiteral([]byte(msg))
+		mbox = fmt.Sprintf("%s%s%s", mc.mailbox, mc.delim, h.Folder)
+	)
+//	fmt.Printf("Concatenated message for mailbox: %s | %s -> is: \n %s \n", mbox,
+//		imap.AsFlagSet(SerializeFlags(f)), msg)
+	_, err = mc.waitFor(mc.client.Append(mbox, imap.AsFlagSet(SerializeFlags(f)), &h.Date, lit))
+	return err
 }
-
-
 
 func (mc *MailCon) dial() (c *imap.Client, err error) {
 	// Decide what method to use for dialing into the server
@@ -482,14 +471,81 @@ func (mc *MailCon) checkConf() (bool, error) {
 	if 0 == len(mc.conf.Hostname) || mc.conf.Port < 1 {
 		return false, errors.New("Missing server address or username or password")
 	}
-	if 0 == len(mc.conf.Mailbox) {
-		mc.conf.Mailbox = DFLT_MAILBOX_NAME
-	}
 	// Set a default logger to hell, if none has been given
 	//	if nil == conf.logger {
 	//		conf.logger = log.New(os.DevNull, "", 0)
 	//	}
 	return true, nil
+}
+
+func (mc *MailCon) keepAlive(every int) {
+	ticker := time.NewTicker(time.Duration(every) * time.Second)
+	mc.QuitChan = make(chan struct{})
+	go func() {
+		for {
+			select {
+			case <- ticker.C:
+			// Send Noop to keep connection alive
+				if _, err := mc.waitFor(mc.client.Noop()); err != nil {
+					mc.logMC(err.Error(), imap.LogAll)
+				}
+			case <- mc.QuitChan:
+				ticker.Stop()
+				return
+			}
+		}
+	}()
+}
+
+/**
+ * ATTENTION: Override method for smtp.SendMail. Needed to be written, since the tls.Config object
+ * can't be handed over to the original method, which needs to be modified, in case the server
+ * certificate is self-signed.
+ */
+func (mc *MailCon) sendMailSkipCert(a smtp.Auth, from string, to []string, msg []byte) error {
+	c, err := smtp.Dial(fmt.Sprintf("%s:%d", mc.conf.SMTPAddress, mc.conf.SMTPPort))
+	if err != nil {
+		return err
+	}
+	defer c.Close()
+	if err = c.Hello("localhost"); err != nil {
+		return err
+	}
+	if ok, _ := c.Extension("STARTTLS"); ok {
+		config := &tls.Config{
+			ServerName: mc.conf.SMTPAddress,
+			InsecureSkipVerify: mc.conf.SkipCertificateVerification,
+		}
+		if err = c.StartTLS(config); err != nil {
+			return err
+		}
+	}
+	if a != nil {
+		if err = c.Auth(a); err != nil {
+			return err
+		}
+	}
+	if err = c.Mail(from); err != nil {
+		return err
+	}
+	for _, addr := range to {
+		if err = c.Rcpt(addr); err != nil {
+			return err
+		}
+	}
+	w, err := c.Data()
+	if err != nil {
+		return err
+	}
+	_, err = w.Write(msg)
+	if err != nil {
+		return err
+	}
+	err = w.Close()
+	if err != nil {
+		return err
+	}
+	return c.Quit()
 }
 
 func parseHeader(mi *imap.MessageInfo) (*Header, error) {
@@ -505,25 +561,6 @@ func parseHeader(mi *imap.MessageInfo) (*Header, error) {
 		curHeader.Date = mi.InternalDate
 		return curHeader, err
 	}
-}
-
-func (mc *MailCon) keepAlive(every int) {
-	ticker := time.NewTicker(time.Duration(every) * time.Second)
-	mc.QuitChan = make(chan struct{})
-	go func() {
-		for {
-			select {
-			case <- ticker.C:
-				// Send Noop to keep connection alive
-				if _, err := mc.waitFor(mc.client.Noop()); err != nil {
-					mc.logMC(err.Error(), imap.LogAll)
-				}
-			case <- mc.QuitChan:
-				ticker.Stop()
-				return
-			}
-		}
-	}()
 }
 
 /**
@@ -566,12 +603,31 @@ func parseHeaderContent(headerContentMap map[string]string) (h *Header, err erro
 	if nil == headerContentMap || 0 == len(headerContentMap) {
 		return nil, errors.New("Header doesn't contain entries")
 	}
+	date, err := time.Parse(fmt.Sprintf("%s (MST)", time.RFC1123Z), headerContentMap["date"])
+	if err != nil {
+		fmt.Printf("Error during parsing of date header: %s\n", err.Error())
+		fmt.Errorf("Error during parsing of date header: %s\n", err.Error())
+		// If no date string was found in the header map or, an error occurred during parsing
+		// => set the date to 1/1/1970
+		date = time.Unix(0,0)
+	}
 	h = &Header{
+		Date:  	  date,
 		Subject:  strings.TrimPrefix(headerContentMap["subject"], " "),
 		Sender:   strings.TrimPrefix(headerContentMap["from"], " "),
 		Receiver: strings.TrimPrefix(headerContentMap["to"], " "),
 	}
 	return h, nil
+}
+
+func SerializeHeader(h *Header) string {
+	if nil == h { return "" }
+	return strings.Join([]string{
+			fmt.Sprintf("%s: %s", "Date", h.Date.Format(fmt.Sprintf("%s (MST)", time.RFC1123Z))),
+			fmt.Sprintf("%s: %s", "To", h.Receiver),
+			fmt.Sprintf("%s: %s", "From", h.Sender),
+			fmt.Sprintf("%s: %s", "Subject", h.Subject)},
+		"\r\n")
 }
 
 func readFlags(mi *imap.MessageInfo) (f *Flags) {

@@ -18,8 +18,6 @@ type MailConf struct {
 	Hostname string
 	// port to connect to the mail server
 	Port int
-	// the name of the mailbox
-	Mailbox string
 	// additional config options for TLS (e.g., skip certificate verification for self-signed certs)
 	SkipCertificateVerification bool
 	// verbose output

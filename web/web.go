@@ -292,7 +292,7 @@ func (web *MailWeb) updateFlags(r render.Render, curUser sessionauth.User, req *
 			fmt.Println("error:", err)
 			r.Error(500)
 		} else {
-			watneyUser.ImapCon.UpdateMailFlags(uid, mail.SerializeFlags(&flags), addFlags)
+			watneyUser.ImapCon.UpdateMailFlags(uid, &flags, addFlags)
 			r.Status(200)
 		}
 	} else {
