@@ -23,6 +23,7 @@ apply plugin: 'java'
  ***                                    Path definitions                                        ***
  **************************************************************************************************/
 def libFolder = "$projectDir/static/resources/libs"
+def assembleDir = file("$projectDir/build/watney-release")
 def closureFolder = file("$libFolder/closure-library")
 def closureCompilerFolder = file("$libFolder/jsCompiler")
 def closureBinFolder = "$closureFolder/closure/bin";
@@ -182,9 +183,29 @@ task buildWatney(dependsOn:[downloadGoLibs, downloadClientLibs, compileJS]) {
         println ">>> Building Watney ... "
         exec {
             executable "go"
-            args "build", "mdrobek/watney"
+            args "build", "-v", "mdrobek/watney"
         }
         println ">>> FINISHED"
     }
 }
 
+
+task copyExe(type: Copy) {
+    from file(projectDir)
+    into assembleDir
+    include 'watney'
+    include 'LICENSE'
+    include 'README.md'
+    include 'conf/watney-templ.ini'
+    include 'static/templates/*'
+    include 'static/resources/css/*'
+    include 'static/resources/js/watney-compiled.js'
+    includeEmptyDirs = false
+}
+
+task assembleWatney(dependsOn:[buildWatney,copyExe]) {
+    // 1) Finally, run the assemble task
+    doFirst {
+        println ">>> Assembling Watney into folder: $assembleDir"
+    }
+}
