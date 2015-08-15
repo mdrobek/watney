@@ -603,16 +603,8 @@ func parseHeaderContent(headerContentMap map[string]string) (h *Header, err erro
 	if nil == headerContentMap || 0 == len(headerContentMap) {
 		return nil, errors.New("Header doesn't contain entries")
 	}
-	date, err := time.Parse(fmt.Sprintf("%s (MST)", time.RFC1123Z), headerContentMap["date"])
-	if err != nil {
-		fmt.Printf("Error during parsing of date header: %s\n", err.Error())
-		fmt.Errorf("Error during parsing of date header: %s\n", err.Error())
-		// If no date string was found in the header map or, an error occurred during parsing
-		// => set the date to 1/1/1970
-		date = time.Unix(0,0)
-	}
 	h = &Header{
-		Date:  	  date,
+		Date:  	  parseIMAPHeaderDate(headerContentMap["date"]),
 		Subject:  strings.TrimPrefix(headerContentMap["subject"], " "),
 		Sender:   strings.TrimPrefix(headerContentMap["from"], " "),
 		Receiver: strings.TrimPrefix(headerContentMap["to"], " "),
@@ -620,10 +612,36 @@ func parseHeaderContent(headerContentMap map[string]string) (h *Header, err erro
 	return h, nil
 }
 
+/**
+ * The Date information in the IMAP Header is either of type time.RFC1123Z or an extended version
+ * which also contains '(MST)' (where MST is the time zone).
+ */
+func parseIMAPHeaderDate(dateString string) time.Time {
+	var (
+		date time.Time
+		err error
+		extRFCString string = fmt.Sprintf("%s (MST)", time.RFC1123Z)
+	)
+	if date, err = time.Parse(time.RFC1123Z, dateString); err == nil {
+		// 1) Parsing as time.RFC1123Z was successful
+		return date
+	} else if date, err = time.Parse(extRFCString, dateString); err == nil {
+		// 2) Parsing as 'time.RFC1123Z (MST)' was successful
+		return date
+	} else {
+		fmt.Printf("[watney] Error during parsing of date header: %s\n",
+			err.Error())
+		// Fallback: If no date string was found in the header map or, an error occurred during
+		// parsing => set the date to 1/1/1970
+		return time.Unix(0, 0)
+	}
+}
+
 func SerializeHeader(h *Header) string {
 	if nil == h { return "" }
 	return strings.Join([]string{
-			fmt.Sprintf("%s: %s", "Date", h.Date.Format(fmt.Sprintf("%s (MST)", time.RFC1123Z))),
+//			fmt.Sprintf("%s: %s", "Date", h.Date.Format(fmt.Sprintf("%s (MST)", time.RFC1123Z))),
+			fmt.Sprintf("%s: %s", "Date", h.Date.Format(time.RFC1123Z)),
 			fmt.Sprintf("%s: %s", "To", h.Receiver),
 			fmt.Sprintf("%s: %s", "From", h.Sender),
 			fmt.Sprintf("%s: %s", "Subject", h.Subject)},

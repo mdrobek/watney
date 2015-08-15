@@ -6,7 +6,6 @@ import (
 	"reflect"
 	"fmt"
 	"strings"
-	"time"
 )
 
 const TEST_CONFIG_FILE = "../conf/unionwork.ini"
@@ -16,11 +15,11 @@ var lines []string = []string{
 	"X-Original-To: johnsmith@domain.org",
 	"Delivered-To: johnsmith@domain.org",
 	"Received: by aVM-withIP.dedicated.domain.org (Postfix, from userid 0)",
-	"id 024A790110703; Sat, 16 Mar 2013 02:05:26 +0100 (CET)",
+	"id 024A790110703; Sat, 16 Mar 2013 02:05:26 +0100",
 	"To: johnsmith@domain.org, root@localhost.localdomain,",
 	"Subject: Test Message",
 	"Message-Id: <20080316102426.024A790110703@aVM-withIP.dedicated.domain.org>",
-	"Date: Sat, 16 Mar 2013 02:05:26 +0100 (CET)",
+	"Date: Sat, 16 Mar 2013 02:05:26 +0100",
 	"From: root@localhost.localdomain (root)"}
 var mailHeader_Example string = strings.Join(lines, "\r\n")
 

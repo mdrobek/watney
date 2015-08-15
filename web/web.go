@@ -141,7 +141,6 @@ func (web *MailWeb) initHandlers() {
 func (web *MailWeb) authenticate(session sessions.Session, postedUser auth.WatneyUser,
 		r render.Render, req *http.Request) {
 	user := auth.WatneyUser{}
-	fmt.Println("Checking for given user", postedUser, user, web.mconf)
 
 	// 1) Create a new IMAP mail server connection
 	if imapCon, err := mail.NewMailCon(web.mconf); nil != err {
@@ -152,7 +151,6 @@ func (web *MailWeb) authenticate(session sessions.Session, postedUser auth.Watne
 		})
 	} else {
 		if _, err := imapCon.Authenticate(postedUser.Username, postedUser.Password); err == nil {
-			fmt.Println("AUTHENTICATED!")
 			user.Username = postedUser.Username
 			h := fnv.New32a()
 			h.Write([]byte(postedUser.Username))
