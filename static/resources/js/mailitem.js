@@ -24,6 +24,7 @@ goog.require('goog.date.Date');
  * A MailItem reflects the UI element of a received mail that is shown in the overview and main
  * mail page.
  * @param {wat.mail.ReceivedMail} jsonData
+ * @param {string} folder
  * @constructor
  */
 wat.mail.MailItem = function(jsonData, folder) {
@@ -31,6 +32,7 @@ wat.mail.MailItem = function(jsonData, folder) {
     self.Mail = jsonData;
     self.DomID = "mailItem_" + self.Mail.UID;
     self.Folder = folder;
+    self.Previous_Folder = folder;
     self.Date = goog.date.fromIsoString(self.Mail.Header.Date);
     self.DateString = (new goog.i18n.DateTimeFormat("dd/MM/yyyy")).format(self.Date);
     self.TimeString = (new goog.i18n.DateTimeFormat("HH:mm")).format(self.Date);
@@ -48,7 +50,10 @@ wat.mail.MailItem = function(jsonData, folder) {
  */
 wat.mail.MailItem.prototype.Mail = null;
 wat.mail.MailItem.prototype.DomID = "";
+// The folder in which the mail currently resides
 wat.mail.MailItem.prototype.Folder = "";
+// The folder, the mail was located before it has been moved
+wat.mail.MailItem.prototype.Previous_Folder = "";
 /**
  * @type {goog.date.Date}
  */
@@ -63,6 +68,7 @@ wat.mail.MailItem.prototype.IsFromToday = false;
 
 /**
  *
+ * @public
  */
 wat.mail.MailItem.prototype.renderMail = function() {
     var self = this,
@@ -165,7 +171,7 @@ wat.mail.MailItem.prototype.adjustCtrlBtns_ = function() {
     goog.events.listen(d_replyBtn, goog.events.EventType.CLICK, self.createReply_,
         false, self);
     goog.events.listen(d_deleteBtn, goog.events.EventType.CLICK, function() {
-        self.changeDeletionStatus_(true);
+        self.setDeleted(true);
     }, false, self);
 };
 
@@ -179,35 +185,35 @@ wat.mail.MailItem.prototype.createReply_ = function() {
 };
 
 /**
- * Change the Deleted flag of the mail to the given new state.
+ * Change the Deleted flag of the mail to the given new state. Performs all necessary client- and
+ * server-side actions that are associated with deletion.
+ * ATTENTION: The mail item is, however, not being really deleted. It is only flagged as deleted!
  * @param {boolean} newDeletedState
  *      True  -> If the mail hasn't been deleted yet, it will be tagged on the client and server as
  *               deleted (the \Deleted flag will be added)
  *      False -> Same as True, but the opposite
  */
-wat.mail.MailItem.prototype.changeDeletionStatus_ = function(newDeletedState) {
+wat.mail.MailItem.prototype.setDeleted = function(newDeletedState) {
     // 1) Check if the flag has to be changed
     if (this.Mail.Flags.Deleted === newDeletedState) { /* nothing to do here */ return; }
     var self = this,
-        nextItem = wat.app.mailHandler.getNextItem(self);
+        newMailboxFolder = wat.mail.MailboxFolder.TRASH;
     // 1) First apply all client-side effects -> better user experience
     self.Mail.Flags.Deleted = newDeletedState;
-    // 2) Remove mail from current folder and add it to trash or inbox
-    wat.app.mailHandler.moveDeletedMail(self, newDeletedState);
-    // 3) Highlight the next item (if there is one)
-    if (null != nextItem) nextItem.showContent();
-    else {
-        console.log("MailItem.changeDeletionStatus_ : NOT YET IMPLEMENTED");
-        // 2a) TODO: Clean the mail page:
-        //      * reset from, to, subject
-        //      * deactivate control btns (reply, delete)
-        //      * reset content area
+    // 2) In case we're restoring the mail, determine in which mailbox folder it has to go
+    if (!newDeletedState) {
+        // 2a) Special case: If the mail was in the Trash folder originally, it shouldn't be moved
+        if (self.Folder === wat.mail.MailboxFolder.TRASH && self.Previous_Folder ===
+            wat.mail.MailboxFolder.TRASH) return;
+        newMailboxFolder = self.Previous_Folder;
     }
-    // 4) Remove the deleted item from the overview list
-    goog.dom.removeNode(goog.dom.getElement(self.DomID));
-    // 5) Now send information to server
+    // 2) CLIENT-SIDE: Remove mail from current folder and add it to trash or inbox
+    wat.app.mailHandler.moveMail(self, newMailboxFolder);
+    // 3) CLIENT-SIDE: Switch the mail overview list and details part to the next mail in the list
+    wat.app.mailHandler.switchToNextItem(self);
+    // 4) SERVER-SIDE: Now send information to server
     self.updateFlagsRequest_(wat.mail.DELETE_FLAG, newDeletedState, function(request) {
-        console.log("MailItem.changeDeletionStatus_ : NOT YET IMPLEMENTED");
+        console.log("MailItem.setDeleted : NOT YET IMPLEMENTED");
         // TODO: Revert changes in client state of Deleted flag
     });
 };
@@ -269,10 +275,6 @@ wat.mail.MailItem.prototype.updateFlagsRequest_ = function(flag, addFlags, error
         }
     }, false, self);
     request.send(wat.mail.UPDATE_FLAGS_URI, 'POST', data.toString());
-};
-
-wat.mail.MailItem.prototype.removeOverviewItem_ = function() {
-    goog.dom.removeNode(goog.dom.getElement(this.DomID));
 };
 
 /**

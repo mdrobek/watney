@@ -108,3 +108,46 @@
         <div>{$ShortenedTo}</div>
     </div>
 {/template}
+
+/**
+ * Template to create the mail control bar for the inbox
+ */
+{template .inboxCtrlBar}
+    <div id="inboxCtrlBar" class="row">
+        <button id="mailReplyBtn" type="button" class="btn btn-lg btn-primary">
+            Reply
+        </button>
+        <!--<button type="button" class="btn btn-lg btn-primary">Forward</button>-->
+        <button id="inbox_mailDeleteBtn" type="button" class="btn btn-lg btn-primary
+            pull-right" style="margin-right: 13px;">
+            Delete
+        </button>
+    </div>
+{/template}
+
+/**
+ * Template to create the mail control bar for the Sent folder
+ */
+{template .sentCtrlBar}
+    <div id="sentCtrlBar" class="row">
+        <button id="sent_mailDeleteBtn" type="button" class="btn btn-lg btn-primary
+            pull-right" style="margin-right: 13px;">
+            Delete
+        </button>
+    </div>
+{/template}
+
+/**
+ * Template to create the mail control bar for the Trash folder
+ */
+{template .trashCtrlBar}
+    <div id="trashCtrlBar" class="row">
+        <button id="trashRestoreBtn" type="button" class="btn btn-lg btn-primary">
+            Restore
+        </button>
+        <button id="trashEmptyBtn" type="button" class="btn btn-lg btn-primary
+            pull-right" style="margin-right: 13px;">
+            Empty
+        </button>
+    </div>
+{/template}
