@@ -68,38 +68,25 @@ wat.mail.MailItem.prototype.IsFromToday = false;
 
 /**
  *
+ * @param {function} activateClickEventCb Function to be called, if the mail item overview element
+ * is clicked (thus activated). The method MUST will be called with the current MailItem as its
+ * first parameters.
  * @public
  */
-wat.mail.MailItem.prototype.renderMail = function() {
+wat.mail.MailItem.prototype.renderMail = function(activateClickEventCb) {
     var self = this,
         mailTableElem = goog.dom.getElement("mailItems"),
         d_mailItem = goog.soy.renderAsElement(wat.soy.mail.mailOverviewItem, this);
-    goog.events.listen(d_mailItem, goog.events.EventType.CLICK, self.showContent, false, self);
+    goog.events.listen(d_mailItem, goog.events.EventType.CLICK, function() {
+        if (goog.isDefAndNotNull(activateClickEventCb)) activateClickEventCb(self);
+    }, false);
     goog.dom.append(mailTableElem, d_mailItem);
 };
 
-wat.mail.MailItem.prototype.showContent = function() {
-    var self = this;
-    if (!self.HasContentBeenLoaded) {
-        self.loadContent_();
-    } else {
-        self.changeSeenStatus_(true);
-        wat.mail.MailHandler.hideActiveNewMail(null);
-        self.deactivateLastOverviewItem_();
-        self.highlightOverviewItem_();
-        self.fillMailPage_();
-        self.adjustCtrlBtns_();
-    }
-};
-
-////////////////////////////////////////////////////////////////////////////////////////////////////
-///                                    Private methods                                           ///
-////////////////////////////////////////////////////////////////////////////////////////////////////
-
 /**
- * @private
+ * @public
  */
-wat.mail.MailItem.prototype.loadContent_ = function() {
+wat.mail.MailItem.prototype.loadContent = function(successLoadCb) {
     var self = this,
         request = new goog.net.XhrIo(),
         data = new goog.Uri.QueryData();
@@ -111,7 +98,7 @@ wat.mail.MailItem.prototype.loadContent_ = function() {
         if (request.isSuccess()) {
             self.Mail.Content = request.getResponseJson();
             self.HasContentBeenLoaded = true;
-            self.showContent();
+            if (goog.isDefAndNotNull(successLoadCb)) successLoadCb(self);
         } else {
             // error
             console.log("something went wrong loading content for mail: " + this.getLastError());
@@ -121,67 +108,27 @@ wat.mail.MailItem.prototype.loadContent_ = function() {
     request.send(wat.mail.LOAD_MAILCONTENT_URI, 'POST', data.toString());
 };
 
-
-wat.mail.MailItem.prototype.deactivateLastOverviewItem_ = function() {
-    if ("" != wat.mail.LAST_ACTIVE_OVERVIEW_ITEM_ID) {
-        var d_mailOverview = goog.dom.getElement(wat.mail.LAST_ACTIVE_OVERVIEW_ITEM_ID),
-            d_mailOverviewEntry = goog.dom.getElementByClass("entry", d_mailOverview);
-        if (goog.dom.classes.has(d_mailOverviewEntry, "active")) {
-            wat.mail.LAST_ACTIVE_OVERVIEW_ITEM_ID = "";
-            goog.dom.classes.remove(d_mailOverviewEntry, "active");
-        }
-    }
-};
-
-wat.mail.MailItem.prototype.highlightOverviewItem_ = function() {
+/**
+ *
+ * @param {boolean} active  True - Will be highlighted
+ *                          False - Otherwise
+ * @public
+ */
+wat.mail.MailItem.prototype.highlightOverviewItem = function(active) {
     var self = this,
         d_mailOverview = goog.dom.getElement(self.DomID),
         d_mailOverviewEntry = goog.dom.getElementByClass("entry", d_mailOverview);
-    if (!goog.dom.classes.has(d_mailOverviewEntry, "active")) {
-        wat.mail.LAST_ACTIVE_OVERVIEW_ITEM_ID = self.DomID;
-        goog.dom.classes.add(d_mailOverviewEntry, "active");
+    if (active) {
+        // The highlight effect has to be activated
+        if (!goog.dom.classes.has(d_mailOverviewEntry, "active")) {
+            goog.dom.classes.add(d_mailOverviewEntry, "active");
+        }
+    } else {
+        // The highlight effect has to be deactivated
+        if (goog.dom.classes.has(d_mailOverviewEntry, "active")) {
+            goog.dom.classes.remove(d_mailOverviewEntry, "active");
+        }
     }
-};
-
-wat.mail.MailItem.prototype.fillMailPage_ = function() {
-    var self = this,
-        d_mailDetailsFrom = goog.dom.getElement("mailDetails_From"),
-        d_mailDetailsSubject = goog.dom.getElement("mailDetails_Subject"),
-        d_mailDetailsTo = goog.dom.getElement("mailDetails_To"),
-        d_mailDetailsContent = goog.dom.getElement("mailDetails_Content"),
-        htmlContent = goog.string.newLineToBr(goog.string.canonicalizeNewlines(self.Mail.Content));
-    goog.dom.setTextContent(d_mailDetailsFrom, self.Mail.Header.Sender);
-    goog.dom.setTextContent(d_mailDetailsSubject, self.Mail.Header.Subject);
-    goog.dom.setTextContent(d_mailDetailsTo, self.Mail.Header.Receiver);
-
-    goog.dom.removeChildren(d_mailDetailsContent);
-    goog.dom.appendChild(d_mailDetailsContent, goog.dom.htmlToDocumentFragment(htmlContent));
-};
-
-/**
- * Resets all control button events for the current mail (e.g., reply, forward and delete button).
- * @private
- */
-wat.mail.MailItem.prototype.adjustCtrlBtns_ = function() {
-    var self = this,
-        d_replyBtn = goog.dom.getElement("mailReplyBtn"),
-        d_deleteBtn = goog.dom.getElement("mailDeleteBtn");
-    goog.events.removeAll(d_replyBtn);
-    goog.events.removeAll(d_deleteBtn);
-    goog.events.listen(d_replyBtn, goog.events.EventType.CLICK, self.createReply_,
-        false, self);
-    goog.events.listen(d_deleteBtn, goog.events.EventType.CLICK, function() {
-        self.setDeleted(true);
-    }, false, self);
-};
-
-
-wat.mail.MailItem.prototype.createReply_ = function() {
-    var self = this,
-        from = goog.isDefAndNotNull(wat.app.userMail) ? wat.app.userMail
-            : self.Mail.Header.Receiver;
-    wat.app.mailHandler.createReply(from, self.Mail.Header.Sender, self.Mail.Header.Subject,
-        self.Mail.Content);
 };
 
 /**
@@ -198,8 +145,6 @@ wat.mail.MailItem.prototype.setDeleted = function(newDeletedState) {
     if (this.Mail.Flags.Deleted === newDeletedState) { /* nothing to do here */ return; }
     var self = this,
         newMailboxFolder = wat.mail.MailboxFolder.TRASH;
-    // 1) First apply all client-side effects -> better user experience
-    self.Mail.Flags.Deleted = newDeletedState;
     // 2) In case we're restoring the mail, determine in which mailbox folder it has to go
     if (!newDeletedState) {
         // 2a) Special case: If the mail was in the Trash folder originally, it shouldn't be moved
@@ -207,11 +152,11 @@ wat.mail.MailItem.prototype.setDeleted = function(newDeletedState) {
             wat.mail.MailboxFolder.TRASH) return;
         newMailboxFolder = self.Previous_Folder;
     }
-    // 2) CLIENT-SIDE: Remove mail from current folder and add it to trash or inbox
+    // 3) First apply all client-side effects -> better user experience
+    self.Mail.Flags.Deleted = newDeletedState;
+    // 4) CLIENT-SIDE: Remove mail from current folder and add it to trash or inbox
     wat.app.mailHandler.moveMail(self, newMailboxFolder);
-    // 3) CLIENT-SIDE: Switch the mail overview list and details part to the next mail in the list
-    wat.app.mailHandler.switchToNextItem(self);
-    // 4) SERVER-SIDE: Now send information to server
+    // 5) SERVER-SIDE: Now send information to server
     self.updateFlagsRequest_(wat.mail.DELETE_FLAG, newDeletedState, function(request) {
         console.log("MailItem.setDeleted : NOT YET IMPLEMENTED");
         // TODO: Revert changes in client state of Deleted flag
@@ -226,7 +171,7 @@ wat.mail.MailItem.prototype.setDeleted = function(newDeletedState) {
  *               seen (the \Seen flag will be added)
  *      False -> Same as True, but the opposite
  */
-wat.mail.MailItem.prototype.changeSeenStatus_ = function(newSeenState) {
+wat.mail.MailItem.prototype.setSeen = function(newSeenState) {
     // 1) Check if the flag has to be changed
     if (this.Mail.Flags.Seen === newSeenState) { /* nothing to do here */ return; }
     // 2) First apply all client-side effects -> better user experience
@@ -247,6 +192,10 @@ wat.mail.MailItem.prototype.changeSeenStatus_ = function(newSeenState) {
         // TODO: Revert changes in client state of Seen flag
     });
 };
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+///                                    Private methods                                           ///
+////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /**
  *

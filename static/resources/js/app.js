@@ -14,7 +14,13 @@ goog.require("goog.Uri.QueryData");
 wat.app.LOAD_USER_URI_ = "/userInfo";
 
 // Global accessible objects
+/**
+ * @type {wat.mail.MailHandler}
+ */
 wat.app.mailHandler = null;
+/**
+ * @type {JSON object}
+ */
 wat.app.userMail = null;
 
 wat.app.start = function() {

@@ -35,7 +35,6 @@ wat.mail.MailboxFolder.TRASH = "Trash";
  * @type {string}
  */
 wat.mail.MailboxFolder.prototype.Name = "";
-
 /**
  *
  * @type {goog.structs.AvlTree}
@@ -49,11 +48,26 @@ wat.mail.MailboxFolder.prototype.mails_ =
  * @private
  */
 wat.mail.MailboxFolder.prototype.retrieved_ = false;
+/**
+ *
+ * @type {wat.mail.MailItem}
+ * @private
+ */
+wat.mail.MailboxFolder.prototype.lastActiveMailItem_ = null;
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 ///                                  Abstract methods                                            ///
 ////////////////////////////////////////////////////////////////////////////////////////////////////
+/**
+ * @public
+ */
 wat.mail.MailboxFolder.prototype.renderCtrlbar = goog.abstractMethod;
+
+/**
+ * @param {wat.mail.MailItem} forMail
+ * @public
+ */
+wat.mail.MailboxFolder.prototype.updateCtrlBtns_ = goog.abstractMethod;
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 ///                                  Public methods                                              ///
@@ -105,9 +119,10 @@ wat.mail.MailboxFolder.prototype.loadMails = function() {
  * @param {wat.mail.MailItem} curMailItem
  */
 wat.mail.MailboxFolder.prototype.switchToNextItem = function(curMailItem) {
-    var nextItem = this.getNextItem(curMailItem);
+    var self = this,
+        nextItem = this.getNextItem(curMailItem);
     // 1) Highlight the next item (if there is one)
-    if (null != nextItem) nextItem.showContent();
+    if (null != nextItem) self.showMail(curMailItem);
     else {
         // 1a) There's no other mail that could be shown in the current folder
         console.log("MailItem.setDeleted : NOT YET IMPLEMENTED");
@@ -185,15 +200,75 @@ wat.mail.MailboxFolder.prototype.deactivate = function() {
 
 /**
  *
+ * @param {wat.mail.MailItem} activatedMail
+ * @public
+ */
+wat.mail.MailboxFolder.prototype.showMail = function(activatedMail) {
+    var self = this;
+    if (!goog.isDefAndNotNull(activatedMail)) {
+        console.log("MailboxFolder.ShowMail failed for 'null' mail");
+        return;
+    }
+    if (!activatedMail.HasContentBeenLoaded) {
+        activatedMail.loadContent(self.showMail);
+    } else {
+        // 1) Set the status of the newly activated mail item to 'Seen'
+        activatedMail.setSeen(true);
+        // 2) Hide a 'New Mail' window, if open
+        wat.mail.MailHandler.hideActiveNewMail(null);
+        // 3) If there is a previously highlighted item, remove highlighting of it
+        if (goog.isDefAndNotNull(self.lastActiveMailItem_))
+            self.lastActiveMailItem_.highlightOverviewItem(false);
+        // 4) Highlight newly activated mail item in mail list
+        activatedMail.highlightOverviewItem(true);
+        // 5) Copy over the mail information into the mail details form
+
+        // TODO: Go on here: Self/this is the window instead of the MailboxFolder ....
+        //       probably coming from the loadContent event listener
+
+        self.fillMailPage_(activatedMail);
+        // 6) Adjust control buttons for newly activated mail item
+        self.updateCtrlBtns_(activatedMail);
+    }
+    self.lastActiveMailItem_ = activatedMail;
+};
+
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+///                                 Private methods                                              ///
+////////////////////////////////////////////////////////////////////////////////////////////////////
+/**
+ *
  * @private
  */
 wat.mail.MailboxFolder.prototype.renderMailboxContent_ = function() {
-    this.mails_.inOrderTraverse(function(curMail) {
-        curMail.renderMail();
+    var self = this;
+    self.mails_.inOrderTraverse(function(curMail) {
+        curMail.renderMail(self.mailActivationCb);
     });
-    if (this.mails_.getCount() > 0) {
-        this.mails_.getKthValue(0).showContent();
+    if (self.mails_.getCount() > 0) {
+        self.showMail(self.mails_.getKthValue(0));
     }
+};
+
+/**
+ *
+ * @param {wat.mail.MailItem} withMailItem
+ * @private
+ */
+wat.mail.MailboxFolder.prototype.fillMailPage_ = function(withMailItem) {
+    var mail = withMailItem.Mail,
+        d_mailDetailsFrom = goog.dom.getElement("mailDetails_From"),
+        d_mailDetailsSubject = goog.dom.getElement("mailDetails_Subject"),
+        d_mailDetailsTo = goog.dom.getElement("mailDetails_To"),
+        d_mailDetailsContent = goog.dom.getElement("mailDetails_Content"),
+        htmlContent = goog.string.newLineToBr(goog.string.canonicalizeNewlines(mail.Content));
+    goog.dom.setTextContent(d_mailDetailsFrom, mail.Header.Sender);
+    goog.dom.setTextContent(d_mailDetailsSubject, mail.Header.Subject);
+    goog.dom.setTextContent(d_mailDetailsTo, mail.Header.Receiver);
+
+    goog.dom.removeChildren(d_mailDetailsContent);
+    goog.dom.appendChild(d_mailDetailsContent, goog.dom.htmlToDocumentFragment(htmlContent));
 };
 
 
@@ -223,6 +298,7 @@ wat.mail.Inbox.prototype.addMailsToFolder = function(mails) {
 
 /**
  *
+ * @public
  */
 wat.mail.Inbox.prototype.renderCtrlbar = function() {
     var d_ctrlBarContainer = goog.dom.getElement("ctrlBarContainer"),
@@ -230,6 +306,31 @@ wat.mail.Inbox.prototype.renderCtrlbar = function() {
     // 2) Remove the current control bar and add the new one
     goog.dom.removeChildren(d_ctrlBarContainer);
     goog.dom.appendChild(d_ctrlBarContainer, d_newCtrlBar);
+};
+
+/**
+ * Resets all control button events for the current mail (e.g., reply, forward and delete button).
+ * @param {wat.mail.MailItem} forMail
+ * @public
+ */
+wat.mail.Inbox.prototype.updateCtrlBtns_ = function(forMail) {
+    var d_replyBtn = goog.dom.getElement("mailReplyBtn"),
+        d_deleteBtn = goog.dom.getElement("inbox_mailDeleteBtn");
+    goog.events.removeAll(d_replyBtn);
+    goog.events.removeAll(d_deleteBtn);
+    goog.events.listen(d_replyBtn, goog.events.EventType.CLICK, function() {
+            var mail = forMail.Mail,
+                from = goog.isDefAndNotNull(wat.app.userMail) ? wat.app.userMail
+                    : mail.Header.Receiver;
+            wat.app.mailHandler.createReply(from, mail.Header.Sender, mail.Header.Subject,
+                mail.Content);
+        }, false);
+    goog.events.listen(d_deleteBtn, goog.events.EventType.CLICK, function() {
+        // 1) CLIENT-SIDE: Switch the mail overview list and details part to the next mail in the list
+        self.switchToNextItem(forMail);
+        // 2) Handle all further client- and server-side actions associated with the deletion
+        forMail.setDeleted(true);
+    }, false, forMail);
 };
 
 
@@ -257,6 +358,15 @@ wat.mail.Sent.prototype.renderCtrlbar = function() {
 };
 
 
+/**
+ * Resets all control button events for the current mail (e.g., reply, forward and delete button).
+ * @param {wat.mail.MailItem} forMail
+ * @private
+ */
+wat.mail.Sent.prototype.updateCtrlBtns_ = function(forMail) {
+    console.log("Sent.updateCtrlBtns_ NOT YET IMPLEMENTED");
+};
+
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 ///                                  Trash Constructor                                           ///
@@ -279,5 +389,14 @@ wat.mail.Trash.prototype.renderCtrlbar = function() {
     // 2) Remove the current control bar and add the new one
     goog.dom.removeChildren(d_ctrlBarContainer);
     goog.dom.appendChild(d_ctrlBarContainer, d_newCtrlBar);
+};
+
+/**
+ * Resets all control button events for the current mail (e.g., reply, forward and delete button).
+ * @param {wat.mail.MailItem} forMail
+ * @public
+ */
+wat.mail.Trash.prototype.updateCtrlBtns_ = function(forMail) {
+    console.log("Trash.updateCtrlBtns_ NOT YET IMPLEMENTED");
 };
 

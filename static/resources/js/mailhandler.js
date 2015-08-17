@@ -30,19 +30,11 @@ wat.mail.MailHandler = function() {
  * @type wat.mail.NewMail
  */
 wat.mail.LAST_ACTIVE_NEW_MAIL_ITEM = null;
-wat.mail.LAST_ACTIVE_OVERVIEW_ITEM_ID = "";
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 ///                                   Private members                                            ///
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 wat.mail.MailHandler.prototype.SelectedMailbox = "";
-//wat.mail.MailHandler.prototype.inboxMails_ =
-//    new goog.structs.AvlTree(wat.mail.MailItem.comparator);
-//wat.mail.MailHandler.prototype.trashMails_ =
-//    new goog.structs.AvlTree(wat.mail.MailItem.comparator);
-//wat.mail.MailHandler.prototype.sentMails_ =
-//    new goog.structs.AvlTree(wat.mail.MailItem.comparator);
-//// Todo: introduce draft mails
 
 /**
  * MailboxFolderName -> wat.mail.MailboxFolder
