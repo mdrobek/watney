@@ -36,12 +36,11 @@ wat.mail.MailboxFolder.TRASH = "Trash";
  */
 wat.mail.MailboxFolder.prototype.Name = "";
 /**
- *
+ * ATTENTION: Has to be assigned in each implementation constructor (Inbox, Sent, Trash)
  * @type {goog.structs.AvlTree}
  * @protected
  */
-wat.mail.MailboxFolder.prototype.mails_ =
-    new goog.structs.AvlTree(wat.mail.MailItem.comparator);
+wat.mail.MailboxFolder.prototype.mails_ = null;
 /**
  * Whether the mails for this folder have already been loaded or not
  * @type {boolean}
@@ -81,7 +80,23 @@ wat.mail.MailboxFolder.prototype.contains = function(mailItem) {
 
 /**
  *
- * @param {wat.mail.MailItem[]}mails
+ * @param {wat.mail.MailItem} mails
+ */
+wat.mail.MailboxFolder.prototype.remove = function(mail) {
+    this.mails_.remove(mail);
+};
+
+/**
+ *
+ * @param {wat.mail.MailItem} mails
+ */
+wat.mail.MailboxFolder.prototype.add = function(mail) {
+    this.mails_.add(mail);
+};
+
+/**
+ *
+ * @param {wat.mail.MailItem[]} mails
  */
 wat.mail.MailboxFolder.prototype.addMailsToFolder = function(mails) {
     var self = this;
@@ -120,10 +135,11 @@ wat.mail.MailboxFolder.prototype.loadMails = function() {
  */
 wat.mail.MailboxFolder.prototype.switchToNextItem = function(curMailItem) {
     var self = this,
-        nextItem = this.getNextItem(curMailItem);
+        nextItem = self.getNextItem(curMailItem);
     // 1) Highlight the next item (if there is one)
-    if (null != nextItem) self.showMail(curMailItem);
-    else {
+    if (null != nextItem) {
+        self.showMail(nextItem);
+    } else {
         // 1a) There's no other mail that could be shown in the current folder
         console.log("MailItem.setDeleted : NOT YET IMPLEMENTED");
         // 1a) TODO: Clean the mail page:
@@ -210,7 +226,9 @@ wat.mail.MailboxFolder.prototype.showMail = function(activatedMail) {
         return;
     }
     if (!activatedMail.HasContentBeenLoaded) {
-        activatedMail.loadContent(self.showMail);
+        activatedMail.loadContent(function(loadedMail) {
+            self.showMail(loadedMail);
+        });
     } else {
         // 1) Set the status of the newly activated mail item to 'Seen'
         activatedMail.setSeen(true);
@@ -244,7 +262,12 @@ wat.mail.MailboxFolder.prototype.showMail = function(activatedMail) {
 wat.mail.MailboxFolder.prototype.renderMailboxContent_ = function() {
     var self = this;
     self.mails_.inOrderTraverse(function(curMail) {
-        curMail.renderMail(self.mailActivationCb);
+        curMail.renderMail(function(mail) {
+            // 1) Unhighlight currently active mail
+            self.lastActiveMailItem_.highlightOverviewItem(false);
+            // 2) Active the clicked mail
+            self.showMail(mail);
+        });
     });
     if (self.mails_.getCount() > 0) {
         self.showMail(self.mails_.getKthValue(0));
@@ -280,6 +303,7 @@ wat.mail.MailboxFolder.prototype.fillMailPage_ = function(withMailItem) {
  * @abstract
  */
 wat.mail.Inbox = function() {
+    this.mails_ = new goog.structs.AvlTree(wat.mail.MailItem.comparator);
     this.Name = wat.mail.MailboxFolder.INBOX;
 };
 goog.inherits(wat.mail.Inbox, wat.mail.MailboxFolder);
@@ -314,7 +338,8 @@ wat.mail.Inbox.prototype.renderCtrlbar = function() {
  * @public
  */
 wat.mail.Inbox.prototype.updateCtrlBtns_ = function(forMail) {
-    var d_replyBtn = goog.dom.getElement("mailReplyBtn"),
+    var self = this,
+        d_replyBtn = goog.dom.getElement("mailReplyBtn"),
         d_deleteBtn = goog.dom.getElement("inbox_mailDeleteBtn");
     goog.events.removeAll(d_replyBtn);
     goog.events.removeAll(d_deleteBtn);
@@ -342,6 +367,7 @@ wat.mail.Inbox.prototype.updateCtrlBtns_ = function(forMail) {
  * @abstract
  */
 wat.mail.Sent = function() {
+    this.mails_ = new goog.structs.AvlTree(wat.mail.MailItem.comparator);
     this.Name = wat.mail.MailboxFolder.SENT;
 };
 goog.inherits(wat.mail.Sent, wat.mail.MailboxFolder);
@@ -376,6 +402,7 @@ wat.mail.Sent.prototype.updateCtrlBtns_ = function(forMail) {
  * @abstract
  */
 wat.mail.Trash = function() {
+    this.mails_ = new goog.structs.AvlTree(wat.mail.MailItem.comparator);
     this.Name = wat.mail.MailboxFolder.TRASH;
 };
 goog.inherits(wat.mail.Trash, wat.mail.MailboxFolder);

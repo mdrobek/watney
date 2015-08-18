@@ -37,7 +37,7 @@ wat.mail.LAST_ACTIVE_NEW_MAIL_ITEM = null;
 wat.mail.MailHandler.prototype.SelectedMailbox = "";
 
 /**
- * MailboxFolderName -> wat.mail.MailboxFolder
+ * {string} MailboxFolderName -> wat.mail.MailboxFolder
  * @type {goog.structs.Map}
  */
 wat.mail.MailHandler.prototype.mailboxFolders = new goog.structs.Map();
