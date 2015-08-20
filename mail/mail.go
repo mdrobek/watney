@@ -134,7 +134,7 @@ func NewMailCon(conf *conf.MailConf) (newMC *MailCon, err error) {
 		return newMC, err
 	}
 	// Schedule a NOOP keep-alive request every 30 seconds to keep the IMAP connection alive
-	newMC.keepAlive(30)
+	newMC.keepAlive(3)
 	// Return the new established connection
 	return newMC, nil
 }
@@ -485,10 +485,12 @@ func (mc *MailCon) keepAlive(every int) {
 		for {
 			select {
 			case <- ticker.C:
-			// Send Noop to keep connection alive
+				// Send Noop to keep connection alive
+				mc.mutex.Lock()
 				if _, err := mc.waitFor(mc.client.Noop()); err != nil {
 					mc.logMC(err.Error(), imap.LogAll)
 				}
+				mc.mutex.Unlock()
 			case <- mc.QuitChan:
 				ticker.Stop()
 				return

@@ -79,28 +79,46 @@ wat.mail.MailboxFolder.prototype.contains = function(mailItem) {
 };
 
 /**
- *
- * @param {wat.mail.MailItem} mails
+ * Removes the given mail item from the internal data structure.
+ * @param {wat.mail.MailItem} mail
  */
 wat.mail.MailboxFolder.prototype.remove = function(mail) {
     this.mails_.remove(mail);
 };
 
 /**
- *
- * @param {wat.mail.MailItem} mails
+ * Adds the given mail item from the internal data structure.
+ * @param {wat.mail.MailItem} mail
  */
 wat.mail.MailboxFolder.prototype.add = function(mail) {
     this.mails_.add(mail);
 };
 
 /**
- *
+ * Only adds the mail to the internal data structure. Does not render any content.
  * @param {wat.mail.MailItem[]} mails
  */
 wat.mail.MailboxFolder.prototype.addMailsToFolder = function(mails) {
     var self = this;
     goog.array.forEach(mails, function(curMail) { self.mails_.add(curMail); })
+};
+
+/**
+ * Executes all following actions:
+ *  - remove the active mail from the internal data structure and move it to the Trash folder
+ *  - remove the active mail item DOM structures
+ *  - highlight the next mail item in the view
+ *
+ *  ATTENTION:
+ *  Please see specific implementation for the Trash folder for further information.
+ */
+wat.mail.MailboxFolder.prototype.deleteActiveMail = function() {
+    var self = this,
+        tempLastItem = self.lastActiveMailItem_;
+    if (!goog.isDefAndNotNull(tempLastItem)) return;
+
+    self.switchToNextItem(tempLastItem);
+    tempLastItem.setDeleted(true);
 };
 
 wat.mail.MailboxFolder.prototype.loadMails = function() {
@@ -131,6 +149,7 @@ wat.mail.MailboxFolder.prototype.loadMails = function() {
 /**
  * Switches to the next item in the mail overview list and displays its details in the mail details
  * part.
+ * ATTENTION: Changes the state of 'lastActiveMailItem_'.
  * @param {wat.mail.MailItem} curMailItem
  */
 wat.mail.MailboxFolder.prototype.switchToNextItem = function(curMailItem) {
@@ -215,7 +234,7 @@ wat.mail.MailboxFolder.prototype.deactivate = function() {
 };
 
 /**
- *
+ * ATTENTION: Changes the state of 'lastActiveMailItem_'.
  * @param {wat.mail.MailItem} activatedMail
  * @public
  */
@@ -427,3 +446,6 @@ wat.mail.Trash.prototype.updateCtrlBtns_ = function(forMail) {
     console.log("Trash.updateCtrlBtns_ NOT YET IMPLEMENTED");
 };
 
+wat.mail.Trash.prototype.deleteActiveMail = function() {
+    console.log("TODO: Delete of active mailitem in trash folder hasn't been implemented yet!");
+};

@@ -15,21 +15,30 @@ goog.require('goog.array');
 goog.require('goog.structs.Map');
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
+///                                 GLOBAL STATIC VARS                                           ///
+////////////////////////////////////////////////////////////////////////////////////////////////////
+/**
+ * @type wat.mail.NewMail
+ * @static
+ */
+wat.mail.LAST_ACTIVE_NEW_MAIL_ITEM = null;
+/**
+ * @type {string}
+ * @static
+ */
+wat.mail.KeyShortcuts = {
+    DELETE_MAIL : "DELETE_MAIL"
+};
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
 ///                                     Constructor                                              ///
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 wat.mail.MailHandler = function() {
+    // 1) Create all mailboxes
     this.mailboxFolders.set(wat.mail.MailboxFolder.INBOX, new wat.mail.Inbox());
     this.mailboxFolders.set(wat.mail.MailboxFolder.SENT, new wat.mail.Sent());
     this.mailboxFolders.set(wat.mail.MailboxFolder.TRASH, new wat.mail.Trash());
 };
-
-////////////////////////////////////////////////////////////////////////////////////////////////////
-///                                     GLOBAL VARS                                              ///
-////////////////////////////////////////////////////////////////////////////////////////////////////
-/**
- * @type wat.mail.NewMail
- */
-wat.mail.LAST_ACTIVE_NEW_MAIL_ITEM = null;
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 ///                                   Private members                                            ///
@@ -93,6 +102,21 @@ wat.mail.MailHandler.prototype.createReply = function(from, to, subject, origTex
     newMail.addNewMail();
     wat.mail.LAST_ACTIVE_NEW_MAIL_ITEM = newMail;
 };
+
+/**
+ * @public
+ */
+wat.mail.MailHandler.prototype.deleteActiveMail = function() {
+    var curMailbox = this.mailboxFolders.get(this.SelectedMailbox);
+    if (goog.isDefAndNotNull(curMailbox)) {
+        curMailbox.deleteActiveMail();
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+///                                   Private Methods                                            ///
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 ///                                    STATIC Methods                                            ///
