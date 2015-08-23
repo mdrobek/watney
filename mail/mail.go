@@ -134,7 +134,7 @@ func NewMailCon(conf *conf.MailConf) (newMC *MailCon, err error) {
 		return newMC, err
 	}
 	// Schedule a NOOP keep-alive request every 30 seconds to keep the IMAP connection alive
-	newMC.keepAlive(3)
+	newMC.keepAlive(10)
 	// Return the new established connection
 	return newMC, nil
 }
@@ -145,19 +145,24 @@ func NewMailCon(conf *conf.MailConf) (newMC *MailCon, err error) {
 func (mc *MailCon) Authenticate(username, password string) (*MailCon, error) {
 	mc.mutex.Lock()
 	defer mc.mutex.Unlock()
-	var err error
+	var (
+		err error
+		cmd *imap.Command
+	)
 	// Login the current user
 	mc.client.SetLogMask(mc.LogMask)
 	if _, err = mc.waitFor(mc.client.Login(username, password)); err != nil {
 		return mc, err
 	}
 	// Retrieve the current servers delimiter symbol
-	if cmd, err := mc.waitFor(mc.client.List("", "")); err != nil {
+	if cmd, err = mc.waitFor(mc.client.List("", "")); err != nil {
 		// ... we couldn't retrieve it, let's assume for now, its our default delimiter
 		mc.delim = DFLT_MAILBOX_DELIM
 	} else {
 		mc.delim = cmd.Data[0].MailboxInfo().Delim
 	}
+	// Clean the data queue
+	mc.client.Data = nil
 	// Set the client in the NO_OP state to continuously receive updates from the server
 	if _, err = mc.waitFor(mc.client.Noop()); err != nil {
 		return mc, err
@@ -243,6 +248,8 @@ func (mc *MailCon) LoadContentForMail(folder string, uid uint32) (string, error)
 	for _, resp := range cmd.Data {
 		mailContent = imap.AsString(resp.MessageInfo().Attrs["RFC822.TEXT"])
 	}
+	// 5) Clean the data queue
+	mc.client.Data = nil
 	return mailContent, nil
 }
 
@@ -308,6 +315,8 @@ func (mc *MailCon) LoadNMailsFromFolder(folder string, n int, withContent bool) 
 				Content: mailContent,
 			})
 		}
+		// 5) Clean the data queue
+		mc.client.Data = nil
 		return mails, nil
 	}
 }
@@ -332,6 +341,62 @@ func (mc *MailCon) UpdateMailFlags(uid string, f *Flags, add bool) error {
 	_, err := mc.waitFor(mc.client.UIDStore(set, strings.Replace("*FLAGS", "*", task, 1),
 		SerializeFlags(f)))
 	return err
+}
+
+/**
+ * Response: * 25 EXISTS | 2 | 25
+ * new Data update: * 25 EXISTS
+ * This is all the fields we get: %!s(uint32=25)
+ * This is all the fields we get: EXISTS
+ * Response: * 1 RECENT | 2 | 1
+ * new Data update: * 1 RECENT
+ * This is all the fields we get: %!s(uint32=1)
+ * This is all the fields we get: RECENT
+ *
+ *
+ * Usually, a new mail update from the server splits into 2 responses: 1 EXIST and 1 RECENT
+ * The EXIST command provides the server UID of the new message received and the RECENT command
+ * tells the client how many new messages have been recently received.
+ */
+func (mc *MailCon) CheckNewMails() ([]uint32, error) {
+	mc.mutex.Lock()
+	defer mc.mutex.Unlock()
+	var (
+		recentMsg bool = false
+		newMsgUIDs []uint32 = make([]uint32, 0)
+		err error = nil
+	)
+	if mc.client.Data != nil && len(mc.client.Data) > 0 {
+		for _, resp := range mc.client.Data {
+			fmt.Printf("Response: %s | %d | %d\n", resp.String(), resp.Type, resp.Value())
+			if resp.Type == imap.Data {
+				fmt.Printf("new Data update: %s | Label: %s\n", resp.String(), resp.Label)
+				f := resp.Fields
+				if len(f) > 1 {
+					// The response is either an EXIST or a RECENT
+					// We expect Fields[0] to be the message ID/nbr of new messages and Fields[1]
+					// to be the information (EXIST/RECENT)
+					switch n := imap.AsNumber(f[0]); strings.ToUpper(imap.AsAtom(f[1])) {
+						case "RECENT":
+							recentMsg = true
+						case "EXISTS":
+							newMsgUIDs = append(newMsgUIDs, n)
+					}
+				} else {
+					err = errors.New(fmt.Sprintf("Got a data update message with less than 2 " +
+						"fields: %s", resp.Fields))
+					fmt.Printf("[watney]: ERROR: %s\n", err.Error())
+				}
+			} else {
+				err = errors.New(fmt.Sprintf("Unhandled response in message queue, while " +
+					"checking for new mails: \n\t%s", resp.String()))
+			}
+		}
+	}
+	fmt.Printf("Received info is: %b, %s\n", recentMsg, newMsgUIDs)
+	// Empty the response message queue
+	mc.client.Data = nil
+	return newMsgUIDs, err
 }
 
 /**
@@ -429,6 +494,7 @@ func (mc *MailCon) waitFor(cmd *imap.Command, origErr error) (*imap.Command, err
 	)
 	// 1) Check if we're missing a command and if so, return with an error
 	if cmd == nil {
+		// Todo: origErr could ne nil here as well
 		wferr = errors.New(fmt.Sprintf("WaitFor: Missing command, because: %s", origErr.Error()))
 		mc.logMC(wferr.Error(), imap.LogAll)
 		return nil, wferr
@@ -485,12 +551,13 @@ func (mc *MailCon) keepAlive(every int) {
 		for {
 			select {
 			case <- ticker.C:
-				// Send Noop to keep connection alive
+				// Send Noop to keep connection alive and receive new updates from the server
 				mc.mutex.Lock()
 				if _, err := mc.waitFor(mc.client.Noop()); err != nil {
 					mc.logMC(err.Error(), imap.LogAll)
 				}
 				mc.mutex.Unlock()
+				mc.CheckNewMails()
 			case <- mc.QuitChan:
 				ticker.Stop()
 				return
