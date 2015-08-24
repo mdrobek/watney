@@ -33,8 +33,7 @@ func main() {
 	signal.Notify(c, os.Interrupt)
 	signal.Notify(c, syscall.SIGTERM)
 	go func() {
-		sig := <-c
-		fmt.Printf("[watney] Received Signal %s\n", sig.String())
+		<-c
 		web.Close()
 		os.Exit(1)
 	}()

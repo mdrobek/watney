@@ -150,6 +150,7 @@ func (web *MailWeb) initHandlers() {
 	web.martini.Get("/logout", sessionauth.LoginRequired, web.logout)
 	web.martini.Get("/main", sessionauth.LoginRequired, web.main)
 	web.martini.Post("/userInfo", sessionauth.LoginRequired, web.userInfo)
+	web.martini.Post("/poll", sessionauth.LoginRequired, web.poll)
 	web.martini.Post("/mails", sessionauth.LoginRequired, web.mails)
 	web.martini.Post("/mailContent", sessionauth.LoginRequired, web.mailContent)
 	web.martini.Post("/updateFlags", sessionauth.LoginRequired, web.updateFlags)
@@ -215,15 +216,53 @@ func (web *MailWeb) main(r render.Render) {
 		"IsDebug" : web.debug,
 	})
 }
-
-func (web *MailWeb) mails(r render.Render, user sessionauth.User, req *http.Request) {
-	var mails []mail.Mail = []mail.Mail{}
+/**
+ * Handler to check, whether new mails have arrived in the meantime.
+ */
+func (web *MailWeb) poll(r render.Render, user sessionauth.User, req *http.Request) {
 	var watneyUser *auth.WatneyUser = user.(*auth.WatneyUser)
+	// 1) Check for authentication status, and only proceed, if successful
+	if nil != watneyUser && watneyUser.IsAuthenticated() {
+		// 2) Check, whether new mails have arrived since the last poll
+		mailUIDs, err := watneyUser.ImapCon.CheckNewMails()
+		if err != nil && len(mailUIDs) >= 1 {
+			// 3) If new mails have arrived, load them from the mail server
+			mails, err := watneyUser.ImapCon.LoadNMailsFromFolderWithUIDs("/", mailUIDs)
+			if err != nil {
+				// Reverse the retrieved mail array
+				sort.Sort(mail.MailSlice(mails))
+				r.JSON(200, mails)
+			} else {
+				// TODO: If the mail loading failed, the information about the recent mails
+				//		 will be lost at that point => counteract
+				r.JSON(500, map[string]interface{} {
+					"error": "New mails are available, but they couldn't be retrieved",
+				} )
+			}
+		}
+	} else {
+		fmt.Printf("[watney] User tried to poll for new mails - but IMAP Session has timed out.")
+		// 419 - Authentication has timed out
+		r.JSON(419, map[string]interface{} {
+			"error": "Authentication has expired",
+		} )
+	}
+
+}
+
+/**
+ * Handler to load all mails for a given folder.
+ */
+func (web *MailWeb) mails(r render.Render, user sessionauth.User, req *http.Request) {
+	var (
+		mails []mail.Mail = []mail.Mail{}
+		watneyUser *auth.WatneyUser = user.(*auth.WatneyUser)
+	)
 	if nil != watneyUser && watneyUser.IsAuthenticated() {
 		switch req.FormValue("mailInformation") {
-			case mail.FULL: mails, _ = watneyUser.ImapCon.LoadMailsFromFolder(req.FormValue("mailbox"))
+			case mail.FULL: mails, _ = watneyUser.ImapCon.LoadAllMailsFromFolder(req.FormValue("mailbox"))
 			case mail.OVERVIEW: fallthrough
-			default: mails, _ = watneyUser.ImapCon.LoadMailOverview(req.FormValue("mailbox"))
+			default: mails, _ = watneyUser.ImapCon.LoadAllMailOverviewsFromFolder(req.FormValue("mailbox"))
 		}
 		// Reverse the retrieved mail array
 		sort.Sort(mail.MailSlice(mails))
@@ -242,7 +281,7 @@ func (web *MailWeb) mailContent(r render.Render, user sessionauth.User, req *htt
 	var watneyUser *auth.WatneyUser = user.(*auth.WatneyUser)
 	if watneyUser.ImapCon.IsAuthenticated() {
 		uid, _ := strconv.ParseInt(req.FormValue("uid"), 10, 32)
-		mailContent, _ := watneyUser.ImapCon.LoadContentForMail(req.FormValue("folder"), uint32(uid))
+		mailContent, _ := watneyUser.ImapCon.LoadContentForMailFromFolder(req.FormValue("folder"), uint32(uid))
 		r.JSON(200, mailContent)
 	} else {
 		fmt.Printf("[watney] User tried to retrieve content of mail - ",

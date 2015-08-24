@@ -14,6 +14,7 @@ import (
 	"github.com/scorredoira/email"
 	"net/smtp"
 	"sync"
+	"strconv"
 )
 
 type MailCon struct {
@@ -197,34 +198,93 @@ func (mc *MailCon) Close() error {
 ///									Public Mail Methods											 ///
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-func (mc *MailCon) LoadMails() ([]Mail, error) {
+func (mc *MailCon) LoadAllMailsFromInbox() ([]Mail, error) {
 	return mc.LoadNMailsFromFolder("/", -1, true)
 }
 
-func (mc *MailCon) LoadMailsFromFolder(folder string) ([]Mail, error) {
-	return mc.LoadNMailsFromFolder(folder, -1, true)
+func (mc *MailCon) LoadNMailsFromInbox(n int) ([]Mail, error) {
+	return mc.LoadNMailsFromFolder("/", n, true)
 }
 
-func (mc *MailCon) LoadNMails(n int) ([]Mail, error) {
-	return mc.LoadNMailsFromFolder("/", n, true)
+func (mc *MailCon) LoadAllMailsFromFolder(folder string) ([]Mail, error) {
+	return mc.LoadNMailsFromFolder(folder, -1, true)
 }
 
 /**
  * @return All returned mails without their content (UID, Header and Flags are set).
  */
-func (mc *MailCon) LoadMailOverview(folder string) ([]Mail, error) {
+func (mc *MailCon) LoadAllMailOverviewsFromFolder(folder string) ([]Mail, error) {
 	// Check if there is no given folder and assume root in this case (= INBOX)
 	if 0 == len(folder) { folder = "/" }
 	return mc.LoadNMailsFromFolder(folder, -1, false)
 }
 
-func (mc *MailCon) LoadContentForMail(folder string, uid uint32) (string, error) {
+/**
+@param folder The folder to retrieve mails from
+@param	n > 0 The number of mails to retrieve from the folder in the mailbox
+		n <= 0 All mails that are saved within the folder
+@param withContent	True - Also loads the content of all mails
+					False - Only loads the headers of all mails
+*/
+func (mc *MailCon) LoadNMailsFromFolder(folder string, n int, withContent bool) ([]Mail, error) {
+	mc.mutex.Lock()
+	defer mc.mutex.Unlock()
+	// 1) Define the number of mails that should be loaded
+	var nbrMailsExp string
+	if n > 0 {
+		nbrMailsExp = fmt.Sprintf("1:%d", n)
+	} else {
+		nbrMailsExp = "1:*"
+	}
+	set, _ := imap.NewSeqSet(nbrMailsExp)
+	return mc.loadMails(set, folder, withContent)
+}
+
+/**
+ * Loads the header and the content of the mail for the given UID.
+ */
+func (mc *MailCon) LoadNMailsFromFolderWithUIDs(folder string, uids []uint32) ([]Mail, error) {
+	mc.mutex.Lock()
+	defer mc.mutex.Unlock()
+	// TODO: Check if UIDs are below 1 and react accordingly
+	var uidStrings []string = make([]string, len(uids))
+	for index, uid := range uids {
+		uidStrings[index] = strconv.Itoa(int(uid))
+	}
+	set, _ := imap.NewSeqSet(strings.Join(uidStrings, ","))
+	return mc.loadMails(set, folder, true)
+}
+
+/**
+ * Loads the header and the content of the mail for the given UID.
+ */
+func (mc *MailCon) LoadMailFromFolderWithUID(folder string, uid uint32) (Mail, error) {
+	mc.mutex.Lock()
+	defer mc.mutex.Unlock()
+	if uid < 1 {
+		return Mail{},
+			errors.New(fmt.Sprintf("Couldn't retrieve mail, because mail UID (%d) needs to " +
+			"be greater than 0", uid));
+	}
+	set, _ := imap.NewSeqSet(fmt.Sprintf("%d", uid))
+	mails, err := mc.loadMails(set, folder, true)
+	if len(mails) == 0 {
+		return Mail{},
+			errors.New(fmt.Sprintf("No mail could be retrieved for the given ID: %d", uid))
+	}
+	return mails[0], err
+}
+
+/**
+ * Only loads the content of the mail for the given UID.
+ */
+func (mc *MailCon) LoadContentForMailFromFolder(folder string, uid uint32) (string, error) {
 	mc.mutex.Lock()
 	defer mc.mutex.Unlock()
 	println("Loading mail content for UID: ", uid)
 	if uid < 1 {
 		return "", errors.New(fmt.Sprintf("Couldn't retrieve mail content, because mail " +
-			"UID (%d) needs to be greater than 0"));
+			"UID (%d) needs to be greater than 0", uid));
 	}
 	var mailboxFolder string = mc.mailbox
 	if len(folder) > 0 && folder != "/" {
@@ -253,73 +313,6 @@ func (mc *MailCon) LoadContentForMail(folder string, uid uint32) (string, error)
 	return mailContent, nil
 }
 
-/**
-@param folder The folder to retrieve mails from
-@param	n > 0 The number of mails to retrieve from the folder in the mailbox
-		n <= 0 All mails that are saved within the folder
-@param withContent	True - Also loads the content of all mails
-					False - Only loads the headers of all mails
-*/
-func (mc *MailCon) LoadNMailsFromFolder(folder string, n int, withContent bool) ([]Mail, error) {
-	mc.mutex.Lock()
-	defer mc.mutex.Unlock()
-	// 1) First check if we need to select a specific folder in the mailbox or if it is root
-	var mailboxFolder string = mc.mailbox
-	if len(folder) > 0 && folder != "/" {
-		mailboxFolder = fmt.Sprintf("%s%s%s", mc.mailbox, mc.delim, folder)
-	}
-	fmt.Println("Mailbox in mail.go: %s", folder)
-	if _, err := mc.waitFor(mc.client.Select(mailboxFolder, true)); err != nil {
-		return []Mail{}, err
-	}
-	// 2) Define the number of mails that should be loaded
-	var nbrMailsExp string
-	if n > 0 {
-		nbrMailsExp = fmt.Sprintf("1:%d", n)
-	} else {
-		nbrMailsExp = "1:*"
-	}
-	set, _ := imap.NewSeqSet(nbrMailsExp)
-	// 3) Fetch a number of mails from the given mailbox folder
-	var itemsToFetch []string = []string{"UID", "FLAGS", "INTERNALDATE", "RFC822.SIZE",
-		"RFC822.HEADER"}
-	if withContent {
-		itemsToFetch = append(itemsToFetch, "RFC822.TEXT")
-	}
-	cmd, err := mc.waitFor(mc.client.Fetch(set, itemsToFetch...))
-	if err != nil {
-		return []Mail{}, err
-	} else {
-		// 4) Transform the retrieved messages into mails with headers
-		var mails []Mail = []Mail{}
-		for _, resp := range cmd.Data {
-			// a) Parse the Header
-			mailHeader, err := parseHeader(resp.MessageInfo())
-			if nil != err {
-				mc.Logger.Printf("Couldn't parse header of mail\n"+
-					"Original error: %s", err.Error())
-			}
-			mailHeader.Folder = mailboxFolder
-			// b) Read the flags
-			flags := readFlags(resp.MessageInfo())
-			// c) Read the content if requested
-			var mailContent string
-			if withContent {
-				mailContent = imap.AsString(resp.MessageInfo().Attrs["RFC822.TEXT"])
-			}
-			// d) Build the mail object
-			mails = append(mails, Mail{
-				UID : resp.MessageInfo().UID,
-				Header:  mailHeader,
-				Flags: flags,
-				Content: mailContent,
-			})
-		}
-		// 5) Clean the data queue
-		mc.client.Data = nil
-		return mails, nil
-	}
-}
 
 func (mc *MailCon) RemoveMailFlags(uid string, f *Flags) error {
 	return mc.UpdateMailFlags(uid, f, false)
@@ -440,7 +433,61 @@ func (mc *MailCon) SendMail(a smtp.Auth, from string, to []string, subject strin
 ///										Private Methods											 ///
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 /**
- * Doesn't lock!
+ * ATTENTION: DOES NOT LOCK THE IMAP CONNECTION! => Has to be wrapped into a mutex lock method
+ */
+func (mc *MailCon) loadMails(set *imap.SeqSet, folder string, withContent bool) ([]Mail, error) {
+	// 1) First check if we need to select a specific folder in the mailbox or if it is root
+	var mailboxFolder string = mc.mailbox
+	if len(folder) > 0 && folder != "/" {
+		mailboxFolder = fmt.Sprintf("%s%s%s", mc.mailbox, mc.delim, folder)
+	}
+	fmt.Println("Mailbox in mail.go: %s", folder)
+	if _, err := mc.waitFor(mc.client.Select(mailboxFolder, true)); err != nil {
+		return []Mail{}, err
+	}
+	// 2) Fetch a number of mails from the given mailbox folder
+	var itemsToFetch []string = []string{"UID", "FLAGS", "INTERNALDATE", "RFC822.SIZE",
+		"RFC822.HEADER"}
+	if withContent {
+		itemsToFetch = append(itemsToFetch, "RFC822.TEXT")
+	}
+	cmd, err := mc.waitFor(mc.client.Fetch(set, itemsToFetch...))
+	if err != nil {
+		return []Mail{}, err
+	} else {
+		// 3) Transform the retrieved messages into mails with headers
+		var mails []Mail = []Mail{}
+		for _, resp := range cmd.Data {
+			// a) Parse the Header
+			mailHeader, err := parseHeader(resp.MessageInfo())
+			if nil != err {
+				mc.Logger.Printf("Couldn't parse header of mail\n"+
+				"Original error: %s", err.Error())
+			}
+			mailHeader.Folder = mailboxFolder
+			// b) Read the flags
+			flags := readFlags(resp.MessageInfo())
+			// c) Read the content if requested
+			var mailContent string
+			if withContent {
+				mailContent = imap.AsString(resp.MessageInfo().Attrs["RFC822.TEXT"])
+			}
+			// d) Build the mail object
+			mails = append(mails, Mail{
+				UID : resp.MessageInfo().UID,
+				Header:  mailHeader,
+				Flags: flags,
+				Content: mailContent,
+			})
+		}
+		// 4) Clean the data queue
+		mc.client.Data = nil
+		return mails, nil
+	}
+}
+
+/**
+ * ATTENTION: DOES NOT LOCK THE IMAP CONNECTION! => Has to be wrapped into a mutex lock method
  */
 func (mc *MailCon) addMailToFolder_internal(h *Header, f *Flags, content string) (err error) {
 	var (
@@ -557,7 +604,6 @@ func (mc *MailCon) keepAlive(every int) {
 					mc.logMC(err.Error(), imap.LogAll)
 				}
 				mc.mutex.Unlock()
-				mc.CheckNewMails()
 			case <- mc.QuitChan:
 				ticker.Stop()
 				return
