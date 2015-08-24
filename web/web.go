@@ -19,6 +19,7 @@ import (
 	"net/smtp"
 	"github.com/gorilla/securecookie"
 	"encoding/json"
+	"time"
 )
 
 type MailWeb struct {
@@ -28,8 +29,10 @@ type MailWeb struct {
 	templates map[string]*template.Template
 	// Mail server configuration
 	mconf     *conf.MailConf
-	// Mail server connection
-//	imapCon   *mail.MailCon
+	// The quit channel for the usermap cleanup go routine
+	UserQuitChan chan struct{}
+	// Client session cookie and inactive user timeout duration: 30min * 60 sec
+	userTimeout float64
 	// Whether the app server is run in debugging mode for dev
 	debug     bool
 }
@@ -40,11 +43,11 @@ func NewWeb(mailConf *conf.MailConf, debug bool) *MailWeb {
 	var web *MailWeb = new(MailWeb)
 	web.mconf = mailConf
 	web.debug = debug
+	web.userTimeout = 1800 // 30 minutes
 
 	store := sessions.NewCookieStore(securecookie.GenerateRandomKey(128))
-	// Default our store to use Session cookies, so we don't leave logged in
-	// users roaming around
-	store.Options(sessions.Options{MaxAge: 86400, })
+	// 1) Set a maximum age for the client-side cookies
+	store.Options(sessions.Options{MaxAge: int(web.userTimeout), })
 
 	web.martini = martini.Classic()
 	web.martini.Use(render.Renderer(render.Options{
@@ -55,6 +58,9 @@ func NewWeb(mailConf *conf.MailConf, debug bool) *MailWeb {
 	web.martini.Use(sessionauth.SessionUser(auth.GenerateAnonymousUser))
 	sessionauth.RedirectUrl = "/"
 	sessionauth.RedirectParam = "new-next"
+
+	// 2) Register a cleanup go routine that checks every x minutes, for outdated users
+	web.registerUserCleanup(30)
 
 	// x) Define and set all handlers
 	web.initHandlers();
@@ -70,11 +76,9 @@ func (web *MailWeb) Start(port int) {
  */
 func (web *MailWeb) Close() error {
 	fmt.Printf("[watney] Invoking Shutdown procedure\n")
+	// 1) Shutdown the usermap cleanup go routine
+	close(web.UserQuitChan)
 	return nil
-//	if nil != web.imapCon {
-//		return web.imapCon.Close()
-//	}
-//	return errors.New("No imap connection was available to close")
 }
 
 /**************************************************************************************************
@@ -101,6 +105,28 @@ func (web *MailWeb) Close() error {
 /**************************************************************************************************
  ***								Private methods												***
  **************************************************************************************************/
+/**
+ * @param every Seconds until the user cleanup method is rescheduled
+ */
+func (web *MailWeb) registerUserCleanup(every int64) {
+	ticker := time.NewTicker(time.Duration(every) * time.Second)
+	web.UserQuitChan = make(chan struct{})
+	go func() {
+		for {
+			select {
+			case <- ticker.C:
+				// Check for users, which are older than the given timeout and remove those
+				nbrUsersCleaned := auth.CleanUsermap(web.userTimeout)
+				if nbrUsersCleaned > 0 {
+					fmt.Printf("[watney] Removed user objects from map: %d\n", nbrUsersCleaned)
+				}
+			case <- web.UserQuitChan:
+				ticker.Stop()
+				return
+			}
+		}
+	}()
+}
 /**
  * @param templateName The name used in the {define} statement in the template .html file.
  * @param data The data map to be injected when parsing the template file.

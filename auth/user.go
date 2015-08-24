@@ -6,6 +6,7 @@ import (
 	"net/smtp"
 	"mdrobek/watney/mail"
 	"errors"
+	"time"
 )
 
 // MyUserModel can be any struct that represents a user in my system
@@ -15,10 +16,14 @@ type WatneyUser struct {
 	Username      string		`form:"name" db:"username"`
 	// Is always empty, after the authentication step has been finished
 	Password      string		`form:"password" db:"password"`
+	// Authentication object for the SMTP service
 	SMTPAuth      smtp.Auth		`form:"-" db:"-"`
 	// Mail server connection
 	ImapCon       *mail.MailCon	`form:"-" db:"-"`
+	// Whether the user is already authenticated or not
 	authenticated bool   		`form:"-" db:"-"`
+	// The last time this user called a backend method
+	lastSeen time.Time   		`form:"-" db:"-"`
 }
 
 // int64 -> *WatneyUser
@@ -66,10 +71,38 @@ func (u *WatneyUser) GetById(id interface{}) error {
 		u.authenticated = wUser.authenticated
 		u.SMTPAuth = wUser.SMTPAuth
 		u.Id = wUser.Id
+		u.lastSeen = time.Now()
 		return nil
 	}
 }
 
 func (u *WatneyUser) String() string {
-	return fmt.Sprintf("{%s, %s, %s, %b, %s}", u.Id, u.Username, u.Password, u.authenticated, u.ImapCon)
+	return fmt.Sprintf("{%s, %s, %s, %b, %s, %s}", u.Id, u.Username, u.Password,
+		u.authenticated, u.ImapCon, u.lastSeen.String())
+}
+
+
+/**
+ * Runs through the map of all currently logged in users and checks, which of those are outdated
+ * compared to a timeout counter. (This might occur, whenever users are not properly logging out)
+ * @param timeout Timeout since 'lastSeen' in seconds, to flag a user as outdated and remove him
+ *				  from the usermap.
+ * @return the number of removed users
+ */
+func CleanUsermap(timeout float64) int {
+	// 1) Collect all outdated user keys
+	var outdated []int64 = make([]int64, 0)
+	for entry := range usermap.IterBuffered() {
+		if time.Since(entry.Val.lastSeen).Seconds() > timeout {
+			// 1a) Call the user logout method to deal with all open connections
+			entry.Val.Logout()
+			// 1b) Add the user to the remove array
+			outdated = append(outdated, entry.Key)
+		}
+	}
+	// 2) Remove outdated users from usermap
+	for _, toRemove := range outdated {
+		usermap.Remove(toRemove)
+	}
+	return len(outdated)
 }
