@@ -51,6 +51,7 @@ wat.app.start = function() {
     // 4) Start loading mails
     wat.app.mailHandler = new wat.mail.MailHandler();
     wat.app.mailHandler.switchMailboxFolder(wat.mail.MailboxFolder.INBOX);
+    wat.app.mailHandler.registerUpdateEvents();
 };
 
 /**
@@ -64,11 +65,15 @@ wat.app.enableMailKeyboardShortcuts = function(enable) {
     // 1) In case the shortcut handler is not defined, return without doing anything
     if (!goog.isDefAndNotNull(wat.app.keyboardShortcutHandler)) return;
 
-    if (enable &&
-            !wat.app.keyboardShortcutHandler.isShortcutRegistered(goog.events.KeyCodes.DELETE)) {
-        wat.app.keyboardShortcutHandler.registerShortcut(wat.mail.KeyShortcuts.DELETE_MAIL,
-            goog.events.KeyCodes.DELETE);
-    } else if (!enable) {
+    if (enable) {
+        // 1a) Include the DELETE key
+        if (!wat.app.keyboardShortcutHandler.isShortcutRegistered(goog.events.KeyCodes.DELETE)) {
+            wat.app.keyboardShortcutHandler.registerShortcut(
+                wat.mail.KeyShortcuts.DELETE_MAIL, goog.events.KeyCodes.DELETE);
+        }
+        // 1b) TODO: Go on with UP arrow
+        // 1c) TODO: Go on with DOWN arrow
+    } else {
         wat.app.keyboardShortcutHandler.unregisterShortcut(wat.mail.KeyShortcuts.DELETE_MAIL);
     }
 };
@@ -85,6 +90,7 @@ wat.app.keyboardShortcutCb_ = function(ev) {
             wat.app.mailHandler.deleteActiveMail();
             break;
         }
+        // TODO: UP/DOWN arrows
         default:
             console.log("No callback has been registered for keyboard shortcut: " + ev.identifier);
     }

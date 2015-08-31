@@ -7,6 +7,7 @@ goog.require('wat.mail');
 goog.require('wat.mail.MailboxFolder');
 goog.require('wat.mail.MailItem');
 goog.require('wat.mail.NewMail');
+goog.require('goog.Timer');
 goog.require('goog.events');
 goog.require('goog.net.XhrIo');
 goog.require('goog.Uri.QueryData');
@@ -27,8 +28,12 @@ wat.mail.LAST_ACTIVE_NEW_MAIL_ITEM = null;
  * @static
  */
 wat.mail.KeyShortcuts = {
-    DELETE_MAIL : "DELETE_MAIL"
+    DELETE_MAIL : "DELETE_MAIL",
+    UP : "NAVIGATE_UP",
+    DOWN : "NAVIGATE_DOWN"
 };
+// Time until a new update poll to the backend is started
+wat.mail.UPDATE_TIME = 5000;
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 ///                                     Constructor                                              ///
@@ -52,6 +57,15 @@ wat.mail.MailHandler.prototype.SelectedMailbox = "";
 wat.mail.MailHandler.prototype.mailboxFolders = new goog.structs.Map();
 
 /**
+ * The Timer used to initiate a new poll to the backend to check for new arrived mails
+ * @type {goog.Timer}
+ */
+wat.mail.MailHandler.prototype.pollTimer_;
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+///                                    Public methods                                            ///
+////////////////////////////////////////////////////////////////////////////////////////////////////
+/**
  * @param {string} toMailbox The name of the mailbox folder that is being activated.
  * @public
  */
@@ -67,6 +81,31 @@ wat.mail.MailHandler.prototype.switchMailboxFolder = function(toMailbox) {
         self.mailboxFolders.get(self.SelectedMailbox).deactivate();
         // 2) Activate new mailbox
         self.mailboxFolders.get(toMailbox).activate();
+    }
+};
+
+/**
+ * This method registers a timer to continuously poll the backend for new messages.
+ * @param {boolean} [opt_enable] True|undefined - Registers all update events to check for new
+ *          mails.
+ *          False - Unregisters all update events.
+ */
+wat.mail.MailHandler.prototype.registerUpdateEvents = function(opt_enable) {
+    var self = this,
+        inbox = self.mailboxFolders.get(wat.mail.MailboxFolder.INBOX);
+    if (!goog.isDefAndNotNull(opt_enable) || opt_enable) {
+        //self.pollTimer_ = new goog.Timer(wat.mail.MailHandler.UPDATE_TIME);
+        //self.pollTimer_.start();
+        //goog.events.listenOnce(self.pollTimer_, goog.Timer.TICK, function() {
+        //    console.log("### Starting poll for new mails");
+        //    self.pollTimer_.stop();
+        //    inbox.checkForNewMails(self.registerUpdateEvents);
+        //});
+        goog.Timer.callOnce(function() {
+            console.log("### Starting poll for new mails");
+            inbox.checkForNewMails(self.registerUpdateEvents);
+            //inbox.checkForNewMails();
+        }, wat.mail.UPDATE_TIME, self);
     }
 };
 

@@ -196,7 +196,7 @@ task copyExe(type: Copy) {
     include 'watney'
     include 'LICENSE'
     include 'README.md'
-    include 'conf/watney-templ.ini'
+    include 'conf/unionwork.ini'
     include 'static/templates/*'
     include 'static/resources/css/*'
     include 'static/resources/js/watney-compiled.js'

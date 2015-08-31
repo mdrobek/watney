@@ -66,7 +66,7 @@ type Header struct {
 	// receiver address of this mail (To:)
 	// TODO: Receiver can be multiple mail addresses!
 	Receiver string
-	// the folder this email is stored in in the mailbox ("/" = root)
+	// the folder this email is stored in, in the mailbox ("/" = root)
 	Folder string
 }
 
@@ -118,7 +118,7 @@ func NewMailCon(conf *conf.MailConf) (newMC *MailCon, err error) {
 		return newMC, err
 	}
 	// Set the logger dependent on the config input
-	if newMC.conf.Verbose {
+	if newMC.conf.ImapLog {
 		newMC.Logger = log.New(os.Stdout, "", 0)
 		newMC.LogMask = imap.LogAll
 	} else {
@@ -129,6 +129,8 @@ func NewMailCon(conf *conf.MailConf) (newMC *MailCon, err error) {
 		defer newMC.Close()
 		return newMC, err
 	}
+	// Set the log mask for the newly created client
+	newMC.client.SetLogMask(newMC.LogMask)
 	// Set the client in the NO_OP state to continuously receive updates from the server
 	if _, err = newMC.waitFor(newMC.client.Noop()); err != nil {
 		defer newMC.Close()
@@ -151,7 +153,6 @@ func (mc *MailCon) Authenticate(username, password string) (*MailCon, error) {
 		cmd *imap.Command
 	)
 	// Login the current user
-	mc.client.SetLogMask(mc.LogMask)
 	if _, err = mc.waitFor(mc.client.Login(username, password)); err != nil {
 		return mc, err
 	}
@@ -241,7 +242,7 @@ func (mc *MailCon) LoadNMailsFromFolder(folder string, n int, withContent bool) 
 }
 
 /**
- * Loads the header and the content of the mail for the given UID.
+ * Loads the header and the content of the mail for the given UIDs.
  */
 func (mc *MailCon) LoadNMailsFromFolderWithUIDs(folder string, uids []uint32) ([]Mail, error) {
 	mc.mutex.Lock()
@@ -286,11 +287,7 @@ func (mc *MailCon) LoadContentForMailFromFolder(folder string, uid uint32) (stri
 		return "", errors.New(fmt.Sprintf("Couldn't retrieve mail content, because mail " +
 			"UID (%d) needs to be greater than 0", uid));
 	}
-	var mailboxFolder string = mc.mailbox
-	if len(folder) > 0 && folder != "/" {
-		mailboxFolder = fmt.Sprintf("%s%s%s", mc.mailbox, mc.delim, folder)
-	}
-	if _, err := mc.waitFor(mc.client.Select(mailboxFolder, false)); err != nil {
+	if err := mc.selectFolder(folder, false); err != nil {
 		return "", err
 	}
 	set, _ := imap.NewSeqSet(fmt.Sprintf("%d", uid))
@@ -314,21 +311,32 @@ func (mc *MailCon) LoadContentForMailFromFolder(folder string, uid uint32) (stri
 }
 
 
-func (mc *MailCon) RemoveMailFlags(uid string, f *Flags) error {
-	return mc.UpdateMailFlags(uid, f, false)
+func (mc *MailCon) RemoveMailFlags(folder, uid string, f *Flags) error {
+	return mc.UpdateMailFlags(folder, uid, f, false)
 }
-func (mc *MailCon) AddMailFlags(uid string, f *Flags) error {
-	return mc.UpdateMailFlags(uid, f, true)
+func (mc *MailCon) AddMailFlags(folder, uid string, f *Flags) error {
+	return mc.UpdateMailFlags(folder, uid, f, true)
 }
 
 /**
+ *
+ * ATTENTION:
+ * If the mail for the given UID is can't be found in the given folder, no flags will be changed.
+ *
+ * @param folder The folder, this mail resides in, e.g., "/", "Sent", ...
+ * @param uid The unique server ID of this message
  * @param add True  - Sets the flag(s) as activated
  *			  False - Removes the flag(s) (sets them as deactivated)
  */
-func (mc *MailCon) UpdateMailFlags(uid string, f *Flags, add bool) error {
+func (mc *MailCon) UpdateMailFlags(folder, uid string, f *Flags, add bool) error {
 	mc.mutex.Lock()
 	defer mc.mutex.Unlock()
 	var task string
+	// 1) Select the folder in which the mail resides whose flags should be updated
+	if err := mc.selectFolder(folder, false); err != nil {
+		return err
+	}
+	// 2) Prepare parameters for update request and perform the request
 	if add { task = "+" } else { task = "-" }
 	set, _ := imap.NewSeqSet(uid)
 	_, err := mc.waitFor(mc.client.UIDStore(set, strings.Replace("*FLAGS", "*", task, 1),
@@ -395,7 +403,7 @@ func (mc *MailCon) CheckNewMails() ([]uint32, error) {
 /**
  * TODO: Not yet mirrored as a Web-Handler
  */
-func (mc *MailCon) AddMailToFolder(h *Header, f *Flags, content string) (err error) {
+func (mc *MailCon) AddMailToFolder(h *Header, f *Flags, content string) (uint32, error) {
 	mc.mutex.Lock()
 	defer mc.mutex.Unlock()
 	return mc.addMailToFolder_internal(h, f, content)
@@ -417,7 +425,7 @@ func (mc *MailCon) SendMail(a smtp.Auth, from string, to []string, subject strin
 	// 2) If that worked well, add this mail to the 'Sent' folder of the users inbox
 	if nil == err {
 		// Todo: Think about having this in its own go-routine -> how to handle a possible error?
-		err = mc.addMailToFolder_internal(&Header{
+		_, err = mc.addMailToFolder_internal(&Header{
 			Date: time.Now(),
 			Subject: subject,
 			Sender: from,
@@ -437,12 +445,7 @@ func (mc *MailCon) SendMail(a smtp.Auth, from string, to []string, subject strin
  */
 func (mc *MailCon) loadMails(set *imap.SeqSet, folder string, withContent bool) ([]Mail, error) {
 	// 1) First check if we need to select a specific folder in the mailbox or if it is root
-	var mailboxFolder string = mc.mailbox
-	if len(folder) > 0 && folder != "/" {
-		mailboxFolder = fmt.Sprintf("%s%s%s", mc.mailbox, mc.delim, folder)
-	}
-	fmt.Println("Mailbox in mail.go: %s", folder)
-	if _, err := mc.waitFor(mc.client.Select(mailboxFolder, true)); err != nil {
+	if err := mc.selectFolder(folder, true); err != nil {
 		return []Mail{}, err
 	}
 	// 2) Fetch a number of mails from the given mailbox folder
@@ -464,7 +467,7 @@ func (mc *MailCon) loadMails(set *imap.SeqSet, folder string, withContent bool) 
 				mc.Logger.Printf("Couldn't parse header of mail\n"+
 				"Original error: %s", err.Error())
 			}
-			mailHeader.Folder = mailboxFolder
+			mailHeader.Folder = folder
 			// b) Read the flags
 			flags := readFlags(resp.MessageInfo())
 			// c) Read the content if requested
@@ -489,18 +492,30 @@ func (mc *MailCon) loadMails(set *imap.SeqSet, folder string, withContent bool) 
 /**
  * ATTENTION: DOES NOT LOCK THE IMAP CONNECTION! => Has to be wrapped into a mutex lock method
  */
-func (mc *MailCon) addMailToFolder_internal(h *Header, f *Flags, content string) (err error) {
+func (mc *MailCon) addMailToFolder_internal(h *Header, f *Flags,
+		content string) (uid uint32, err error) {
 	var (
 		// Create the msg:
 		// Header info + empty line + content + empty line
 		msg string = strings.Join([]string{SerializeHeader(h), "", content, ""}, "\r\n")
 		lit imap.Literal = imap.NewLiteral([]byte(msg))
-		mbox = fmt.Sprintf("%s%s%s", mc.mailbox, mc.delim, h.Folder)
+		mbox string = fmt.Sprintf("%s%s%s", mc.mailbox, mc.delim, h.Folder)
+		cmd *imap.Command
+		newMsgUID uint32
 	)
-//	fmt.Printf("Concatenated message for mailbox: %s | %s -> is: \n %s \n", mbox,
-//		imap.AsFlagSet(SerializeFlags(f)), msg)
-	_, err = mc.waitFor(mc.client.Append(mbox, imap.AsFlagSet(SerializeFlags(f)), &h.Date, lit))
-	return err
+	// 1) Execute the actual append mail command
+	cmd, err = mc.client.Append(mbox, imap.AsFlagSet(SerializeFlags(f)), &h.Date, lit)
+	if resp, err := cmd.Result(imap.OK); err == nil {
+		// Give it a moment to receive the server response containing the newly created message UID
+//		mc.client.Recv(1*time.Second)
+		// The Response is an 'APPENDUID' with the fields:
+		// [0] APPENDUID:string | [1] internaldate:long64 | [2] UID:uint32
+		newMsgUID = imap.AsNumber(resp.Fields[2])
+	} else {
+		fmt.Printf("[watney] ERROR waiting for result of append command\n\t%s\n", err.Error())
+	}
+	// 2) Process the server response and extract the message UID of the previously added mail
+	return newMsgUID, err
 }
 
 func (mc *MailCon) dial() (c *imap.Client, err error) {
@@ -528,10 +543,17 @@ func (mc *MailCon) dial() (c *imap.Client, err error) {
 	return c, err
 }
 
-func (mc *MailCon) login(username, passwd string) (*imap.Command, error) {
-	defer mc.client.SetLogMask(mc.LogMask)
-	fmt.Printf("####### Starting logging and wait for\n")
-	return mc.waitFor(mc.client.Login(username, passwd))
+func (mc *MailCon) selectFolder(folder string, readonly bool) error {
+	var mailboxFolder string = mc.mailbox
+	if len(folder) > 0 && folder != "/" {
+		mailboxFolder = fmt.Sprintf("%s%s%s", mc.mailbox, mc.delim, folder)
+	}
+	if _, err := mc.waitFor(mc.client.Select(mailboxFolder, false)); err != nil {
+		return err
+	}
+	// Clean client response queue
+	mc.client.Data = nil
+	return nil
 }
 
 func (mc *MailCon) waitFor(cmd *imap.Command, origErr error) (*imap.Command, error) {
@@ -541,7 +563,7 @@ func (mc *MailCon) waitFor(cmd *imap.Command, origErr error) (*imap.Command, err
 	)
 	// 1) Check if we're missing a command and if so, return with an error
 	if cmd == nil {
-		// Todo: origErr could ne nil here as well
+		// Todo: origErr could be nil here as well
 		wferr = errors.New(fmt.Sprintf("WaitFor: Missing command, because: %s", origErr.Error()))
 		mc.logMC(wferr.Error(), imap.LogAll)
 		return nil, wferr

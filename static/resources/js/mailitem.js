@@ -69,18 +69,27 @@ wat.mail.MailItem.prototype.IsFromToday = false;
 /**
  *
  * @param {function} activateClickEventCb Function to be called, if the mail item overview element
- * is clicked (thus activated). The method MUST will be called with the current MailItem as its
+ * is clicked (thus activated). The method will be called with the current MailItem as its
  * first parameters.
+ * @param {boolean} [opt_prepend] If omitted, the default behaviour is to append this rendered
+ * mail item to the end of the mail overview DOM.
+ * If True - Inserts this mail item at the beginning of the mail overview DOM.
  * @public
  */
-wat.mail.MailItem.prototype.renderMail = function(activateClickEventCb) {
+wat.mail.MailItem.prototype.renderMail = function(activateClickEventCb, opt_prepend) {
     var self = this,
         mailTableElem = goog.dom.getElement("mailItems"),
         d_mailItem = goog.soy.renderAsElement(wat.soy.mail.mailOverviewItem, this);
+    // 1) Add click event callback for the newly rendered item
     goog.events.listen(d_mailItem, goog.events.EventType.CLICK, function() {
         if (goog.isDefAndNotNull(activateClickEventCb)) activateClickEventCb(self);
     }, false);
-    goog.dom.append(mailTableElem, d_mailItem);
+    // 2) Check, whether to append or prepend this item to the mail overview DOM
+    if (goog.isDefAndNotNull(opt_prepend) && opt_prepend) {
+        goog.dom.insertChildAt(mailTableElem, d_mailItem, 0);
+    } else {
+        goog.dom.append(mailTableElem, d_mailItem);
+    }
 };
 
 /**
@@ -198,7 +207,6 @@ wat.mail.MailItem.prototype.setSeen = function(newSeenState) {
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /**
- *
  * @param {wat.mail.MailFlags} flag
  * @param {boolean} addFlags True - The given flags will be added to the mail mail
  *                           False - The given flags will be removed from the mail
@@ -209,6 +217,7 @@ wat.mail.MailItem.prototype.updateFlagsRequest_ = function(flag, addFlags, error
     var self = this,
         request = new goog.net.XhrIo(),
         data = new goog.Uri.QueryData();
+    data.add("folder", self.Folder);
     data.add("uid", self.Mail.UID);
     // True -> flags will be added | False -> Flags will be removed
     data.add("add", addFlags);

@@ -12,6 +12,7 @@ goog.require('wat');
 wat.mail.LOAD_MAILS_URI = "/mails";
 wat.mail.LOAD_MAILCONTENT_URI = "/mailContent";
 wat.mail.UPDATE_FLAGS_URI = "/updateFlags";
+wat.mail.CHECK_MAILS_URI = "/poll";
 
 wat.mail.MailFlags = function(opt_Seen, opt_Deleted, opt_Answered, opt_Flagged, opt_Draft,
                               opt_Recent) {

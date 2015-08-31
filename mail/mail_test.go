@@ -6,9 +6,11 @@ import (
 	"reflect"
 	"fmt"
 	"strings"
+	"time"
+	"strconv"
 )
 
-const TEST_CONFIG_FILE = "../conf/unionwork.ini"
+const TEST_CONFIG_FILE = "../conf/test.ini"
 
 var lines []string = []string{
 	"Mail Header: Return-Path: <root@localhost.localdomain>",
@@ -61,33 +63,17 @@ func TestSerializeHeader(t *testing.T) {
 	}
 }
 
-//func TestAddMailToFolder(t *testing.T) {
-//	// 1) Expect connection error for malformed config
-//	conf := loadConfig(TEST_CONFIG_FILE, t)
-//	mailCon, err := NewMailCon(&conf.Mail)
-//	if nil == err {
-//		t.Errorf("Connection should have failed because of empty server address.")
-//	}
-//	// TODO: Authentication needed!
-////	err = mailCon.AddMailToFolder(&Header{
-////		Date: time.Now(),
-////		Subject: "Hello World",
-////		Sender: "markwatney@mars.com",
-////		Receiver: strings.Join([]string{"henderik@nasa.com", "sat@nasa.com"}, ", "),
-////		Folder: "Sent",
-////	}, &Flags{Seen:true}, "This is some text from mars")
-//}
-
 func TestCreateMailConnection(t *testing.T) {
 	// 1) Expect connection error for malformed config
-	malformedConf1 := loadConfig(TEST_CONFIG_FILE, t)
+	malformedConf1 := loadTestConfig(TEST_CONFIG_FILE, t)
 	malformedConf1.Mail.Hostname = ""
 	mailCon, err := NewMailCon(&malformedConf1.Mail)
+	defer mailCon.Close()
 	if nil == err {
 		t.Errorf("Connection should have failed because of empty server address.")
 	}
 	// 2) Expect successful connection
-	fineTestMailConf := loadConfig(TEST_CONFIG_FILE, t)
+	fineTestMailConf := loadTestConfig(TEST_CONFIG_FILE, t)
 	mailCon, err = NewMailCon(&fineTestMailConf.Mail)
 	defer mailCon.Close()
 	if nil != err {
@@ -96,11 +82,9 @@ func TestCreateMailConnection(t *testing.T) {
 	}
 }
 
-// TODO: Tests can't be run before we have a mock server with a mock account + a testing config
-
 func TestAuthenticationProcess(t *testing.T) {
-	mailConf := loadConfig(TEST_CONFIG_FILE, t).Mail
-	mc, err := NewMailCon(&mailConf)
+	testConf := loadTestConfig(TEST_CONFIG_FILE, t)
+	mc, err := NewMailCon(&testConf.Mail)
 	defer mc.Close()
 	if err != nil {
 		t.Errorf(err.Error())
@@ -111,9 +95,57 @@ func TestAuthenticationProcess(t *testing.T) {
 	}
 
 	// 2) Now authenticate with the correct credentials and expect no error
-//	if _, err := mc.Authenticate(mailConf.Username, mailConf.Passwd); err != nil {
-//		t.Errorf(err.Error())
-//	}
+	if _, err := mc.Authenticate(testConf.TestUser.Username, testConf.TestUser.Password); err != nil {
+		t.Errorf(err.Error())
+	}
+}
+
+func TestAddMailToFolder(t *testing.T) {
+	conf := loadTestConfig(TEST_CONFIG_FILE, t)
+	mc, _ := NewMailCon(&conf.Mail)
+	defer mc.Close()
+	// 1) Now authenticate with the correct credentials and expect no error
+	if _, err := mc.Authenticate(conf.TestUser.Username, conf.TestUser.Password); err != nil {
+		t.Errorf(err.Error())
+	}
+	var folder string = "Sent"
+	// 2) Now add a new Mail to the Sent folder and check, whether that worked well
+	msgUID, err := mc.AddMailToFolder(&Header{
+		Date: time.Now(),
+		Subject: "Hello World",
+		Sender: "markwatney@mars.com",
+		Receiver: strings.Join([]string{"henderik@nasa.com", "sat@nasa.com"}, ", "),
+		Folder: folder,
+	}, &Flags{Seen:true}, "This is some text from mars")
+	if nil != err {
+		t.Errorf(err.Error())
+	}
+	// 3) Now delete this new 'Sent' mail, by tagging it as 'DELETED'
+	mc.UpdateMailFlags(folder, strconv.Itoa(int(msgUID)), &Flags{Deleted:true}, true)
+}
+
+func TestSelectFolder(t *testing.T) {
+	conf := loadTestConfig(TEST_CONFIG_FILE, t)
+	mc, _ := NewMailCon(&conf.Mail)
+	defer mc.Close()
+	// 1) Now authenticate with the correct credentials and expect no error
+	if _, err := mc.Authenticate(conf.TestUser.Username, conf.TestUser.Password); err != nil {
+		t.Errorf(err.Error())
+	}
+	var (
+		folder1 string = "Sent"
+		folder2 string = "/"
+	)
+	// 3) Now delete this new 'Sent' mail, by tagging it as 'DELETED'
+	if err := mc.selectFolder(folder1, true); err != nil {
+		t.Errorf(err.Error())
+	}
+	if err := mc.selectFolder(folder2, true); err != nil {
+		t.Errorf(err.Error())
+	}
+	if err := mc.selectFolder(folder2, true); err != nil {
+		t.Errorf(err.Error())
+	}
 }
 
 //func TestLoadMails(t *testing.T) {
@@ -170,8 +202,8 @@ func TestAuthenticationProcess(t *testing.T) {
 ////	}
 //}
 
-func loadConfig(filename string, t *testing.T) *conf.WatneyConf {
-	conf, err := conf.ReadConfig(filename)
+func loadTestConfig(filename string, t *testing.T) *conf.WatneyTestConf {
+	conf, err := conf.ReadTestConfig(filename)
 	if nil != err { t.Error(err) }
 	return conf
 }

@@ -280,14 +280,16 @@ wat.mail.MailboxFolder.prototype.showMail = function(activatedMail) {
  */
 wat.mail.MailboxFolder.prototype.renderMailboxContent_ = function() {
     var self = this;
+    // 1) Render all mails in the mailbox
     self.mails_.inOrderTraverse(function(curMail) {
         curMail.renderMail(function(mail) {
             // 1) Unhighlight currently active mail
             self.lastActiveMailItem_.highlightOverviewItem(false);
-            // 2) Active the clicked mail
+            // 2) Activate the clicked mail
             self.showMail(mail);
         });
     });
+    // 2) Highlight the most up-to-date mail in the mailbox
     if (self.mails_.getCount() > 0) {
         self.showMail(self.mails_.getKthValue(0));
     }
@@ -339,9 +341,46 @@ wat.mail.Inbox.prototype.addMailsToFolder = function(mails) {
     goog.array.forEach(consideredMails, function(curMail) { self.mails_.add(curMail); })
 };
 
+wat.mail.Inbox.prototype.checkForNewMails = function(reregisterCb) {
+    var self = this,
+        request = new goog.net.XhrIo();
+    goog.events.listen(request, goog.net.EventType.COMPLETE, function (event) {
+        // request complete
+        var req = event.currentTarget,
+            mailsJSON,
+            mails;
+        if (req.isSuccess()) {
+            mailsJSON = req.getResponseJson();
+            mails = goog.array.map(mailsJSON, function(curMailJSON) {
+                var newMail = new wat.mail.MailItem(curMailJSON, self.Name);
+                newMail.renderMail(function(mail) {
+                    // 1) Unhighlight currently active mail
+                    self.lastActiveMailItem_.highlightOverviewItem(false);
+                    // 2) Activate the clicked mail
+                    self.showMail(mail);
+                }, true);
+                return newMail;
+            });
+            console.log("### Finished poll for new mails: " + mails);
+            if (goog.isDefAndNotNull(mails) && mails.length > 0) {
+                self.addMailsToFolder(mails);
+                //self.showMail(mails[mails.length-1]);
+            }
+            if (goog.isDefAndNotNull(reregisterCb)) reregisterCb.call(wat.app.mailHandler);
+        } else {
+            // error
+            console.log("something went wrong loading content for mail: " + event.getLastError());
+            console.log("^^^ " + event.getLastErrorCode());
+        }
+    }, false, self);
+    request.send(wat.mail.CHECK_MAILS_URI, 'POST');
+
+};
+
+////////////////////////////////////        ABSTRACT METHODS
+
 /**
- *
- * @public
+ * @override
  */
 wat.mail.Inbox.prototype.renderCtrlbar = function() {
     var d_ctrlBarContainer = goog.dom.getElement("ctrlBarContainer"),

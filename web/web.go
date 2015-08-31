@@ -224,11 +224,16 @@ func (web *MailWeb) poll(r render.Render, user sessionauth.User, req *http.Reque
 	// 1) Check for authentication status, and only proceed, if successful
 	if nil != watneyUser && watneyUser.IsAuthenticated() {
 		// 2) Check, whether new mails have arrived since the last poll
-		mailUIDs, err := watneyUser.ImapCon.CheckNewMails()
-		if err != nil && len(mailUIDs) >= 1 {
-			// 3) If new mails have arrived, load them from the mail server
+		if mailUIDs, err := watneyUser.ImapCon.CheckNewMails(); err != nil {
+			// 2a) Check for new mails failed for some reason
+			r.JSON(500, map[string]interface{} {
+				"error": "Error while checking for new mails",
+				"origError": err.Error(),
+			})
+		} else if len(mailUIDs) > 0 {
+			// 2b) If new mails have arrived, load them from the mail server
 			mails, err := watneyUser.ImapCon.LoadNMailsFromFolderWithUIDs("/", mailUIDs)
-			if err != nil {
+			if err == nil {
 				// Reverse the retrieved mail array
 				sort.Sort(mail.MailSlice(mails))
 				r.JSON(200, mails)
@@ -237,8 +242,12 @@ func (web *MailWeb) poll(r render.Render, user sessionauth.User, req *http.Reque
 				//		 will be lost at that point => counteract
 				r.JSON(500, map[string]interface{} {
 					"error": "New mails are available, but they couldn't be retrieved",
-				} )
+					"origError": err.Error(),
+				})
 			}
+		} else {
+			// 2c) No new mails have arrived
+			r.JSON(200, make([]mail.Mail, 0))
 		}
 	} else {
 		fmt.Printf("[watney] User tried to poll for new mails - but IMAP Session has timed out.")
@@ -247,7 +256,6 @@ func (web *MailWeb) poll(r render.Render, user sessionauth.User, req *http.Reque
 			"error": "Authentication has expired",
 		} )
 	}
-
 }
 
 /**
@@ -339,23 +347,45 @@ func (web *MailWeb) userInfo(r render.Render, curUser sessionauth.User, req *htt
 func (web *MailWeb) updateFlags(r render.Render, curUser sessionauth.User, req *http.Request) {
 	var (
 		watneyUser *auth.WatneyUser = curUser.(*auth.WatneyUser)
+		folder string
 		uid string
 		addFlags bool
 		flags mail.Flags
 		err error
 	)
 	if watneyUser.ImapCon.IsAuthenticated() {
-		uid = req.FormValue("uid")
+		// 1) Get the folder
+		folder = req.FormValue("folder")
+		// 2) Check the UID
+		if _, err := strconv.ParseInt(req.FormValue("uid"), 10, 32); err != nil {
+			r.JSON(200, map[string]interface{} {
+				"error" : fmt.Sprintf("Given UID '%s' is not a valid ID", req.FormValue("uid")),
+				"origErr": err.Error(),
+			})
+			return
+		} else {
+			uid = req.FormValue("uid")
+		}
+		// 3) Check the add/remove form value
 		if addFlags, err = strconv.ParseBool(req.FormValue("add")); err != nil {
 			r.JSON(200, map[string]interface{} {
-				"error" : fmt.Sprintf("Couldn't parse string '%s' into bool"),
+				"error" : fmt.Sprintf("Couldn't parse string '%s' into bool", req.FormValue("add")),
+				"origErr": err.Error(),
 			})
+			return
 		}
+		// 4) Check the flags
 		if err = json.Unmarshal([]byte(req.FormValue("flags")), &flags); err != nil {
 			fmt.Println("error:", err)
 			r.Error(500)
+			return
+		}
+		if err = watneyUser.ImapCon.UpdateMailFlags(folder, uid, &flags, addFlags); err != nil {
+			r.JSON(500, map[string]interface{} {
+				"error" : fmt.Sprintf("Error while performing UpdateMailFlags"),
+				"origErr": err.Error(),
+			})
 		} else {
-			watneyUser.ImapCon.UpdateMailFlags(uid, &flags, addFlags)
 			r.Status(200)
 		}
 	} else {

@@ -11,6 +11,19 @@ type WatneyConf struct {
 	Mail MailConf
 }
 
+/**
+ * This type is only used to run tests concerning the IMAP mail connection.
+ * In all other cases, 'WatneyConf' has to be used.
+ */
+type WatneyTestConf struct {
+	WatneyConf
+	// Test user
+	TestUser struct {
+		Username string
+		Password string
+	}
+}
+
 type MailConf struct {
 	// Protocol of the mail server (currently only IMAP)
 	Protocol string
@@ -26,6 +39,8 @@ type MailConf struct {
 	SMTPAddress string
 	// SMTP Host port
 	SMTPPort int
+	// Whether the IMAP protocol output should be logged or not
+	ImapLog bool
 }
 
 type WebConf struct {
@@ -36,5 +51,12 @@ type WebConf struct {
 func ReadConfig(configFile string) (*WatneyConf, error) {
 	var cfg WatneyConf
 	err := gcfg.ReadFileInto(&cfg, configFile)
+	return &cfg, err
+}
+
+
+func ReadTestConfig(testConfigFile string) (*WatneyTestConf, error) {
+	var cfg WatneyTestConf
+	err := gcfg.ReadFileInto(&cfg, testConfigFile)
 	return &cfg, err
 }
