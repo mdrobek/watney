@@ -710,7 +710,7 @@ The Email Header is expected to follow this spec:
 	To: name@domain.de, root@localhost.localdomain, [...]
 	Subject: Test Message
 	Message-Id: <20130316010526.034C710090703@domain.de>
-	Date: Sat, 16 Mar 2013 02:05:26 +0100 (CET)
+	Date: Sat, _6 Mar 2013 02:05:26 +0100 (CET)
 	From: root@localhost.localdomain (root)
 which translates to a more generic form of:
 	Key : Blank Value \newline
@@ -759,7 +759,7 @@ func parseIMAPHeaderDate(dateString string) time.Time {
 		err error
 		extRFCString string = fmt.Sprintf("%s (MST)", time.RFC1123Z)
 		generic1 string = "Mon, _2 Jan 2006 15:04:05 -0700"
-		generic2 string = "Mon, _2 Jan 2006 15:04:05 -0700 (MST)"
+		generic2 string = fmt.Sprintf("%s (MST)", generic1)
 	)
 	// Try to parse the date in a bunch of different date formats
 	if date, err = time.Parse(imap.DATETIME, dateString); err == nil {

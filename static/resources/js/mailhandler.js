@@ -152,6 +152,22 @@ wat.mail.MailHandler.prototype.deleteActiveMail = function() {
     }
 };
 
+/**
+ * @param {boolean} [opt_before] True | undefined - Tries to switch to the sibling that is timely
+ *                                                  before the active mail item.
+ *                               False - Tries to switch to the sibling that is timely after.
+ * @return {boolean} True - Switch worked well => active item has changed
+ *                   False - Couldn't switch, e.g., the active item is the last item in the list
+ *                           => no change for the active item
+ * @public
+ */
+wat.mail.MailHandler.prototype.switchToSibling = function(opt_before) {
+    var curMailbox = this.mailboxFolders.get(this.SelectedMailbox);
+    if (goog.isDefAndNotNull(curMailbox)) {
+        curMailbox.switchActiveMail(opt_before);
+    }
+};
+
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 ///                                   Private Methods                                            ///
 ////////////////////////////////////////////////////////////////////////////////////////////////////

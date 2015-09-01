@@ -117,8 +117,23 @@ wat.mail.MailboxFolder.prototype.deleteActiveMail = function() {
         tempLastItem = self.lastActiveMailItem_;
     if (!goog.isDefAndNotNull(tempLastItem)) return;
 
-    self.switchToNextItem(tempLastItem);
+    self.switchAndRemoveNode(tempLastItem);
     tempLastItem.setDeleted(true);
+};
+
+/**
+ * @param {boolean} [opt_before] True | undefined - Tries to switch to the sibling that is timely
+ *                                                  before the active mail item.
+ *                               False - Tries to switch to the sibling that is timely after.
+ * @return {boolean} True - Switch worked well => active item has changed
+ *                   False - Couldn't switch, e.g., the active item is the last item in the list
+ *                           => no change for the active item
+ * @public
+ */
+wat.mail.MailboxFolder.prototype.switchActiveMail = function(opt_before) {
+    var self = this;
+    if (!goog.isDefAndNotNull(self.lastActiveMailItem_)) return false;
+    return self.switchToSibling(self.lastActiveMailItem_, opt_before);
 };
 
 wat.mail.MailboxFolder.prototype.loadMails = function() {
@@ -147,14 +162,15 @@ wat.mail.MailboxFolder.prototype.loadMails = function() {
 };
 
 /**
- * Switches to the next item in the mail overview list and displays its details in the mail details
- * part.
+ * Switches to the next item (any sibling) in the mail overview list and displays its details in
+ * the mail details part. Afterwards, removes the DOM node of the previously active item.
  * ATTENTION: Changes the state of 'lastActiveMailItem_'.
  * @param {wat.mail.MailItem} curMailItem
+ * @public
  */
-wat.mail.MailboxFolder.prototype.switchToNextItem = function(curMailItem) {
+wat.mail.MailboxFolder.prototype.switchAndRemoveNode = function(curMailItem) {
     var self = this,
-        nextItem = self.getNextItem(curMailItem);
+        nextItem = self.getOtherItem(curMailItem);
     // 1) Highlight the next item (if there is one)
     if (null != nextItem) {
         self.showMail(nextItem);
@@ -171,47 +187,122 @@ wat.mail.MailboxFolder.prototype.switchToNextItem = function(curMailItem) {
 };
 
 /**
+ *
+ * @param {wat.mail.MailItem} curMailItem
+ * @param {boolean} [opt_before] True | undefined - Tries to switch to the sibling that is timely
+ *                                                  before the given mail item.
+ *                               False - Tries to switch to the sibling that is timely after.
+ * @returns {boolean} True - Switch was successful
+ *                    False - otherwise
+ * @public
+ */
+wat.mail.MailboxFolder.prototype.switchToSibling = function(curMailItem, opt_before) {
+    var self = this,
+        nextItem = self.getNextItem(curMailItem, opt_before);
+    // 1) Check, whether there is a sibling to be highlighted
+    if (null != nextItem) {
+        // 1a) And if so, de-highlight the current item
+        curMailItem.highlightOverviewItem(false);
+        // 1b) Highlight the next item (if there is one)
+        self.showMail(nextItem);
+        return true;
+    }
+    return false;
+};
+
+/**
  * This method selects the next mail item in the overview list that is timely before the given item
  * (further away from 'now'). In case the given item is the oldest mail item in the mail box, the
  * method selects the next mail item that is timely after this item (closer to 'now'). If, for
  * whatever reason, the given mail item was the only item in the box, null is returned.
  * @param {wat.mail.MailItem} curMailItem
  * @return {wat.mail.MailItem}
+ * @public
  */
-wat.mail.MailboxFolder.prototype.getNextItem = function(curMailItem) {
+wat.mail.MailboxFolder.prototype.getOtherItem = function(curMailItem) {
+    // 1) If it is not part of this mailbox folder, simply return null
+    if (!this.contains(curMailItem)) return null;
+
+    var self = this,
+        nextItem;
+    // 1) If there's less than or 1 mail in the mailbox, no 'next' item exists
+    if (self.mails_.getCount() <= 1) return null;
+    // 2) First try item that is timely before the current item
+    nextItem = self.getNextItem(curMailItem);
+    if (goog.isDefAndNotNull(nextItem)) return nextItem;
+    // 2b) The timely item before doesn't exist, but we already checked, that there are at least 2
+    //     items in the list => return the item that is timely after the given one
+    else return self.getNextItem(nextItem, false);
+};
+
+//wat.mail.MailboxFolder.prototype.getOtherItem = function(curMailItem) {
+//    // 1) If it is not part of this mailbox folder, simply return null
+//    if (!this.contains(curMailItem)) return null;
+//
+//    var self = this,
+//        nextItem = null;
+//    // 1) If there's less than or 1 mail in the mailbox, no 'next' item exists
+//    if (self.mails_.getCount() <= 1) return null;
+//    // 2) First try to find item that is timely before the given item
+//    self.mails_.inOrderTraverse(function(curItem) {
+//        if (curItem !== curMailItem) {
+//            nextItem = curItem;
+//            return true;
+//        }
+//    }, curMailItem);
+//    // 2a) If we found the next item, return it
+//    if (null != nextItem) return nextItem;
+//    // 3) If not, traverse in the opposite direction to find the item timely after the given one
+//    self.mails_.reverseOrderTraverse(function(curItem) {
+//        if (curItem !== curMailItem) {
+//            nextItem = curItem;
+//            return true;
+//        }
+//    }, curMailItem);
+//    // 3a) There needs to be a result here, otherwise case 1) or 2) would've been true
+//    return nextItem;
+//};
+
+/**
+ * This method selects the next mail item in the overview list that is the sibling of the given
+ * 'curMailItem'. If the given flag 'before' is true, the successor (timely before) of the given
+ * mail item is returned. Otherwise, if the given flag 'before' is false, the predecessor (timely
+ * after) the given item is returned. If the respective sibling does not exist, null is returned.
+ * @param {wat.mail.MailItem} curMailItem
+ * @param {boolean} [opt_before] True | undefined - Selects the next item that is timely BEFORE the
+ *                                                  given item
+ *                               False - Selects the next item that is timely AFTER the given item
+ * @return wat.mail.MailItem || null
+ * @public
+ */
+wat.mail.MailboxFolder.prototype.getNextItem = function(curMailItem, opt_before) {
     // 1) If it is not part of this mailbox folder, simply return null
     if (!this.contains(curMailItem)) return null;
 
     var self = this,
         nextItem = null;
-    // 1) If there's less than or 1 mail in the mailbox, no 'next' item exists
+    // 1) Check trivial cases
+    // a) If there's less than or 1 mail in the mailbox, no 'next' item exists
     if (self.mails_.getCount() <= 1) return null;
-    // 2) First try to find item that is timely before the given item
-    self.mails_.inOrderTraverse(function(curItem) {
-        if (curItem !== curMailItem) {
-            nextItem = curItem;
-            return true;
-        }
-    }, curMailItem);
-    // 2a) If we found the next item, return it
-    if (null != nextItem) return nextItem;
-    // 3) If not, traverse in the opposite direction to find the item timely after the given one
-    self.mails_.reverseOrderTraverse(function(curItem) {
-        if (curItem !== curMailItem) {
-            nextItem = curItem;
-            return true;
-        }
-    }, curMailItem);
-    // 3a) There needs to be a result here, otherwise case 1) or 2) would've been true
+    // b) timely before is chosen, but given item is the last in the list (=the oldest item)
+    if ((!goog.isDefAndNotNull(opt_before) || opt_before)
+            && self.mails_.getMaximum() === curMailItem) {
+        return null;
+    }
+    // c) timely after is chosen, but given item is the first in the list (=the oldest item)
+    if (goog.isDefAndNotNull(opt_before) && !opt_before
+            && self.mails_.getMinimum() === curMailItem) {
+        return null;
+    }
+
+    // 2) Now, dependent on the given timely flag, return the respective sibling
+    if (!goog.isDefAndNotNull(opt_before) || opt_before) {
+        return self.mails_.getKthValue(self.mails_.indexOf(curMailItem)+1);
+    } else {
+        return self.mails_.getKthValue(self.mails_.indexOf(curMailItem)-1);
+    }
     return nextItem;
 };
-
-/**
- * @public
- */
-//wat.mail.MailboxFolder.prototype.haveBeenLoaded = function() {
-//    return this.retrieved_;
-//};
 
 wat.mail.MailboxFolder.prototype.activate = function() {
     var self = this;
@@ -410,7 +501,7 @@ wat.mail.Inbox.prototype.updateCtrlBtns_ = function(forMail) {
         }, false);
     goog.events.listen(d_deleteBtn, goog.events.EventType.CLICK, function() {
         // 1) CLIENT-SIDE: Switch the mail overview list and details part to the next mail in the list
-        self.switchToNextItem(forMail);
+        self.switchAndRemoveNode(forMail);
         // 2) Handle all further client- and server-side actions associated with the deletion
         forMail.setDeleted(true);
     }, false, forMail);

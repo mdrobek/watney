@@ -71,10 +71,19 @@ wat.app.enableMailKeyboardShortcuts = function(enable) {
             wat.app.keyboardShortcutHandler.registerShortcut(
                 wat.mail.KeyShortcuts.DELETE_MAIL, goog.events.KeyCodes.DELETE);
         }
-        // 1b) TODO: Go on with UP arrow
-        // 1c) TODO: Go on with DOWN arrow
+        // 1b) Include navigation in the mail overview list
+        if (!wat.app.keyboardShortcutHandler.isShortcutRegistered(goog.events.KeyCodes.UP)) {
+            wat.app.keyboardShortcutHandler.registerShortcut(
+                wat.mail.KeyShortcuts.UP, goog.events.KeyCodes.UP);
+        }
+        if (!wat.app.keyboardShortcutHandler.isShortcutRegistered(goog.events.KeyCodes.DOWN)) {
+            wat.app.keyboardShortcutHandler.registerShortcut(
+                wat.mail.KeyShortcuts.DOWN, goog.events.KeyCodes.DOWN);
+        }
     } else {
         wat.app.keyboardShortcutHandler.unregisterShortcut(wat.mail.KeyShortcuts.DELETE_MAIL);
+        wat.app.keyboardShortcutHandler.unregisterShortcut(wat.mail.KeyShortcuts.UP);
+        wat.app.keyboardShortcutHandler.unregisterShortcut(wat.mail.KeyShortcuts.DOWN);
     }
 };
 
@@ -90,7 +99,14 @@ wat.app.keyboardShortcutCb_ = function(ev) {
             wat.app.mailHandler.deleteActiveMail();
             break;
         }
-        // TODO: UP/DOWN arrows
+        case wat.mail.KeyShortcuts.UP: {
+            wat.app.mailHandler.switchToSibling(false);
+            break;
+        }
+        case wat.mail.KeyShortcuts.DOWN: {
+            wat.app.mailHandler.switchToSibling();
+            break;
+        }
         default:
             console.log("No callback has been registered for keyboard shortcut: " + ev.identifier);
     }
