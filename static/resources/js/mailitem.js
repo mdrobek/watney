@@ -166,9 +166,10 @@ wat.mail.MailItem.prototype.setDeleted = function(newDeletedState) {
     // 4) CLIENT-SIDE: Remove mail from current folder and add it to trash or inbox
     wat.app.mailHandler.moveMail(self, newMailboxFolder);
     // 5) SERVER-SIDE: Now send information to server
-    self.updateFlagsRequest_(wat.mail.DELETE_FLAG, newDeletedState, function(request) {
-        console.log("MailItem.setDeleted : NOT YET IMPLEMENTED");
-        // TODO: Revert changes in client state of Deleted flag
+    self.updateFlagsRequest_(self.Previous_Folder, self.Mail.UID, wat.mail.DELETE_FLAG,
+        newDeletedState, function(request) {
+            console.log("MailItem.setDeleted : NOT YET IMPLEMENTED");
+            // TODO: Revert changes in client state of Deleted flag
     });
 };
 
@@ -197,8 +198,9 @@ wat.mail.MailItem.prototype.setSeen = function(newSeenState) {
         }
     }
     // 3) Now send information to server
-    self.updateFlagsRequest_(wat.mail.SEEN_FLAG, newSeenState, function(request) {
-        // TODO: Revert changes in client state of Seen flag
+    self.updateFlagsRequest_(self.Folder, self.Mail.UID, wat.mail.SEEN_FLAG, newSeenState,
+        function(request) {
+            // TODO: Revert changes in client state of Seen flag
     });
 };
 
@@ -207,18 +209,20 @@ wat.mail.MailItem.prototype.setSeen = function(newSeenState) {
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /**
+ * @param {string} folder The folder in which the mail resides, whose flags should be updates.
+ * @param {string} uid The IMAP server unique ID of the mail.
  * @param {wat.mail.MailFlags} flag
  * @param {boolean} addFlags True - The given flags will be added to the mail mail
  *                           False - The given flags will be removed from the mail
  * @param {function} errorCb
  * @private
  */
-wat.mail.MailItem.prototype.updateFlagsRequest_ = function(flag, addFlags, errorCb) {
+wat.mail.MailItem.prototype.updateFlagsRequest_ = function(folder, uid, flag, addFlags, errorCb) {
     var self = this,
         request = new goog.net.XhrIo(),
         data = new goog.Uri.QueryData();
-    data.add("folder", self.Folder);
-    data.add("uid", self.Mail.UID);
+    data.add("folder", folder);
+    data.add("uid", uid);
     // True -> flags will be added | False -> Flags will be removed
     data.add("add", addFlags);
     data.add("flags", goog.json.serialize(flag));

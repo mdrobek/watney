@@ -758,12 +758,24 @@ func parseIMAPHeaderDate(dateString string) time.Time {
 		date time.Time
 		err error
 		extRFCString string = fmt.Sprintf("%s (MST)", time.RFC1123Z)
+		generic1 string = "Mon, _2 Jan 2006 15:04:05 -0700"
+		generic2 string = "Mon, _2 Jan 2006 15:04:05 -0700 (MST)"
 	)
-	if date, err = time.Parse(time.RFC1123Z, dateString); err == nil {
-		// 1) Parsing as time.RFC1123Z was successful
+	// Try to parse the date in a bunch of different date formats
+	if date, err = time.Parse(imap.DATETIME, dateString); err == nil {
+		// 1) Parsing as imap.DATETIME was successful
+		return date
+	} else if date, err = time.Parse(time.RFC1123Z, dateString); err == nil {
+		// 2) Parsing as time.RFC1123Z was successful
 		return date
 	} else if date, err = time.Parse(extRFCString, dateString); err == nil {
-		// 2) Parsing as 'time.RFC1123Z (MST)' was successful
+		// 3) Parsing as 'time.RFC1123Z (MST)' was successful
+		return date
+	} else if date, err = time.Parse(generic1, dateString); err == nil {
+		// 4) Parsing as generic1 was successful
+		return date
+	} else if date, err = time.Parse(generic2, dateString); err == nil {
+		// 5) Parsing as generic2 was successful
 		return date
 	} else {
 		fmt.Printf("[watney] Error during parsing of date header: %s\n",
