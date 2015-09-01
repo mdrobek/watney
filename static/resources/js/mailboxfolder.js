@@ -99,8 +99,12 @@ wat.mail.MailboxFolder.prototype.add = function(mail) {
  * @param {wat.mail.MailItem[]} mails
  */
 wat.mail.MailboxFolder.prototype.addMailsToFolder = function(mails) {
-    var self = this;
-    goog.array.forEach(mails, function(curMail) { self.mails_.add(curMail); })
+    // Special treatment for mails that are flagged as deleted -> See TRASH override
+    var self = this,
+        consideredMails = goog.array.filter(mails, function(curMail) {
+            return !curMail.Mail.Flags.Deleted;
+        });
+    goog.array.forEach(consideredMails, function(curMail) { self.mails_.add(curMail); });
 };
 
 /**
@@ -420,18 +424,6 @@ wat.mail.Inbox = function() {
 };
 goog.inherits(wat.mail.Inbox, wat.mail.MailboxFolder);
 
-/**
- * Special treatment for the inbox folder.
- * @override
- */
-wat.mail.Inbox.prototype.addMailsToFolder = function(mails) {
-    var self = this,
-        consideredMails = goog.array.filter(mails, function(curMail) {
-            return !curMail.Mail.Flags.Deleted && !curMail.Mail.Flags.Draft;
-        });
-    goog.array.forEach(consideredMails, function(curMail) { self.mails_.add(curMail); })
-};
-
 wat.mail.Inbox.prototype.checkForNewMails = function(reregisterCb) {
     var self = this,
         request = new goog.net.XhrIo();
@@ -555,6 +547,15 @@ wat.mail.Trash = function() {
     this.Name = wat.mail.MailboxFolder.TRASH;
 };
 goog.inherits(wat.mail.Trash, wat.mail.MailboxFolder);
+
+/**
+ * Special treatment for the trash folder => all mails in here are shown
+ * @override
+ */
+wat.mail.Trash.prototype.addMailsToFolder = function(mails) {
+    var self = this;
+    goog.array.forEach(mails, function(curMail) { self.mails_.add(curMail); })
+};
 
 /**
  *
