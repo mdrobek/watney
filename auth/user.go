@@ -66,12 +66,15 @@ func (u *WatneyUser) GetById(id interface{}) error {
 	if wUser, ok := usermap.Get(id.(int64)); !ok {
 		return errors.New(fmt.Sprintf("User for id '%s' not logged in", id));
 	} else {
+		// 1) Reset the last access time of the current user to avoid automatic logout
+		wUser.lastSeen = time.Now()
+		// 2) Populate the copy of the user object
 		u.Username = wUser.Username
 		u.ImapCon = wUser.ImapCon
 		u.authenticated = wUser.authenticated
 		u.SMTPAuth = wUser.SMTPAuth
 		u.Id = wUser.Id
-		u.lastSeen = time.Now()
+		u.lastSeen = wUser.lastSeen
 		return nil
 	}
 }

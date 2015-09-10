@@ -28,6 +28,7 @@ build/*
 conf/unionwork.ini
 conf/test.ini
 conf/local-dev.ini
+mail/test_files
 static/resources/js/soyutils_usegoog.js
 static/resources/js/soy-templates.js
 static/resources/js/watney-compiled.js

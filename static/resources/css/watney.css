@@ -127,6 +127,10 @@ body {
 
 .mail-page {
     background-color: #454b4c;
+    height: 100%;
+}
+.mail-overview {
+    height: 94%;
 }
 .mail-overview .header {
     color: white;
@@ -156,7 +160,7 @@ div#mailItems > div.row:nth-of-type(2n) {
     cursor: pointer;
 }
 .mail-overview .entry.active {
-    background-color: brown;
+    background-color: #987452;
 }
 .mail-overview .entry.newMail {
     font-weight: bold;
@@ -165,7 +169,8 @@ div#mailItems > div.row:nth-of-type(2n) {
     background-color: #317461;
 }
 .mail-overview .entry .date {
-    padding: 0
+    padding: 0;
+    color: #9E9E9E;
 }
 .mail-overview .entry .date .time {
     font-size: 20px;
@@ -186,6 +191,7 @@ div#mailItems > div.row:nth-of-type(2n) {
 .mail-overview .entry .content .from {
     font-size: 18px;
     font-style: italic;
+    color: #9E9E9E;
 }
 .mail-separator {
     margin: 0;

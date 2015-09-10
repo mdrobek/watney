@@ -15,6 +15,12 @@ import (
 	"net/smtp"
 	"sync"
 	"strconv"
+	"net/textproto"
+	"bytes"
+	"bufio"
+	"mime"
+	"mime/multipart"
+	"io/ioutil"
 )
 
 type MailCon struct {
@@ -44,8 +50,9 @@ type Mail struct {
 	Header *Header
 	// all flags of the mail
 	Flags *Flags
-	// the content of the mail
-	Content string
+	// the content parts of the mail: Content-Type -> Part
+	// "text/plain" -> Part
+	Content map[string]ContentPart
 }
 
 type MailInformation string
@@ -57,6 +64,9 @@ const (
 type Header struct {
 	// size of the mail
 	Size uint32
+	// the folder this email is stored in, in the mailbox ("/" = root)
+	Folder string
+	//	---------------- All following are parsed from the Header ----------------
 	// time email was received
 	Date time.Time
 	// the subject of the mail (Subject:)
@@ -66,8 +76,30 @@ type Header struct {
 	// receiver address of this mail (To:)
 	// TODO: Receiver can be multiple mail addresses!
 	Receiver string
-	// the folder this email is stored in, in the mailbox ("/" = root)
-	Folder string
+	// The parsed MIMEHeader
+	MimeHeader PMIMEHeader
+}
+
+// This type reflects a parsed textproto.MIMEHeader
+type PMIMEHeader struct {
+	// Used version of the MIME protocol
+	MimeVersion float32
+	// The media-type of the MIME protocol (stored in the flag: Content-Type)
+	ContentType string
+	// The encoding used for the Header subject (stored in Content-Transfer-Encoding)
+	Encoding string
+	// Boundary used in case of a multipart Content-Type
+	MultipartBoundary string
+}
+
+// The parsed content of one multipart of the mail (e.g., text/plain, text/html, ...)
+type ContentPart struct {
+	// The charset used to encode the body (default is UTF-8)
+	Charset string
+	// Encoding of the body part, e.g., quoted-printable, base64
+	Encoding string
+	// The body of that part
+	Body string
 }
 
 // Holds the following information of a mail: Seen, Deleted, Answered
@@ -401,6 +433,8 @@ func (mc *MailCon) CheckNewMails() ([]uint32, error) {
 }
 
 /**
+ * Creates a new mail on the IMAP server with the given header information, flags and content
+ * (body).
  * TODO: Not yet mirrored as a Web-Handler
  */
 func (mc *MailCon) AddMailToFolder(h *Header, f *Flags, content string) (uint32, error) {
@@ -448,32 +482,34 @@ func (mc *MailCon) loadMails(set *imap.SeqSet, folder string, withContent bool) 
 	if err := mc.selectFolder(folder, true); err != nil {
 		return []Mail{}, err
 	}
-	// 2) Fetch a number of mails from the given mailbox folder
-	var itemsToFetch []string = []string{"UID", "FLAGS", "INTERNALDATE", "RFC822.SIZE",
-		"RFC822.HEADER"}
+	var (
+		cmd *imap.Command
+		itemsToFetch []string = []string{"UID", "FLAGS", "INTERNALDATE", "RFC822.SIZE",
+			"RFC822.HEADER"}
+		mails []Mail = []Mail{}
+		mailContent map[string]ContentPart
+		err error
+	)
 	if withContent {
 		itemsToFetch = append(itemsToFetch, "RFC822.TEXT")
 	}
-	cmd, err := mc.waitFor(mc.client.Fetch(set, itemsToFetch...))
-	if err != nil {
+	// 2) Fetch a number of mails from the given mailbox folder
+	if cmd, err = mc.waitFor(mc.client.Fetch(set, itemsToFetch...)); err != nil {
 		return []Mail{}, err
 	} else {
 		// 3) Transform the retrieved messages into mails with headers
-		var mails []Mail = []Mail{}
 		for _, resp := range cmd.Data {
 			// a) Parse the Header
 			mailHeader, err := parseHeader(resp.MessageInfo())
 			if nil != err {
-				mc.Logger.Printf("Couldn't parse header of mail\n"+
-				"Original error: %s", err.Error())
+				mc.Logger.Printf("Couldn't parse header of mail\n Original error: %s", err.Error())
 			}
 			mailHeader.Folder = folder
 			// b) Read the flags
 			flags := readFlags(resp.MessageInfo())
 			// c) Read the content if requested
-			var mailContent string
 			if withContent {
-				mailContent = imap.AsString(resp.MessageInfo().Attrs["RFC822.TEXT"])
+				mailContent, err = parseContent(resp.MessageInfo(), mailHeader.MimeHeader)
 			}
 			// d) Build the mail object
 			mails = append(mails, Mail{
@@ -485,11 +521,13 @@ func (mc *MailCon) loadMails(set *imap.SeqSet, folder string, withContent bool) 
 		}
 		// 4) Clean the data queue
 		mc.client.Data = nil
-		return mails, nil
+		return mails, err
 	}
 }
 
 /**
+ * Creates a new mail on the IMAP server with the given header information, flags and content
+ * (body).
  * ATTENTION: DOES NOT LOCK THE IMAP CONNECTION! => Has to be wrapped into a mutex lock method
  */
 func (mc *MailCon) addMailToFolder_internal(h *Header, f *Flags,
@@ -593,12 +631,12 @@ func (mc *MailCon) logMC(msg string, level imap.LogMask) {
 }
 
 /**
-Checks, whether the given config object is correctly initialized. Returns (true, nil), if so,
-and otherwise the error message what is missing.
-@return (bool, error) False, err - if the given config object is not correctly initialized and
-								the error code
-True, nil - otherwise.
-*/
+ * Checks, whether the given config object is correctly initialized. Returns (true, nil), if so,
+ * and otherwise the error message what is missing.
+ * @return (bool, error) False, err - if the given config object is not correctly initialized and
+ *								the error code
+ *						 True, nil - otherwise.
+ */
 func (mc *MailCon) checkConf() (bool, error) {
 	if nil == mc.conf {
 		return false, errors.New("Can't create MailConnection without config")
@@ -686,18 +724,28 @@ func (mc *MailCon) sendMailSkipCert(a smtp.Auth, from string, to []string, msg [
 }
 
 func parseHeader(mi *imap.MessageInfo) (*Header, error) {
+	// 1) If no MessageInfo was passed => return and error
 	if nil == mi {
 		return nil,
 			errors.New("Couldn't parse Mail Header, because the given MessageInfo object is nil")
-	} else if mailHeader := mi.Attrs["RFC822.HEADER"]; nil == mailHeader {
+	}
+	// 2) If the given MessageInfo doesn't contain a header string => return and error
+	var (
+		mailHeader imap.Field
+		curHeader *Header
+		err error
+	)
+	if mailHeader = mi.Attrs["RFC822.HEADER"]; nil == mailHeader {
 		return nil, errors.New("Couldn't parse Mail Header, because no header was provided " +
 			"in the given MessageInfo object")
-	} else {
-		curHeader, err := parseHeaderStr(imap.AsString(mailHeader))
-		curHeader.Size = mi.Size
-		curHeader.Date = mi.InternalDate
-		return curHeader, err
 	}
+
+	fmt.Printf("!!!!! \n %s \n", imap.AsString(mailHeader))
+	if curHeader, err = parseHeaderStr(imap.AsString(mailHeader)); err == nil {
+		curHeader.Size = mi.Size
+//		curHeader.Date = mi.InternalDate
+	}
+	return curHeader, err
 }
 
 /**
@@ -719,34 +767,75 @@ func parseHeaderStr(header string) (*Header, error) {
 	if 0 == len(header) {
 		return nil, errors.New("Header string is empty")
 	}
-	lines := strings.Split(header, "\n")
-	var contentMap map[string]string = map[string]string{}
-	for _, curLine := range lines {
-		keyValue := strings.SplitAfterN(curLine, ":", 2)
-		// If we found an entry that is not composed of a key and value, skip it for now
-		if len(keyValue) != 2 {
-			continue
-		}
-		// Remove colon from key value and make it lower case
-		cleanedKey := strings.ToLower(strings.TrimSuffix(keyValue[0], ":"))
-		// Remove newline from value
-		cleanedValue := strings.TrimSpace(keyValue[1])
-		contentMap[cleanedKey] = cleanedValue
+	var (
+		reader *textproto.Reader = textproto.NewReader(bufio.NewReader(bytes.NewBufferString(header)))
+		mHeader textproto.MIMEHeader
+		err error
+	)
+	if mHeader, err = reader.ReadMIMEHeader(); (err != nil && err != io.EOF) {
+		return nil, err
 	}
-	return parseHeaderContent(contentMap)
+//		for key, val := range mHeader {
+//			fmt.Printf("&&&& %s -> %s\n", key, val)
+//		}
+	return parseMainHeaderContent(mHeader)
 }
 
-func parseHeaderContent(headerContentMap map[string]string) (h *Header, err error) {
+func parseMainHeaderContent(headerContentMap textproto.MIMEHeader) (h *Header, err error) {
 	if nil == headerContentMap || 0 == len(headerContentMap) {
 		return nil, errors.New("Header doesn't contain entries")
 	}
+	// Todo: Several of the below used keys could be missing in the MIMEHeader
 	h = &Header{
-		Date:  	  parseIMAPHeaderDate(headerContentMap["date"]),
-		Subject:  strings.TrimPrefix(headerContentMap["subject"], " "),
-		Sender:   strings.TrimPrefix(headerContentMap["from"], " "),
-		Receiver: strings.TrimPrefix(headerContentMap["to"], " "),
+		Date:  	  parseIMAPHeaderDate(headerContentMap["Date"][0]),
+		Subject:  strings.TrimPrefix(headerContentMap["Subject"][0], " "),
+		Sender:   strings.TrimPrefix(headerContentMap["From"][0], " "),
+		Receiver: strings.TrimPrefix(headerContentMap["To"][0], " "),
+		MimeHeader: parseMIMEHeader(headerContentMap),
 	}
 	return h, nil
+}
+
+/**
+ * This method takes a MIMEHeader map and converts it into a modularized version.
+ */
+func parseMIMEHeader(mimeHeader textproto.MIMEHeader) PMIMEHeader {
+	var (
+		params map[string]string	//e.g., "[multipart/mixed; boundary="----=_Part_414413_206767080.1441196149087"]"
+		mediatype string			//e.g., "multipart/mixed"
+		boundary string				//e.g., "----=_Part_414413_206767080.1441196149087"
+		// Special case "quoted-printable": The go multipart code, hides this field by default and
+		// simply directly decodes the body content accordingly -> make it a default here
+		encoding string	= "quoted-printable"	//e.g., "quoted-printable", "base64"
+		mimeversionStr string
+		mimeversion float64	= .0	//e.g., 1.0
+		err error
+	)
+	if contentArrayStr, ok := mimeHeader["Content-Type"]; ok {
+		if mediatype, params, err = mime.ParseMediaType(contentArrayStr[0]); err == nil {
+			boundary = params["boundary"]
+		} else {
+			fmt.Printf("[watney] WARNING: failed to parse the media type of mail: %s\n",
+				err.Error())
+		}
+	}
+	if contentArrayStr, ok := mimeHeader["Content-Transfer-Encoding"]; ok {
+		encoding = strings.TrimSpace(contentArrayStr[0])
+	}
+	if contentArrayStr, ok := mimeHeader["Mime-Version"]; ok {
+		mimeversionStr = strings.TrimSpace(contentArrayStr[0])
+		if mimeversion, err = strconv.ParseFloat(mimeversionStr, 32); err != nil {
+			fmt.Printf("[watney] WARNING: failed to parse the mime version of mail: %s\n",
+				err.Error())
+			mimeversion = .0
+		}
+	}
+	return PMIMEHeader{
+		MimeVersion: float32(mimeversion),
+		ContentType: mediatype,
+		Encoding: encoding,
+		MultipartBoundary: boundary,
+	}
 }
 
 /**
@@ -786,15 +875,131 @@ func parseIMAPHeaderDate(dateString string) time.Time {
 	}
 }
 
+/**
+ *
+ */
+func parseContent(mi *imap.MessageInfo, mimeHeader PMIMEHeader) (map[string]ContentPart, error) {
+	// 1) If no content is given, error and return
+	if nil == mi {
+		return nil, errors.New("[watney] ERROR: Couldn't parse mail content due to missing content.")
+	}
+	var (
+		content string = imap.AsString(mi.Attrs["RFC822.TEXT"])
+		parts map[string]ContentPart = make(map[string]ContentPart, 1)
+	)
+	// 2) Simple Case: We have no MIME protocol, simply assume the content is plain text
+	if 0 == mimeHeader.MimeVersion {
+		parts["text/plain"] = ContentPart{
+			Encoding: "quoted-printable",
+			Charset: "UTF-8",
+			Body: content,
+		}
+		return parts, nil
+	}
+	// 3) Otherwise, we have to check the Content-Type: If its NOT a multipart, just add it as is
+	if !strings.Contains(mimeHeader.ContentType, "multipart") {
+		parts[mimeHeader.ContentType] = ContentPart{
+			Encoding: mimeHeader.Encoding,
+			Charset: "UTF-8",
+			Body: content,
+		}
+		return parts, nil
+	}
+	// 4) Otherwise, in case we have a multipart Content-Type, parse all parts
+	return parseMultipartContent(content, mimeHeader.MultipartBoundary)
+}
+
+func parseMultipartContent(content, boundary string) (map[string]ContentPart, error) {
+	var (
+		reader *multipart.Reader = multipart.NewReader(strings.NewReader(content),
+			boundary)
+		part *multipart.Part
+		mailParts map[string]ContentPart = make(map[string]ContentPart, 1)
+		partHeader PMIMEHeader
+		err error
+	)
+	for {
+		if part, err = reader.NextPart(); err == io.EOF {
+			// 1) EOF error means, we're finished reading the multiparts
+			break
+		} else if err != nil {
+			// 2) other errors are real => print a warning for that part and continue with the next
+			fmt.Printf("[watney] WARNING: Couldn't parse multipart 'Part' Header & Content: %s\n",
+				err.Error())
+			continue
+		}
+		// 3) Try to read the content of this multipart body ...
+		if readBytes, err := ioutil.ReadAll(part); err != nil {
+			fmt.Printf("[watney] WARNING: Couldn't read multipart body content: %s\n", err.Error())
+			continue
+		} else {
+			// 4) The body of this part has been successfully parsed => extract content
+			if partHeader = parseMIMEHeader(part.Header); len(partHeader.ContentType) > 0 {
+				// 5) We got a Content-Type, check if that one is multipart again
+				if strings.Contains(partHeader.ContentType, "multipart") {
+					// 5a) It is multipart => recursively add its parts
+					if innerParts, err := parseMultipartContent(string(readBytes),
+							partHeader.MultipartBoundary); err != nil {
+						fmt.Printf("[watney] WARNING: Couldn't parse inner multipart body: %s\n",
+							err.Error())
+						continue
+					} else {
+						for key, value := range innerParts {
+							mailParts[key] = value
+						}
+					}
+				} else {
+					// 5b) We have a content type other than multipart, just add it
+					mailParts[partHeader.ContentType] = ContentPart{
+						Encoding: partHeader.Encoding,
+						Charset: "UTF-8",
+						Body: string(readBytes),
+					}
+				}
+			} else {
+				// 4b) This part has no MIME information -> assume text/plain
+				// ATTENTION: We're overwriting previously parsed text/plain parts
+				mailParts["text/plain"] = ContentPart{
+					Encoding: "quoted-printable",
+					Charset: "UTF-8",
+					Body: string(readBytes),
+				}
+			}
+		}
+	}
+	return mailParts, nil
+}
+
+
 func SerializeHeader(h *Header) string {
 	if nil == h { return "" }
-	return strings.Join([]string{
-//			fmt.Sprintf("%s: %s", "Date", h.Date.Format(fmt.Sprintf("%s (MST)", time.RFC1123Z))),
+	var header string
+	// 1) First deal with MIME information of header
+	if h.MimeHeader.MimeVersion > 0 {
+		header = strings.Join([]string {
+			fmt.Sprintf("%s: %.1f", "MIME-Version", h.MimeHeader.MimeVersion),
+			fmt.Sprintf("%s: %s;",
+				"Content-Type", h.MimeHeader.ContentType)},
+		"\r\n")
+
+		if strings.Contains(h.MimeHeader.ContentType, "multipart") {
+			// Only attach boundary in case of multipart content
+			header = fmt.Sprintf("%s\r\n\t%s=\"%s\"", header,
+				"boundary", h.MimeHeader.MultipartBoundary)
+		} else if h.MimeHeader.ContentType == "text/plain" {
+			// Only attach charset in case of text/plain content
+			header = fmt.Sprintf("%s charset=\"%s\"", header, h.MimeHeader.Encoding)
+		}
+	}
+	// 2) Now populate the serialized header with the main content
+	header = strings.TrimSpace(strings.Join([]string{
+			header,
 			fmt.Sprintf("%s: %s", "Date", h.Date.Format(time.RFC1123Z)),
 			fmt.Sprintf("%s: %s", "To", h.Receiver),
 			fmt.Sprintf("%s: %s", "From", h.Sender),
 			fmt.Sprintf("%s: %s", "Subject", h.Subject)},
-		"\r\n")
+		"\r\n"))
+	return header
 }
 
 func readFlags(mi *imap.MessageInfo) (f *Flags) {

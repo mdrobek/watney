@@ -55,15 +55,15 @@ wat.mail.NewMail.prototype.addNewMail = function() {
         d_windowContainerElem = goog.dom.getElement("newMailWindowItems"),
         d_newMailWindowItem = goog.soy.renderAsElement(wat.soy.mail.newMailWindowItem, {
             DomID: self.WindowDomID,
-            ShortenedFrom: wat.mail.MailHandler.shrinkField(self.Mail.Header.Sender,35, true),
-            ShortenedTo: wat.mail.MailHandler.shrinkField(self.Mail.Header.Receiver, 35, true),
+            From: self.Mail.Header.Sender,
+            To: self.Mail.Header.Receiver,
             Subject: self.Mail.Header.Subject,
             OrigMail: self.Mail.Content
         }),
         d_barContainerElem = goog.dom.getElement("newMailBarItems"),
         d_newMailBarItem = goog.soy.renderAsElement(wat.soy.mail.newMailBarItem, {
             DomID: self.WindowBarItemDomID,
-            ShortenedTo: wat.mail.MailHandler.shrinkField(self.Mail.Header.Receiver, 35, true)
+            ShortenedTo: wat.mail.MailHandler.shrinkField(self.Mail.Header.Receiver, 20, true)
         });
     // Listener for Click on item in the lower Bar
     goog.events.listen(d_newMailBarItem, goog.events.EventType.CLICK, self.toggleVisible, true,
