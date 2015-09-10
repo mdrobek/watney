@@ -8,6 +8,7 @@ goog.require('wat');
 goog.require('wat.mail');
 goog.require('wat.mail.ReceivedMail');
 goog.require('wat.soy.mail');
+goog.require('goog.object');
 goog.require('goog.events');
 goog.require('goog.dom');
 goog.require('goog.dom.classes');
@@ -30,6 +31,9 @@ goog.require('goog.date.Date');
 wat.mail.MailItem = function(jsonData, folder) {
     var self = this;
     self.Mail = jsonData;
+    if (!goog.isDefAndNotNull(self.Mail.Content)) {
+        self.Mail.Content = new goog.structs.Map();
+    }
     self.DomID = "mailItem_" + self.Mail.UID;
     self.Folder = folder;
     self.Previous_Folder = folder;
@@ -93,28 +97,67 @@ wat.mail.MailItem.prototype.renderMail = function(activateClickEventCb, opt_prep
 };
 
 /**
+ * PRE-CONDITION:
+ * A mail needs to have a body, even if it is the empty string. It is thus always assumed, that the
+ * Content map has at least 1 entry.
+ *
+ * Two cases might appear:
+ * Case 1: The Mail contains a body for the given Content-Type.
+ *      In this case, the body associated with this type is returned.
+ * Case 2: The Mail DOES not contain a body for the given Content-Type.
+ *      In this case, the method tries to return the body associated with the Content-Type
+ *      "text/plain". If this type does not exist as well, any remaining existing body will be
+ *      returned.
+ * @param {string} forContentType One of: "text/plain", "text/html"
+ * @return {string} The respective body string message for the given Content-Type
+ * @public
+ */
+wat.mail.MailItem.prototype.getContent = function(forContentType) {
+    var contentMap = this.Mail.Content;
+    // 1) Check if it contains the Content-Type, and if so, return it
+    if (contentMap.containsKey(forContentType)) {
+        return contentMap.get(forContentType).Body;
+    }
+    // 2) The Body for the given Content-Type doesn't exist => check if a body for "text/plain"
+    //    exists, and if so, return it
+    if (contentMap.containsKey("text/plain")) {
+        return contentMap.get("text/plain").Body;
+    }
+    // 3) Worst case scenario: Neither a Body for the given Content-Type, nor for the fallback
+    //    "text/plain" exists => return anything available
+    //var fallbackKey = contentMap.getKeys()[0];
+    //return contentMap.get(fallbackKey).Body;
+    return "!!!         Sorry, no 'text/plain' available        !!!"
+};
+
+/**
  * @public
  */
 wat.mail.MailItem.prototype.loadContent = function(successLoadCb) {
     var self = this,
-        request = new goog.net.XhrIo(),
+        req = new goog.net.XhrIo(),
         data = new goog.Uri.QueryData();
     data.add("uid", self.Mail.UID);
     data.add("folder", self.Folder);
-    goog.events.listen(request, goog.net.EventType.COMPLETE, function (event) {
+    goog.events.listen(req, goog.net.EventType.COMPLETE, function(event) {
         // request complete
-        var request = event.currentTarget;
+        var request = event.currentTarget,
+            jsonResponse = {};
         if (request.isSuccess()) {
-            self.Mail.Content = request.getResponseJson();
+            jsonResponse = request.getResponseJson();
+            goog.array.forEach(goog.object.getKeys(jsonResponse), function(curType) {
+                self.Mail.Content.set(curType, new wat.mail.ContentPart(
+                    goog.object.get(jsonResponse, curType)));
+            });
             self.HasContentBeenLoaded = true;
             if (goog.isDefAndNotNull(successLoadCb)) successLoadCb(self);
         } else {
             // error
-            console.log("something went wrong loading content for mail: " + this.getLastError());
-            console.log("^^^ " + this.getLastErrorCode());
+            console.log("something went wrong loading content for mail: " + request.getLastError());
+            console.log("^^^ " + request.getLastErrorCode());
         }
     }, false, self);
-    request.send(wat.mail.LOAD_MAILCONTENT_URI, 'POST', data.toString());
+    req.send(wat.mail.LOAD_MAILCONTENT_URI, 'POST', data.toString());
 };
 
 /**

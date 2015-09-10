@@ -52,7 +52,7 @@ type Mail struct {
 	Flags *Flags
 	// the content parts of the mail: Content-Type -> Part
 	// "text/plain" -> Part
-	Content map[string]ContentPart
+	Content Content
 }
 
 type MailInformation string
@@ -92,6 +92,10 @@ type PMIMEHeader struct {
 	MultipartBoundary string
 }
 
+// the content parts of the mail: Content-Type -> Part
+// "text/plain" -> Part
+type Content map[string]ContentPart
+
 // The parsed content of one multipart of the mail (e.g., text/plain, text/html, ...)
 type ContentPart struct {
 	// The charset used to encode the body (default is UTF-8)
@@ -117,6 +121,9 @@ type Flags struct {
 	// Message is "recently" arrived in this mailbox.
 	Recent bool			`flag: "\\Recent"`
 }
+
+// Used to switch between the IMAP fetch used to retrieve mails
+type FetchFunc func(seq *imap.SeqSet, items ...string) (cmd *imap.Command, err error)
 
 // Used to enable sorting methods
 type MailSlice []Mail
@@ -270,7 +277,7 @@ func (mc *MailCon) LoadNMailsFromFolder(folder string, n int, withContent bool) 
 		nbrMailsExp = "1:*"
 	}
 	set, _ := imap.NewSeqSet(nbrMailsExp)
-	return mc.loadMails(set, folder, withContent)
+	return mc.loadMails(set, folder, withContent, mc.client.Fetch)
 }
 
 /**
@@ -285,7 +292,7 @@ func (mc *MailCon) LoadNMailsFromFolderWithUIDs(folder string, uids []uint32) ([
 		uidStrings[index] = strconv.Itoa(int(uid))
 	}
 	set, _ := imap.NewSeqSet(strings.Join(uidStrings, ","))
-	return mc.loadMails(set, folder, true)
+	return mc.loadMails(set, folder, true, mc.client.UIDFetch)
 }
 
 /**
@@ -299,11 +306,19 @@ func (mc *MailCon) LoadMailFromFolderWithUID(folder string, uid uint32) (Mail, e
 			errors.New(fmt.Sprintf("Couldn't retrieve mail, because mail UID (%d) needs to " +
 			"be greater than 0", uid));
 	}
+	var (
+		mails MailSlice
+		err error
+	)
 	set, _ := imap.NewSeqSet(fmt.Sprintf("%d", uid))
-	mails, err := mc.loadMails(set, folder, true)
+	if mails, err = mc.loadMails(set, folder, true, mc.client.UIDFetch); err != nil {
+		return Mail{},
+			errors.New(fmt.Sprintf("No mail could be retrieved for the given ID: %d; due to " +
+				"the error:\n%s\n", uid, err.Error()))
+	}
 	if len(mails) == 0 {
 		return Mail{},
-			errors.New(fmt.Sprintf("No mail could be retrieved for the given ID: %d", uid))
+			errors.New(fmt.Sprintf("No mail found for the given ID: %d\n", uid))
 	}
 	return mails[0], err
 }
@@ -311,36 +326,36 @@ func (mc *MailCon) LoadMailFromFolderWithUID(folder string, uid uint32) (Mail, e
 /**
  * Only loads the content of the mail for the given UID.
  */
-func (mc *MailCon) LoadContentForMailFromFolder(folder string, uid uint32) (string, error) {
-	mc.mutex.Lock()
-	defer mc.mutex.Unlock()
-	println("Loading mail content for UID: ", uid)
-	if uid < 1 {
-		return "", errors.New(fmt.Sprintf("Couldn't retrieve mail content, because mail " +
-			"UID (%d) needs to be greater than 0", uid));
-	}
-	if err := mc.selectFolder(folder, false); err != nil {
-		return "", err
-	}
-	set, _ := imap.NewSeqSet(fmt.Sprintf("%d", uid))
-	// Add the content flag to retrieve the content from the server
-	var (
-		itemsToFetch []string = []string{"UID", "FLAGS", "RFC822.TEXT"}
-		cmd *imap.Command
-		mailContent string
-		err error
-	)
-	if cmd, err = mc.waitFor(mc.client.UIDFetch(set, itemsToFetch...)); err != nil {
-		return "", errors.New(fmt.Sprintf("Couldn't retrieve content for mail with UID: %d" +
-		"\n Orig error: %s", uid, err.Error()))
-	}
-	for _, resp := range cmd.Data {
-		mailContent = imap.AsString(resp.MessageInfo().Attrs["RFC822.TEXT"])
-	}
-	// 5) Clean the data queue
-	mc.client.Data = nil
-	return mailContent, nil
-}
+//func (mc *MailCon) LoadContentForMailFromFolder(folder string, uid uint32) (Content, error) {
+//	mc.mutex.Lock()
+//	defer mc.mutex.Unlock()
+//	println("Loading mail content for UID: ", uid)
+//	if uid < 1 {
+//		return "", errors.New(fmt.Sprintf("Couldn't retrieve mail content, because mail " +
+//			"UID (%d) needs to be greater than 0", uid));
+//	}
+//	if err := mc.selectFolder(folder, false); err != nil {
+//		return "", err
+//	}
+//	set, _ := imap.NewSeqSet(fmt.Sprintf("%d", uid))
+//	// Add the content flag to retrieve the content from the server
+//	var (
+//		itemsToFetch []string = []string{"UID", "FLAGS", "RFC822.TEXT"}
+//		cmd *imap.Command
+//		mailContent string
+//		err error
+//	)
+//	if cmd, err = mc.waitFor(mc.client.UIDFetch(set, itemsToFetch...)); err != nil {
+//		return "", errors.New(fmt.Sprintf("Couldn't retrieve content for mail with UID: %d" +
+//		"\n Orig error: %s", uid, err.Error()))
+//	}
+//	for _, resp := range cmd.Data {
+//		mailContent = imap.AsString(resp.MessageInfo().Attrs["RFC822.TEXT"])
+//	}
+//	// 5) Clean the data queue
+//	mc.client.Data = nil
+//	return mailContent, nil
+//}
 
 
 func (mc *MailCon) RemoveMailFlags(folder, uid string, f *Flags) error {
@@ -474,10 +489,12 @@ func (mc *MailCon) SendMail(a smtp.Auth, from string, to []string, subject strin
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 ///										Private Methods											 ///
 ////////////////////////////////////////////////////////////////////////////////////////////////////
+
 /**
  * ATTENTION: DOES NOT LOCK THE IMAP CONNECTION! => Has to be wrapped into a mutex lock method
  */
-func (mc *MailCon) loadMails(set *imap.SeqSet, folder string, withContent bool) ([]Mail, error) {
+func (mc *MailCon) loadMails(set *imap.SeqSet, folder string, withContent bool,
+		curFetchFunc FetchFunc) ([]Mail, error) {
 	// 1) First check if we need to select a specific folder in the mailbox or if it is root
 	if err := mc.selectFolder(folder, true); err != nil {
 		return []Mail{}, err
@@ -487,14 +504,14 @@ func (mc *MailCon) loadMails(set *imap.SeqSet, folder string, withContent bool) 
 		itemsToFetch []string = []string{"UID", "FLAGS", "INTERNALDATE", "RFC822.SIZE",
 			"RFC822.HEADER"}
 		mails []Mail = []Mail{}
-		mailContent map[string]ContentPart
+		mailContent Content
 		err error
 	)
 	if withContent {
 		itemsToFetch = append(itemsToFetch, "RFC822.TEXT")
 	}
 	// 2) Fetch a number of mails from the given mailbox folder
-	if cmd, err = mc.waitFor(mc.client.Fetch(set, itemsToFetch...)); err != nil {
+	if cmd, err = mc.waitFor(curFetchFunc(set, itemsToFetch...)); err != nil {
 		return []Mail{}, err
 	} else {
 		// 3) Transform the retrieved messages into mails with headers
@@ -739,11 +756,8 @@ func parseHeader(mi *imap.MessageInfo) (*Header, error) {
 		return nil, errors.New("Couldn't parse Mail Header, because no header was provided " +
 			"in the given MessageInfo object")
 	}
-
-	fmt.Printf("!!!!! \n %s \n", imap.AsString(mailHeader))
 	if curHeader, err = parseHeaderStr(imap.AsString(mailHeader)); err == nil {
 		curHeader.Size = mi.Size
-//		curHeader.Date = mi.InternalDate
 	}
 	return curHeader, err
 }
@@ -878,14 +892,14 @@ func parseIMAPHeaderDate(dateString string) time.Time {
 /**
  *
  */
-func parseContent(mi *imap.MessageInfo, mimeHeader PMIMEHeader) (map[string]ContentPart, error) {
+func parseContent(mi *imap.MessageInfo, mimeHeader PMIMEHeader) (Content, error) {
 	// 1) If no content is given, error and return
 	if nil == mi {
 		return nil, errors.New("[watney] ERROR: Couldn't parse mail content due to missing content.")
 	}
 	var (
 		content string = imap.AsString(mi.Attrs["RFC822.TEXT"])
-		parts map[string]ContentPart = make(map[string]ContentPart, 1)
+		parts Content = make(Content, 1)
 	)
 	// 2) Simple Case: We have no MIME protocol, simply assume the content is plain text
 	if 0 == mimeHeader.MimeVersion {
@@ -909,12 +923,12 @@ func parseContent(mi *imap.MessageInfo, mimeHeader PMIMEHeader) (map[string]Cont
 	return parseMultipartContent(content, mimeHeader.MultipartBoundary)
 }
 
-func parseMultipartContent(content, boundary string) (map[string]ContentPart, error) {
+func parseMultipartContent(content, boundary string) (Content, error) {
 	var (
 		reader *multipart.Reader = multipart.NewReader(strings.NewReader(content),
 			boundary)
 		part *multipart.Part
-		mailParts map[string]ContentPart = make(map[string]ContentPart, 1)
+		mailParts Content = make(Content, 1)
 		partHeader PMIMEHeader
 		err error
 	)

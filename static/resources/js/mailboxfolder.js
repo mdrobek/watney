@@ -401,13 +401,16 @@ wat.mail.MailboxFolder.prototype.fillMailPage_ = function(withMailItem) {
         d_mailDetailsSubject = goog.dom.getElement("mailDetails_Subject"),
         d_mailDetailsTo = goog.dom.getElement("mailDetails_To"),
         d_mailDetailsContent = goog.dom.getElement("mailDetails_Content"),
-        htmlContent = goog.string.newLineToBr(goog.string.canonicalizeNewlines(mail.Content));
+        plainContent = goog.string.newLineToBr(
+            goog.string.canonicalizeNewlines(withMailItem.getContent("text/plain")));
     goog.dom.setTextContent(d_mailDetailsFrom, mail.Header.Sender);
     goog.dom.setTextContent(d_mailDetailsSubject, mail.Header.Subject);
     goog.dom.setTextContent(d_mailDetailsTo, mail.Header.Receiver);
 
     goog.dom.removeChildren(d_mailDetailsContent);
-    goog.dom.appendChild(d_mailDetailsContent, goog.dom.htmlToDocumentFragment(htmlContent));
+    //goog.dom.appendChild(d_mailDetailsContent, goog.dom.createTextNode(plainContent));
+    // TODO: should be a textarea for plain content!
+    goog.dom.appendChild(d_mailDetailsContent, goog.dom.htmlToDocumentFragment(plainContent));
 };
 
 

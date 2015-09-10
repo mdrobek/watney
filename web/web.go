@@ -286,19 +286,32 @@ func (web *MailWeb) mails(r render.Render, user sessionauth.User, req *http.Requ
 }
 
 func (web *MailWeb) mailContent(r render.Render, user sessionauth.User, req *http.Request) {
-	var watneyUser *auth.WatneyUser = user.(*auth.WatneyUser)
-	if watneyUser.ImapCon.IsAuthenticated() {
-		uid, _ := strconv.ParseInt(req.FormValue("uid"), 10, 32)
-		mailContent, _ := watneyUser.ImapCon.LoadContentForMailFromFolder(req.FormValue("folder"), uint32(uid))
-		r.JSON(200, mailContent)
-	} else {
+	var (
+		watneyUser *auth.WatneyUser = user.(*auth.WatneyUser)
+		mail mail.Mail
+		err error
+	)
+	if !watneyUser.ImapCon.IsAuthenticated() {
 		fmt.Printf("[watney] User tried to retrieve content of mail - ",
 			" but IMAP Session has timed out.")
 		// 419 - Authentication has timed out
 		r.JSON(419, map[string]interface{} {
 			"error": "Authentication has expired",
-		} )
+		})
+		return
 	}
+	uid, _ := strconv.ParseInt(req.FormValue("uid"), 10, 32)
+	if mail, err = watneyUser.ImapCon.LoadMailFromFolderWithUID(req.FormValue("folder"),
+			uint32(uid)); err != nil {
+		fmt.Printf("[watney] ERROR: Tried loading content for mail (%d, %s) failed with " +
+			"error: %s", uid, req.FormValue("folder"), err.Error())
+		r.JSON(500, map[string]interface{} {
+			"error": "Loading content failed",
+			"origError": err.Error(),
+		})
+		return
+	}
+	r.JSON(200, mail.Content)
 }
 
 func (web *MailWeb) sendMail(r render.Render, curUser sessionauth.User, req *http.Request) {

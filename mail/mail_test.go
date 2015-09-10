@@ -101,7 +101,7 @@ func TestSerializeHeader(t *testing.T) {
 
 func TestBase64Parsing(t *testing.T) {
 	var (
-		mailParts map[string]ContentPart
+		mailParts Content
 		err error
 	)
 	if mailParts, err = parseMultipartContent(base64Body,
@@ -133,7 +133,7 @@ func TestMultipartParsing(t *testing.T) {
 		t.Fatalf("Error parsing header: %s", err.Error())
 	} else {
 //		t.Logf("$$$$$$$$$ Header is: %s", header)
-		var mailParts map[string]ContentPart
+		var mailParts Content
 		if mailParts, err = parseMultipartContent(multipartMailBody1,
 			header.MimeHeader.MultipartBoundary); err != nil {
 			t.Fatalf("Failed parsing multipart content: %s\n", err.Error())
@@ -269,7 +269,7 @@ func TestFoo(t *testing.T) {
 	}
 
 	var (
-		mimeMailUID uint32 = 49
+		mimeMailUID uint32 = 4907
 		mail Mail
 		err error
 	)
