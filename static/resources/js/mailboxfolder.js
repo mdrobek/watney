@@ -305,7 +305,6 @@ wat.mail.MailboxFolder.prototype.getNextItem = function(curMailItem, opt_before)
     } else {
         return self.mails_.getKthValue(self.mails_.indexOf(curMailItem)-1);
     }
-    return nextItem;
 };
 
 wat.mail.MailboxFolder.prototype.activate = function() {

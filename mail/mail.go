@@ -799,13 +799,14 @@ func parseMainHeaderContent(headerContentMap textproto.MIMEHeader) (h *Header, e
 	if nil == headerContentMap || 0 == len(headerContentMap) {
 		return nil, errors.New("Header doesn't contain entries")
 	}
-	// Todo: Several of the below used keys could be missing in the MIMEHeader
+	// Todo: Several of the below used Header members could be missing in the Header string
+	var mHeader PMIMEHeader = parseMIMEHeader(headerContentMap)
 	h = &Header{
+		MimeHeader: mHeader,
+		Subject:  parseAndDecodeHeader(headerContentMap["Subject"][0], mHeader),
 		Date:  	  parseIMAPHeaderDate(headerContentMap["Date"][0]),
-		Subject:  strings.TrimPrefix(headerContentMap["Subject"][0], " "),
-		Sender:   strings.TrimPrefix(headerContentMap["From"][0], " "),
-		Receiver: strings.TrimPrefix(headerContentMap["To"][0], " "),
-		MimeHeader: parseMIMEHeader(headerContentMap),
+		Sender:   parseAndDecodeHeader(headerContentMap["From"][0], mHeader),
+		Receiver: parseAndDecodeHeader(headerContentMap["To"][0], mHeader),
 	}
 	return h, nil
 }
@@ -850,6 +851,21 @@ func parseMIMEHeader(mimeHeader textproto.MIMEHeader) PMIMEHeader {
 		Encoding: encoding,
 		MultipartBoundary: boundary,
 	}
+}
+
+func parseAndDecodeHeader(encoded string, mHeader PMIMEHeader) string {
+	var (
+		encodedValue string = strings.TrimPrefix(encoded, " ")
+		decoded string
+		dec *mime.WordDecoder = new(mime.WordDecoder)
+		err error
+	)
+	if decoded, err = dec.DecodeHeader(encodedValue); err != nil {
+		fmt.Printf("[watney] WARNING: Couldn't decode string: \n\t%s\n\t%s\n", encodedValue,
+			err.Error())
+		return encodedValue
+	}
+	return decoded
 }
 
 /**

@@ -8,6 +8,8 @@ import (
 	"strings"
 	"time"
 	"strconv"
+	"mime"
+	"log"
 )
 
 const TEST_CONFIG_FILE = "../conf/test.ini"
@@ -269,7 +271,7 @@ func TestFoo(t *testing.T) {
 	}
 
 	var (
-		mimeMailUID uint32 = 4907
+		mimeMailUID uint32 = 4927
 		mail Mail
 		err error
 	)
@@ -277,9 +279,8 @@ func TestFoo(t *testing.T) {
 		t.Fatal(err)
 	}
 //	t.Logf("Mail Header is: %v\n", mail.Header)
-	for key, _ := range mail.Content {
-		t.Logf("%s\n", key)
-	}
+//	t.Logf("Mail Content: %s\n", mail.Content["text/plain"])
+
 }
 
 //func TestLoadMails(t *testing.T) {
