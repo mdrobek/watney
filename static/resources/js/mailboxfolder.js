@@ -401,7 +401,7 @@ wat.mail.MailboxFolder.prototype.fillMailPage_ = function(withMailItem) {
         d_mailDetailsTo = goog.dom.getElement("mailDetails_To"),
         d_mailDetailsContent = goog.dom.getElement("mailDetails_Content"),
         plainContent = goog.string.newLineToBr(
-            goog.string.canonicalizeNewlines(withMailItem.getContent("text/plain")));
+            goog.string.canonicalizeNewlines(mail.getContent("text/plain")));
     goog.dom.setTextContent(d_mailDetailsFrom, mail.Header.Sender);
     goog.dom.setTextContent(d_mailDetailsSubject, mail.Header.Subject);
     goog.dom.setTextContent(d_mailDetailsTo, mail.Header.Receiver);
@@ -446,7 +446,7 @@ wat.mail.Inbox.prototype.checkForNewMails = function(reregisterCb) {
                 }, true);
                 return newMail;
             });
-            console.log("### Finished poll for new mails: " + mails);
+            //console.log("### Finished poll for new mails: " + mails);
             if (goog.isDefAndNotNull(mails) && mails.length > 0) {
                 self.addMailsToFolder(mails);
                 //self.showMail(mails[mails.length-1]);

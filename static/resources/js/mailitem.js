@@ -30,10 +30,7 @@ goog.require('goog.date.Date');
  */
 wat.mail.MailItem = function(jsonData, folder) {
     var self = this;
-    self.Mail = jsonData;
-    if (!goog.isDefAndNotNull(self.Mail.Content)) {
-        self.Mail.Content = new goog.structs.Map();
-    }
+    self.Mail = new wat.mail.ReceivedMail(jsonData);
     self.DomID = "mailItem_" + self.Mail.UID;
     self.Folder = folder;
     self.Previous_Folder = folder;
@@ -94,40 +91,6 @@ wat.mail.MailItem.prototype.renderMail = function(activateClickEventCb, opt_prep
     } else {
         goog.dom.append(mailTableElem, d_mailItem);
     }
-};
-
-/**
- * PRE-CONDITION:
- * A mail needs to have a body, even if it is the empty string. It is thus always assumed, that the
- * Content map has at least 1 entry.
- *
- * Two cases might appear:
- * Case 1: The Mail contains a body for the given Content-Type.
- *      In this case, the body associated with this type is returned.
- * Case 2: The Mail DOES not contain a body for the given Content-Type.
- *      In this case, the method tries to return the body associated with the Content-Type
- *      "text/plain". If this type does not exist as well, any remaining existing body will be
- *      returned.
- * @param {string} forContentType One of: "text/plain", "text/html"
- * @return {string} The respective body string message for the given Content-Type
- * @public
- */
-wat.mail.MailItem.prototype.getContent = function(forContentType) {
-    var contentMap = this.Mail.Content;
-    // 1) Check if it contains the Content-Type, and if so, return it
-    if (contentMap.containsKey(forContentType)) {
-        return contentMap.get(forContentType).Body;
-    }
-    // 2) The Body for the given Content-Type doesn't exist => check if a body for "text/plain"
-    //    exists, and if so, return it
-    if (contentMap.containsKey("text/plain")) {
-        return contentMap.get("text/plain").Body;
-    }
-    // 3) Worst case scenario: Neither a Body for the given Content-Type, nor for the fallback
-    //    "text/plain" exists => return anything available
-    //var fallbackKey = contentMap.getKeys()[0];
-    //return contentMap.get(fallbackKey).Body;
-    return "!!!         Sorry, no 'text/plain' available        !!!"
 };
 
 /**

@@ -101,10 +101,53 @@ wat.mail.BaseMail.prototype.Header = null;
  */
 wat.mail.BaseMail.prototype.Content = null;
 
+/**
+ * PRE-CONDITION:
+ * A mail needs to have a body, even if it is the empty string. It is thus always assumed, that the
+ * Content map has at least 1 entry.
+ *
+ * Two cases might appear:
+ * Case 1: The Mail contains a body for the given Content-Type.
+ *      In this case, the body associated with this type is returned.
+ * Case 2: The Mail DOES not contain a body for the given Content-Type.
+ *      In this case, the method tries to return the body associated with the Content-Type
+ *      "text/plain". If this type does not exist as well, any remaining existing body will be
+ *      returned.
+ * @param {string} forContentType One of: "text/plain", "text/html"
+ * @return {string} The respective body string message for the given Content-Type
+ * @public
+ */
+wat.mail.BaseMail.prototype.getContent = function(forContentType) {
+    var self = this;
+    // 1) Check if it contains the Content-Type, and if so, return it
+    if (self.Content.containsKey(forContentType)) {
+        return self.Content.get(forContentType).Body;
+    }
+    // 2) The Body for the given Content-Type doesn't exist => check if a body for "text/plain"
+    //    exists, and if so, return it
+    if (self.Content.containsKey("text/plain")) {
+        return self.Content.get("text/plain").Body;
+    }
+    // 3) Worst case scenario: Neither a Body for the given Content-Type, nor for the fallback
+    //    "text/plain" exists => return anything available
+    //var fallbackKey = contentMap.getKeys()[0];
+    //return contentMap.get(fallbackKey).Body;
+    return "!!!         Sorry, no 'text/plain' available        !!!"
+};
 
 
-wat.mail.ReceivedMail = function() {
-    this.Flags = new wat.mail.MailFlags();
+
+wat.mail.ReceivedMail = function(jsonData) {
+    goog.base(this, jsonData.Header.Sender, jsonData.Header.Receiver, jsonData.Header.Subject,
+        jsonData.Content);
+    this.UID = jsonData.UID;
+    this.Header.Date = jsonData.Header.Date;
+    this.Header.Folder = jsonData.Header.Folder;
+    this.Header.Size = jsonData.Header.Size;
+    this.Header.MimeHeader = jsonData.Header.MimeHeader;
+    this.Flags = new wat.mail.MailFlags(jsonData.Flags.Seen, jsonData.Flags.Deleted,
+        jsonData.Flags.Answered, jsonData.Flags.Flagged, jsonData.Flags.Draft,
+        jsonData.Flags.Recent);
 };
 goog.inherits(wat.mail.ReceivedMail, wat.mail.BaseMail);
 /**

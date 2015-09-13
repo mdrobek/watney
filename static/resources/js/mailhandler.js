@@ -102,7 +102,7 @@ wat.mail.MailHandler.prototype.registerUpdateEvents = function(opt_enable) {
         //    inbox.checkForNewMails(self.registerUpdateEvents);
         //});
         goog.Timer.callOnce(function() {
-            console.log("### Starting poll for new mails");
+            //console.log("### Starting poll for new mails");
             inbox.checkForNewMails(self.registerUpdateEvents);
             //inbox.checkForNewMails();
         }, wat.mail.UPDATE_TIME, self);
@@ -133,10 +133,10 @@ wat.mail.MailHandler.prototype.moveMail = function(mail, intoFolder) {
  * @param {string} from
  * @param {string} to TODO: To be string[]
  * @param {string} subject
- * @param {string} origText
+ * @param {goog.structs.Map} Content-Type -> wat.mail.ContentPart
  */
-wat.mail.MailHandler.prototype.createReply = function(from, to, subject, origText) {
-    var newMail = new wat.mail.NewMail(from, to, "Re: "+subject, "\n\n\n\n"+origText);
+wat.mail.MailHandler.prototype.createReply = function(from, to, subject, content) {
+    var newMail = new wat.mail.NewMail(from, to, "Re: "+subject, content);
     wat.mail.MailHandler.hideActiveNewMail(wat.mail.LAST_ACTIVE_NEW_MAIL_ITEM);
     newMail.addNewMail();
     wat.mail.LAST_ACTIVE_NEW_MAIL_ITEM = newMail;

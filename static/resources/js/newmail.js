@@ -19,11 +19,11 @@ wat.mail.ItemCounter = 0;
  * NewMail reflects the UI model for a new email to be sent (e.g., a reply or an entire new mail).
  * @constructor
  */
-wat.mail.NewMail = function(from, opt_to, opt_subject, opt_text) {
+wat.mail.NewMail = function(from, opt_to, opt_subject, opt_content) {
     var self = this;
     self.WindowDomID = "newMailWindowItem_" + wat.mail.ItemCounter;
     self.WindowBarItemDomID = "newMailBarItem_" + wat.mail.ItemCounter++;
-    self.Mail = new wat.mail.BaseMail(from, opt_to, opt_subject, opt_text);
+    self.Mail = new wat.mail.BaseMail(from, opt_to, opt_subject, opt_content);
 };
 
 /**
@@ -58,7 +58,7 @@ wat.mail.NewMail.prototype.addNewMail = function() {
             From: self.Mail.Header.Sender,
             To: self.Mail.Header.Receiver,
             Subject: self.Mail.Header.Subject,
-            OrigMail: self.Mail.Content
+            OrigMail: "\n\n\n\n" + self.Mail.getContent("text/plain")
         }),
         d_barContainerElem = goog.dom.getElement("newMailBarItems"),
         d_newMailBarItem = goog.soy.renderAsElement(wat.soy.mail.newMailBarItem, {
