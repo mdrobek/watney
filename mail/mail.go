@@ -592,12 +592,16 @@ func (mc *MailCon) moveMail(uid, folder, toFolder string) (uint32, error) {
 		return 0, fmt.Errorf("[watney] ERROR waiting for result of update flags command\n\t%s\n",
 			err.Error())
 	}
-	// 4) All good, return the new UID and no error
+	// 4) Check if the copy worked, and if so, return the new UID and no error
 	// The Response is an 'COPYUID' with the fields:
 	//  [0] COPYUID:string | [1] internaldate:long64 | [2] Orig-UID:uint32 | [3] New-UID:uint32
 	//  The Orig-UID resambles the given UID for the original mail
 	//  The New-UID is the UID of the new mail stored in the 'toFolder'
-	return imap.AsNumber(resp.Fields[3]), nil
+	if len(resp.Fields) == 4 {
+		return imap.AsNumber(resp.Fields[3]), nil
+	} else {
+		return 0, errors.New("[watney] WARNING: Copy completed without doing anyting\n")
+	}
 }
 
 func (mc *MailCon) dial() (c *imap.Client, err error) {

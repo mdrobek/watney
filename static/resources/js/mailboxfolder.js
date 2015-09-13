@@ -122,7 +122,7 @@ wat.mail.MailboxFolder.prototype.deleteActiveMail = function() {
     if (!goog.isDefAndNotNull(tempLastItem)) return;
 
     self.switchAndRemoveNode(tempLastItem);
-    tempLastItem.setDeleted(true);
+    tempLastItem.trash();
 };
 
 /**
@@ -180,7 +180,7 @@ wat.mail.MailboxFolder.prototype.switchAndRemoveNode = function(curMailItem) {
         self.showMail(nextItem);
     } else {
         // 1a) There's no other mail that could be shown in the current folder
-        console.log("MailItem.setDeleted : NOT YET IMPLEMENTED");
+        console.log("MailItem.trash : NOT YET IMPLEMENTED");
         // 1a) TODO: Clean the mail page:
         //      * reset from, to, subject
         //      * deactivate control btns (reply, delete)
@@ -497,7 +497,7 @@ wat.mail.Inbox.prototype.updateCtrlBtns_ = function(forMail) {
         // 1) CLIENT-SIDE: Switch the mail overview list and details part to the next mail in the list
         self.switchAndRemoveNode(forMail);
         // 2) Handle all further client- and server-side actions associated with the deletion
-        forMail.setDeleted(true);
+        forMail.trash();
     }, false, forMail);
 };
 
@@ -554,10 +554,10 @@ goog.inherits(wat.mail.Trash, wat.mail.MailboxFolder);
  * Special treatment for the trash folder => all mails in here are shown
  * @override
  */
-wat.mail.Trash.prototype.addMailsToFolder = function(mails) {
-    var self = this;
-    goog.array.forEach(mails, function(curMail) { self.mails_.add(curMail); })
-};
+//wat.mail.Trash.prototype.addMailsToFolder = function(mails) {
+//    var self = this;
+//    goog.array.forEach(mails, function(curMail) { self.mails_.add(curMail); })
+//};
 
 /**
  *

@@ -147,38 +147,23 @@ wat.mail.MailItem.prototype.highlightOverviewItem = function(active) {
 };
 
 /**
- * Change the Deleted flag of the mail to the given new state. Performs all necessary client- and
- * server-side actions that are associated with deletion.
- * ATTENTION: The mail item is, however, not being really deleted. It is only flagged as deleted!
- * @param {boolean} newDeletedState
- *      True  -> If the mail hasn't been deleted yet, it will be tagged on the client and server as
- *               deleted (the \Deleted flag will be added)
- *      False -> Same as True, but the opposite
+ * Moves the mail from its current folder into the "Trash" folder. The current mail will be flagged
+ * as 'Deleted'.
  */
-wat.mail.MailItem.prototype.setDeleted = function(newDeletedState) {
-    // 1) Check if the flag has to be changed
-    if (this.Mail.Flags.Deleted === newDeletedState) { /* nothing to do here */ return; }
+wat.mail.MailItem.prototype.trash = function() {
     var self = this,
-        newMailboxFolder = wat.mail.MailboxFolder.TRASH;
-    // 2) In case we're restoring the mail, determine in which mailbox folder it has to go
-    if (!newDeletedState) {
-        // 2a) Special case: If the mail was in the Trash folder originally, it shouldn't be moved
-        if (self.Folder === wat.mail.MailboxFolder.TRASH && self.Previous_Folder ===
-            wat.mail.MailboxFolder.TRASH) return;
-        newMailboxFolder = self.Previous_Folder;
-    }
-    // 3) First apply all client-side effects -> better user experience
-    self.Mail.Flags.Deleted = newDeletedState;
-    // 4) CLIENT-SIDE: Remove mail from current folder and add it to trash or inbox
-    wat.app.mailHandler.moveMail(self, newMailboxFolder);
-    // 5) SERVER-SIDE: Now send information to server
-    self.updateFlagsRequest_(self.Previous_Folder, self.Mail.UID, wat.mail.DELETE_FLAG,
-        newDeletedState, function(request) {
-            console.log("MailItem.setDeleted : NOT YET IMPLEMENTED");
-            // TODO: Revert changes in client state of Deleted flag
+        origMailFolder = self.Folder;
+    // 2) CLIENT-SIDE: Remove mail from current folder and add it to trash (changes the items
+    //                 Folder and Previous_Folder values!)
+    wat.app.mailHandler.moveMail(self, wat.mail.MailboxFolder.TRASH);
+    // 3) SERVER-SIDE: Now send information to server
+    self.trashRequest_(origMailFolder, function(trashedUID) {
+            // The mail has a new UID now
+            self.Mail.UID = trashedUID;
+        }, function(req) {
+            wat.app.mailHandler.moveMail(self, self.Previous_Folder);
     });
 };
-
 
 /**
  * Change the Seen flag of the mail to the given new state.
@@ -243,6 +228,35 @@ wat.mail.MailItem.prototype.updateFlagsRequest_ = function(folder, uid, flag, ad
         }
     }, false, self);
     request.send(wat.mail.UPDATE_FLAGS_URI, 'POST', data.toString());
+};
+
+/**
+ *
+ * @param successCb
+ * @param errorCb
+ * @private
+ */
+wat.mail.MailItem.prototype.trashRequest_ = function(origMailFolder, successCb, errorCb) {
+    var self = this,
+        request = new goog.net.XhrIo(),
+        data = new goog.Uri.QueryData();
+    data.add("uid", self.Mail.UID);
+    data.add("folder", origMailFolder);
+    goog.events.listen(request, goog.net.EventType.COMPLETE, function (event) {
+        // request complete
+        var req = event.currentTarget,
+            trashedUID;
+        if (req.isSuccess()) {
+            trashedUID = req.getResponseJson().trashedUID;
+            if (goog.isDefAndNotNull(successCb)) successCb(trashedUID);
+        } else {
+            // error
+            console.log("something went wrong loading content for mail: " + req.getLastError());
+            console.log("^^^ " + req.getLastErrorCode());
+            if (goog.isDefAndNotNull(errorCb)) errorCb(req);
+        }
+    }, false, self);
+    request.send(wat.mail.TRASH_MAIL_URI, 'POST', data.toString());
 };
 
 /**
