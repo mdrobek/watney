@@ -138,7 +138,7 @@ wat.mail.MailHandler.prototype.moveMail = function(mail, intoFolder) {
 wat.mail.MailHandler.prototype.createReply = function(from, to, subject, content) {
     var newMail = new wat.mail.NewMail(from, to, "Re: "+subject, content);
     wat.mail.MailHandler.hideActiveNewMail(wat.mail.LAST_ACTIVE_NEW_MAIL_ITEM);
-    newMail.addNewMail();
+    newMail.renderNewMail();
     wat.mail.LAST_ACTIVE_NEW_MAIL_ITEM = newMail;
 };
 

@@ -149,12 +149,14 @@ func (web *MailWeb) initHandlers() {
 	// Private Handlers
 	web.martini.Get("/logout", sessionauth.LoginRequired, web.logout)
 	web.martini.Get("/main", sessionauth.LoginRequired, web.main)
-	web.martini.Post("/userInfo", sessionauth.LoginRequired, web.userInfo)
-	web.martini.Post("/poll", sessionauth.LoginRequired, web.poll)
-	web.martini.Post("/mails", sessionauth.LoginRequired, web.mails)
+
 	web.martini.Post("/mailContent", sessionauth.LoginRequired, web.mailContent)
-	web.martini.Post("/updateFlags", sessionauth.LoginRequired, web.updateFlags)
+	web.martini.Post("/mails", sessionauth.LoginRequired, web.mails)
+	web.martini.Post("/poll", sessionauth.LoginRequired, web.poll)
 	web.martini.Post("/sendMail", sessionauth.LoginRequired, web.sendMail)
+	web.martini.Post("/trashMail", sessionauth.LoginRequired, web.trashMail)
+	web.martini.Post("/updateFlags", sessionauth.LoginRequired, web.updateFlags)
+	web.martini.Post("/userInfo", sessionauth.LoginRequired, web.userInfo)
 
 	// Static content
 	web.martini.Use(martini.Static("static/resources/libs/",
@@ -335,6 +337,33 @@ func (web *MailWeb) sendMail(r render.Render, curUser sessionauth.User, req *htt
 		}
 	} else {
 		fmt.Printf("[watney] User tried to send mail - but IMAP Session has timed out.")
+		// 419 - Authentication has timed out
+		r.JSON(419, map[string]interface{}{
+			"error": "Authentication has expired",
+		})
+	}
+}
+
+func (web *MailWeb) trashMail(r render.Render, curUser sessionauth.User, req *http.Request) {
+	var watneyUser *auth.WatneyUser = curUser.(*auth.WatneyUser)
+	if watneyUser.ImapCon.IsAuthenticated() {
+		var (
+			uid string = req.FormValue("uid")
+			origFolder string = req.FormValue("folder")
+		)
+		if trashedUID, err := watneyUser.ImapCon.TrashMail(uid, origFolder); err != nil {
+			fmt.Printf("[watney][ERROR] Error while trashing mail: %s", err.Error())
+			r.JSON(200, map[string]interface{} {
+				"error": "Mail couldn't be trashed",
+				"origError": err.Error(),
+			})
+		} else {
+			r.JSON(200, map[string]interface{} {
+				"trashedUID": trashedUID,
+			})
+		}
+	} else {
+		fmt.Printf("[watney] User tried to trash mail - but IMAP Session has timed out.")
 		// 419 - Authentication has timed out
 		r.JSON(419, map[string]interface{}{
 			"error": "Authentication has expired",

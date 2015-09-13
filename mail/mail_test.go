@@ -8,8 +8,6 @@ import (
 	"strings"
 	"time"
 	"strconv"
-	"mime"
-	"log"
 )
 
 const TEST_CONFIG_FILE = "../conf/test.ini"
@@ -214,8 +212,11 @@ func TestAuthenticationProcess(t *testing.T) {
 
 func TestAddMailToFolder(t *testing.T) {
 	conf := loadTestConfig(TEST_CONFIG_FILE, t)
-	mc, _ := NewMailCon(&conf.Mail)
+	mc, err := NewMailCon(&conf.Mail)
 	defer mc.Close()
+	if err != nil {
+		t.Fatal(err)
+	}
 	// 1) Now authenticate with the correct credentials and expect no error
 	if _, err := mc.Authenticate(conf.TestUser.Username, conf.TestUser.Password); err != nil {
 		t.Fatal(err)
@@ -224,7 +225,7 @@ func TestAddMailToFolder(t *testing.T) {
 	// 2) Now add a new Mail to the Sent folder and check, whether that worked well
 	msgUID, err := mc.AddMailToFolder(&Header{
 		Date: time.Now(),
-		Subject: "Hello World",
+		Subject: "WATNEY: TEST",
 		Sender: "markwatney@mars.com",
 		Receiver: strings.Join([]string{"henderik@nasa.com", "sat@nasa.com"}, ", "),
 		Folder: folder,
@@ -233,7 +234,11 @@ func TestAddMailToFolder(t *testing.T) {
 		t.Fatal(err)
 	}
 	// 3) Now delete this new 'Sent' mail, by tagging it as 'DELETED'
-	mc.UpdateMailFlags(folder, strconv.Itoa(int(msgUID)), &Flags{Deleted:true}, true)
+	if trashedUID, err := mc.TrashMail(strconv.Itoa(int(msgUID)), folder); err != nil {
+		t.Fatal(err)
+	} else if trashedUID <= 0 {
+		t.Fatalf("Trashed UID mail is not valid: %d", trashedUID)
+	}
 }
 
 func TestSelectFolder(t *testing.T) {
@@ -272,10 +277,9 @@ func TestFoo(t *testing.T) {
 
 	var (
 		mimeMailUID uint32 = 4927
-		mail Mail
 		err error
 	)
-	if mail, err = mc.LoadMailFromFolderWithUID("/", mimeMailUID); err != nil {
+	if _, err = mc.LoadMailFromFolderWithUID("/", mimeMailUID); err != nil {
 		t.Fatal(err)
 	}
 //	t.Logf("Mail Header is: %v\n", mail.Header)

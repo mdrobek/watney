@@ -50,7 +50,7 @@ wat.mail.NewMail.prototype.MouseOut_Key = null;
 ///                                    Public methods                                            ///
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-wat.mail.NewMail.prototype.addNewMail = function() {
+wat.mail.NewMail.prototype.renderNewMail = function() {
     var self = this,
         d_windowContainerElem = goog.dom.getElement("newMailWindowItems"),
         d_newMailWindowItem = goog.soy.renderAsElement(wat.soy.mail.newMailWindowItem, {
@@ -58,7 +58,7 @@ wat.mail.NewMail.prototype.addNewMail = function() {
             From: self.Mail.Header.Sender,
             To: self.Mail.Header.Receiver,
             Subject: self.Mail.Header.Subject,
-            OrigMail: "\n\n\n\n" + self.Mail.getContent("text/plain")
+            OrigMail: self.createOriginalText_()
         }),
         d_barContainerElem = goog.dom.getElement("newMailBarItems"),
         d_newMailBarItem = goog.soy.renderAsElement(wat.soy.mail.newMailBarItem, {
@@ -155,6 +155,11 @@ wat.mail.NewMail.prototype.unregisterHoverEvents = function() {
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 ///                                   Private methods                                            ///
 ////////////////////////////////////////////////////////////////////////////////////////////////////
+wat.mail.NewMail.prototype.createOriginalText_ = function() {
+    return "\n\n\n***         Original Text           ***\n"
+        + this.Mail.getContent("text/plain")
+};
+
 wat.mail.NewMail.prototype.registerCtrlBtnEvents_ = function() {
     var self = this,
         d_minimizeBtn = goog.dom.getElement(self.WindowDomID+"_MinimizeBtn"),
