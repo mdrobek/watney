@@ -12,7 +12,6 @@ goog.require('goog.net.XhrIo');
 goog.require('goog.Uri.QueryData');
 goog.require('goog.ui.KeyboardShortcutHandler');
 
-
 // Global accessible objects
 /**
  * @type {wat.mail.MailHandler} The object that handles the mail page.
@@ -161,5 +160,4 @@ wat.app.loadUser = function() {
         }
     });
     request.send(wat.app.LOAD_USER_URI_, 'POST', null);
-
 };

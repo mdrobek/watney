@@ -388,7 +388,7 @@ func (mc *MailCon) CheckNewMails() ([]uint32, error) {
 	mc.mutex.Lock()
 	defer mc.mutex.Unlock()
 	var (
-		recentMsg bool = false
+//		recentMsg bool = false
 		newMsgUIDs []uint32 = make([]uint32, 0)
 		err error = nil
 	)
@@ -403,8 +403,8 @@ func (mc *MailCon) CheckNewMails() ([]uint32, error) {
 					// We expect Fields[0] to be the message ID/nbr of new messages and Fields[1]
 					// to be the information (EXIST/RECENT)
 					switch n := imap.AsNumber(f[0]); strings.ToUpper(imap.AsAtom(f[1])) {
-						case "RECENT":
-							recentMsg = true
+//						case "RECENT":
+//							recentMsg = true
 						case "EXISTS":
 							newMsgUIDs = append(newMsgUIDs, n)
 					}
@@ -419,7 +419,7 @@ func (mc *MailCon) CheckNewMails() ([]uint32, error) {
 			}
 		}
 	}
-	fmt.Printf("Received info is: %b, %s\n", recentMsg, newMsgUIDs)
+//	fmt.Printf("Received info is: %b, %s\n", recentMsg, newMsgUIDs)
 	// Empty the response message queue
 	mc.client.Data = nil
 	return newMsgUIDs, err

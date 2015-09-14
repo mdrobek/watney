@@ -43,10 +43,10 @@ func NewWeb(mailConf *conf.MailConf, debug bool) *MailWeb {
 	var web *MailWeb = new(MailWeb)
 	web.mconf = mailConf
 	web.debug = debug
-	web.userTimeout = 1800 // 30 minutes
+	web.userTimeout = 86400 // 1 day
 
 	store := sessions.NewCookieStore(securecookie.GenerateRandomKey(128))
-	// 1) Set a maximum age for the client-side cookies
+	// 1) Set a maximum age for the client-side cookies (forces a session timeout afterwards)
 	store.Options(sessions.Options{MaxAge: int(web.userTimeout), })
 
 	web.martini = martini.Classic()
@@ -56,10 +56,11 @@ func NewWeb(mailConf *conf.MailConf, debug bool) *MailWeb {
 	}))
 	web.martini.Use(sessions.Sessions("watneySession", store))
 	web.martini.Use(sessionauth.SessionUser(auth.GenerateAnonymousUser))
-	sessionauth.RedirectUrl = "/"
-	sessionauth.RedirectParam = "new-next"
+	sessionauth.RedirectUrl = "/sessionTimeout"
+	sessionauth.RedirectParam = "next"
 
-	// 2) Register a cleanup go routine that checks every x minutes, for outdated users
+	// 2) Register a cleanup go routine that checks every x minutes, for outdated users, which
+	//	  simply left the page without logging out
 	web.registerUserCleanup(30)
 
 	// x) Define and set all handlers
@@ -80,27 +81,6 @@ func (web *MailWeb) Close() error {
 	close(web.UserQuitChan)
 	return nil
 }
-
-/**************************************************************************************************
- ***									Web Handlers											***
- **************************************************************************************************/
-
-//func (web *MailWeb) Headers(w http.ResponseWriter, r *http.Request) {
-////	mc, err := mail.NewMailCon(web.mconf)
-////	defer mc.Close()
-//	var headers mail.HeaderSlice = mail.HeaderSlice{}
-////	if nil == err {
-//		headers, _ = web.imapCon.LoadMailHeaders()
-//		//		mails, _ = mc.LoadNMails(4)
-//		// Reverse the retrieved mail array
-//		sort.Sort(headers)
-////	}
-//	jsonRet, err := json.Marshal(headers)
-//	if (nil != err) {
-//		log.Fatal(err)
-//	}
-//	w.Write(jsonRet)
-//}
 
 /**************************************************************************************************
  ***								Private methods												***
@@ -145,6 +125,8 @@ func (web *MailWeb) initHandlers() {
 	// Public Handlers
 	web.martini.Get("/", web.welcome)
 	web.martini.Post("/", binding.Bind(auth.WatneyUser{}), web.authenticate)
+	// Reserved for martini sessionauth forwarding, in case the session timed out
+	web.martini.Get("/sessionTimeout", web.timeout)
 
 	// Private Handlers
 	web.martini.Get("/logout", sessionauth.LoginRequired, web.logout)
@@ -167,10 +149,25 @@ func (web *MailWeb) initHandlers() {
 		martini.StaticOptions{Prefix:"/css/"}))
 }
 
+func (web *MailWeb) timeout(session sessions.Session, r render.Render, req *http.Request) {
+	params := req.URL.Query()
+	redirect := params.Get(sessionauth.RedirectParam)
+	params.Del(sessionauth.RedirectParam)
+	switch {
+	// Redirect all GET method calls to the welcome page
+	case redirect == "/":
+	case redirect == "/main":
+		r.Redirect("/")
+	// Return JSON error code for all POST methods
+	default:
+		r.JSON(419, map[string]interface{} {
+			"error": "Session has expired",
+		} )
+	}
+}
+
 func (web *MailWeb) authenticate(session sessions.Session, postedUser auth.WatneyUser,
 		r render.Render, req *http.Request) {
-	user := auth.WatneyUser{}
-
 	// 1) Create a new IMAP mail server connection
 	if imapCon, err := mail.NewMailCon(web.mconf); nil != err {
 		fmt.Printf("Couldn't establish connection to imap mail server: %s\n", err.Error())
@@ -180,15 +177,20 @@ func (web *MailWeb) authenticate(session sessions.Session, postedUser auth.Watne
 		})
 	} else {
 		if _, err := imapCon.Authenticate(postedUser.Username, postedUser.Password); err == nil {
-			user.Username = postedUser.Username
+			var user auth.WatneyUser = auth.WatneyUser{
+				Username : postedUser.Username,
+				SMTPAuth : smtp.PlainAuth("", postedUser.Username, postedUser.Password,
+					web.mconf.SMTPAddress),
+				ImapCon : imapCon,
+			}
 			h := fnv.New32a()
 			h.Write([]byte(postedUser.Username))
 			user.Id = int64(h.Sum32())
-			user.SMTPAuth = smtp.PlainAuth("", postedUser.Username, postedUser.Password,
-				web.mconf.SMTPAddress)
-			user.ImapCon = imapCon
 			if err := sessionauth.AuthenticateSession(session, &user); err != nil {
-				r.JSON(500, err)
+				r.HTML(200, "start", map[string]interface{}{
+					"FailedLogin" : true,
+					"OrigError" : err.Error(),
+				})
 			}
 			r.Redirect("/main")
 		} else {
@@ -209,8 +211,7 @@ func (web *MailWeb) welcome(session sessions.Session, r render.Render) {
 
 func (web *MailWeb) logout(session sessions.Session, user sessionauth.User, r render.Render) {
 	sessionauth.Logout(session, user)
-	user.Logout()
-	r.HTML(200, "start", nil)
+	r.Redirect("/")
 }
 
 func (web *MailWeb) main(r render.Render) {
@@ -221,7 +222,8 @@ func (web *MailWeb) main(r render.Render) {
 /**
  * Handler to check, whether new mails have arrived in the meantime.
  */
-func (web *MailWeb) poll(r render.Render, user sessionauth.User, req *http.Request) {
+func (web *MailWeb) poll(r render.Render, user sessionauth.User, session sessions.Session,
+		req *http.Request) {
 	var watneyUser *auth.WatneyUser = user.(*auth.WatneyUser)
 	// 1) Check for authentication status, and only proceed, if successful
 	if nil != watneyUser && watneyUser.IsAuthenticated() {

@@ -113,11 +113,13 @@ func parseMIMEHeader(mimeHeader textproto.MIMEHeader) PMIMEHeader {
 	if contentArrayStr, ok := mimeHeader["Content-Transfer-Encoding"]; ok {
 		encoding = strings.TrimSpace(contentArrayStr[0])
 	}
+	// TODO: Mime versions as follows need to be parseable as well:
+	// Mime-Version:[1.0 (1.0)]
 	if contentArrayStr, ok := mimeHeader["Mime-Version"]; ok {
 		mimeversionStr = strings.TrimSpace(contentArrayStr[0])
 		if mimeversion, err = strconv.ParseFloat(mimeversionStr, 32); err != nil {
-			fmt.Printf("[watney] WARNING: failed to parse the mime version of mail: %s\n",
-				err.Error())
+			fmt.Printf("[watney] WARNING: failed to parse the mime version of mail with " +
+				"%s\n %s\n", mimeHeader["Subject"], err.Error())
 			mimeversion = .0
 		}
 	}
@@ -152,33 +154,24 @@ func parseIMAPHeaderDate(dateString string) time.Time {
 	var (
 		date time.Time
 		err error
-		extRFCString string = fmt.Sprintf("%s (MST)", time.RFC1123Z)
-		generic1 string = "Mon, _2 Jan 2006 15:04:05 -0700"
-		generic2 string = fmt.Sprintf("%s (MST)", generic1)
+		patterns []string = []string{
+			"Mon, _2 Jan 2006 15:04:05 -0700",
+			"Mon, _2 Jan 2006 15:04:05 -0700 (MST)",
+			fmt.Sprintf("%s (MST)", time.RFC1123Z),
+			"_2 Jan 2006 15:04:05 -0700",
+			"_2 Jan 06 15:04 MST",
+		}
 	)
 	// Try to parse the date in a bunch of different date formats
-	if date, err = time.Parse(imap.DATETIME, dateString); err == nil {
-		// 1) Parsing as imap.DATETIME was successful
-		return date
-	} else if date, err = time.Parse(time.RFC1123Z, dateString); err == nil {
-		// 2) Parsing as time.RFC1123Z was successful
-		return date
-	} else if date, err = time.Parse(extRFCString, dateString); err == nil {
-		// 3) Parsing as 'time.RFC1123Z (MST)' was successful
-		return date
-	} else if date, err = time.Parse(generic1, dateString); err == nil {
-		// 4) Parsing as generic1 was successful
-		return date
-	} else if date, err = time.Parse(generic2, dateString); err == nil {
-		// 5) Parsing as generic2 was successful
-		return date
-	} else {
-		fmt.Printf("[watney] Error during parsing of date header: %s\n",
-			err.Error())
-		// Fallback: If no date string was found in the header map or, an error occurred during
-		// parsing => set the date to 1/1/1970
-		return time.Unix(0, 0)
+	for _, pattern := range patterns {
+		if date, err = time.Parse(pattern, dateString); err == nil {
+			return date
+		}
 	}
+	fmt.Print("[watney] Error during parsing of date header: %s\n", err.Error())
+	// Fallback: If no date string was found in the header map or, an error occurred during
+	// parsing => set the date to 1/1/1970
+	return time.Unix(0, 0)
 }
 
 /**

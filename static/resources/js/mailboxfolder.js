@@ -453,9 +453,22 @@ wat.mail.Inbox.prototype.checkForNewMails = function(reregisterCb) {
             }
             if (goog.isDefAndNotNull(reregisterCb)) reregisterCb.call(wat.app.mailHandler);
         } else {
-            // error
-            console.log("something went wrong loading content for mail: " + event.getLastError());
-            console.log("^^^ " + event.getLastErrorCode());
+            // There could be multiple error possibilities here:
+            // 1) The session has timed out => Check for the respective error code
+            switch (req.getStatus()) {
+                case 419: {
+                    // TODO: Implement better error visualization before redirecting to the login
+                    //       page
+                    alert("Your session has timed out\nYou are being redirected to the login page");
+                    window.location.replace("/");
+                    break;
+                }
+                default:
+                    console.log("Something went wrong loading content for mail: \n\t"
+                        + "Status: " + req.getLastErrorCode() + "\n\t"
+                        + "Error Code: " + req.getLastErrorCode() + "\n\t"
+                        + "Error Msg: " + req.getLastError() + "\n");
+            }
         }
     }, false, self);
     request.send(wat.mail.CHECK_MAILS_URI, 'POST');
