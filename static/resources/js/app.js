@@ -38,9 +38,9 @@ wat.app.userMail = null;
  */
 wat.app.start = function() {
     // 1) Load user details
-    wat.app.loadUser();
+    wat.app.loadUser_();
     // 2) Add all events to the mailbox buttons on the left nav bar
-    wat.app.addNavigationEvents();
+    wat.app.addNavigationEvents_();
     // 3) Create a keyboard shortcut handler and register the shortcuts for the mail page
     wat.app.keyboardShortcutHandler = new goog.ui.KeyboardShortcutHandler(document);
     goog.events.listen(wat.app.keyboardShortcutHandler,
@@ -86,6 +86,10 @@ wat.app.enableMailKeyboardShortcuts = function(enable) {
     }
 };
 
+////////////////////////////////////////////////////////////////////////////////////////////////////
+///                                    PRIVATE Methods                                           ///
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
 /**
  *
  * @param ev
@@ -111,7 +115,7 @@ wat.app.keyboardShortcutCb_ = function(ev) {
     }
 };
 
-wat.app.addNavigationEvents = function() {
+wat.app.addNavigationEvents_ = function() {
     var btns = [{
                 domName: "Inbox_Btn",
                 mailboxFolder: wat.mail.MailboxFolder.INBOX
@@ -144,7 +148,7 @@ wat.app.addNavigationEvents = function() {
 /**
  * TODO: Outsource later on to a user model
  */
-wat.app.loadUser = function() {
+wat.app.loadUser_ = function() {
     var request = new goog.net.XhrIo();
     // We don't need to add the folder data entry, since it defaults to INBOX
     goog.events.listen(request, goog.net.EventType.COMPLETE, function (event) {

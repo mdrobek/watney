@@ -68,6 +68,13 @@ wat.mail.MailboxFolder.prototype.renderCtrlbar = goog.abstractMethod;
  */
 wat.mail.MailboxFolder.prototype.updateCtrlBtns_ = goog.abstractMethod;
 
+/**
+ * Requests the backend to check for new mails or changes in the mailbox folder.
+ *
+ * @param {function} updateCb
+ * @public
+ */
+wat.mail.MailboxFolder.prototype.synchFolder = goog.abstractMethod;
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 ///                                  Public methods                                              ///
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -99,7 +106,7 @@ wat.mail.MailboxFolder.prototype.add = function(mail) {
  * @param {wat.mail.MailItem[]} mails
  */
 wat.mail.MailboxFolder.prototype.addMailsToFolder = function(mails) {
-    // Special treatment for mails that are flagged as deleted -> See TRASH override
+    // Special treatment for mails that are flagged as deleted
     var self = this,
         consideredMails = goog.array.filter(mails, function(curMail) {
             return !curMail.Mail.Flags.Deleted;
@@ -152,9 +159,13 @@ wat.mail.MailboxFolder.prototype.loadMails = function() {
             var mailsJSON = request.getResponseJson(),
                 mails = goog.array.map(mailsJSON, function(curMailJSON) {
                     return new wat.mail.MailItem(curMailJSON, self.Name);
+                }),
+                unseenMails = goog.array.filter(mails, function(curMail) {
+                    return !curMail.Mail.Flags.Seen;
                 });
             self.addMailsToFolder(mails);
             self.renderMailboxContent_();
+            wat.app.mailHandler.notifyAboutMails(true, unseenMails.length);
             self.retrieved_ = true;
         } else {
             //error
@@ -353,10 +364,6 @@ wat.mail.MailboxFolder.prototype.showMail = function(activatedMail) {
         // 4) Highlight newly activated mail item in mail list
         activatedMail.highlightOverviewItem(true);
         // 5) Copy over the mail information into the mail details form
-
-        // TODO: Go on here: Self/this is the window instead of the MailboxFolder ....
-        //       probably coming from the loadContent event listener
-
         self.fillMailPage_(activatedMail);
         // 6) Adjust control buttons for newly activated mail item
         self.updateCtrlBtns_(activatedMail);
@@ -426,7 +433,11 @@ wat.mail.Inbox = function() {
 };
 goog.inherits(wat.mail.Inbox, wat.mail.MailboxFolder);
 
-wat.mail.Inbox.prototype.checkForNewMails = function(reregisterCb) {
+/**
+ * @param reregisterCb
+ * @override
+ */
+wat.mail.Inbox.prototype.synchFolder = function(reregisterCb) {
     var self = this,
         request = new goog.net.XhrIo();
     goog.events.listen(request, goog.net.EventType.COMPLETE, function (event) {
@@ -449,7 +460,7 @@ wat.mail.Inbox.prototype.checkForNewMails = function(reregisterCb) {
             //console.log("### Finished poll for new mails: " + mails);
             if (goog.isDefAndNotNull(mails) && mails.length > 0) {
                 self.addMailsToFolder(mails);
-                //self.showMail(mails[mails.length-1]);
+                wat.app.mailHandler.notifyAboutMails(true, mails.length);
             }
             if (goog.isDefAndNotNull(reregisterCb)) reregisterCb.call(wat.app.mailHandler);
         } else {

@@ -188,7 +188,9 @@ wat.mail.MailItem.prototype.setSeen = function(newSeenState) {
             goog.dom.classes.add(d_seenMailItem, "newMail");
         }
     }
-    // 3) Now send information to server
+    // 3) Notify the user that this mail is now seen
+    wat.app.mailHandler.notifyAboutMails(false, 1);
+    // 4) Now send information to server
     self.updateFlagsRequest_(self.Folder, self.Mail.UID, wat.mail.SEEN_FLAG, newSeenState,
         function(request) {
             // TODO: Revert changes in client state of Seen flag
