@@ -265,8 +265,10 @@ func TestSelectFolder(t *testing.T) {
 	}
 }
 
-// TODO: No valid test => Remove or adjust
-func TestFoo(t *testing.T) {
+/**
+ * Assumes at least 57 mails in the test mailbox
+ */
+func TestLoadMailsForSeqNbrs(t *testing.T) {
 	conf := loadTestConfig(TEST_CONFIG_FILE, t)
 	mc, _ := NewMailCon(&conf.Mail)
 	defer mc.Close()
@@ -276,15 +278,15 @@ func TestFoo(t *testing.T) {
 	}
 
 	var (
-		mimeMailUID uint32 = 4927
+		mails []Mail
+		mailSeqNbrs []uint32 = []uint32{57, 56, 51}
 		err error
 	)
-	if _, err = mc.LoadMailFromFolderWithUID("/", mimeMailUID); err != nil {
+	if mails, err = mc.LoadNMailsFromFolderWithSeqNbrs("/", mailSeqNbrs); err != nil {
 		t.Fatal(err)
+	} else if len(mails) != 3 {
+		t.Fatal("Expected 3 mails to be loaded, but got: %d", len(mails))
 	}
-//	t.Logf("Mail Header is: %v\n", mail.Header)
-//	t.Logf("Mail Content: %s\n", mail.Content["text/plain"])
-
 }
 
 //func TestLoadMails(t *testing.T) {

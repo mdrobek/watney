@@ -225,41 +225,52 @@ func (web *MailWeb) main(r render.Render) {
 func (web *MailWeb) poll(r render.Render, user sessionauth.User, session sessions.Session,
 		req *http.Request) {
 	var watneyUser *auth.WatneyUser = user.(*auth.WatneyUser)
-	// 1) Check for authentication status, and only proceed, if successful
-	if nil != watneyUser && watneyUser.IsAuthenticated() {
-		// 2) Check, whether new mails have arrived since the last poll
-		if mailUIDs, err := watneyUser.ImapCon.CheckNewMails(); err != nil {
-			// 2a) Check for new mails failed for some reason
-			r.JSON(500, map[string]interface{} {
-				"error": "Error while checking for new mails",
-				"origError": err.Error(),
-			})
-		} else if len(mailUIDs) > 0 {
-			// 2b) If new mails have arrived, load them from the mail server
-			mails, err := watneyUser.ImapCon.LoadNMailsFromFolderWithUIDs("/", mailUIDs)
-			if err == nil {
-				// Reverse the retrieved mail array
-				sort.Sort(mail.MailSlice(mails))
-				r.JSON(200, mails)
-			} else {
-				// TODO: If the mail loading failed, the information about the recent mails
-				//		 will be lost at that point => counteract
-				r.JSON(500, map[string]interface{} {
-					"error": "New mails are available, but they couldn't be retrieved",
-					"origError": err.Error(),
-				})
-			}
-		} else {
-			// 2c) No new mails have arrived
-			r.JSON(200, make([]mail.Mail, 0))
-		}
-	} else {
+	// 1) Check for authentication status, and return if no user is given or not authenticated
+	if nil == watneyUser || !watneyUser.IsAuthenticated() {
 		fmt.Printf("[watney] User tried to poll for new mails - but IMAP Session has timed out.")
 		// 419 - Authentication has timed out
 		r.JSON(419, map[string]interface{} {
 			"error": "Authentication has expired",
-		} )
+		})
+		return
 	}
+	// 2) Check, whether new mails have arrived since the last poll
+	// recentMails[0] -> nbr of new mails | recentMails[1] - last sequence number in mail list
+	if newMailSeqNbrs, err := watneyUser.ImapCon.CheckNewMails(); err != nil {
+		// 2a) Check for new mails failed for some reason
+		r.JSON(500, map[string]interface{} {
+			"error": "Error while checking for new mails",
+			"origError": err.Error(),
+		})
+	} else if len(newMailSeqNbrs) > 0 {
+		// 2b) If new mails have arrived, load them from the mail server
+		if mails, err := watneyUser.ImapCon.LoadNMailsFromFolderWithSeqNbrs("/", newMailSeqNbrs);
+				err == nil {
+			// If the number of loaded mails is not equal to the number of new mail UIDs, send error
+			if len(newMailSeqNbrs) != len(mails) {
+				r.JSON(500, map[string]interface{} {
+					"error": "New mails are available, but they couldn't be retrieved",
+					"origError": fmt.Sprintf("Expected %d mail(s), but could only load %d mail(s)",
+						len(newMailSeqNbrs), len(mails)),
+				})
+				return
+			}
+			// Reverse the retrieved mail array
+			sort.Sort(mail.MailSlice(mails))
+			// Return the mails as json
+			r.JSON(200, mails)
+			return
+		}
+		// TODO: If the mail loading failed, the information about the recent mails
+		//		 will be lost at that point => counteract
+		r.JSON(500, map[string]interface{} {
+			"error": "New mails are available, but they couldn't be retrieved",
+			"origError": err.Error(),
+		})
+		return
+	}
+	// 3) No new mails have arrived
+	r.JSON(200, make([]mail.Mail, 0))
 }
 
 /**

@@ -283,10 +283,29 @@ func (mc *MailCon) LoadNMailsFromFolderWithUIDs(folder string, uids []uint32) ([
 	// TODO: Check if UIDs are below 1 and react accordingly
 	var uidStrings []string = make([]string, len(uids))
 	for index, uid := range uids {
+		// FIXME: This is a potential unsafe cast if the sequence number would be bigger than
+		//		  2^31-1
 		uidStrings[index] = strconv.Itoa(int(uid))
 	}
 	set, _ := imap.NewSeqSet(strings.Join(uidStrings, ","))
 	return mc.loadMails(set, folder, true, mc.client.UIDFetch)
+}
+
+/**
+ * Loads the header and the content of the mail for the given UIDs.
+ */
+func (mc *MailCon) LoadNMailsFromFolderWithSeqNbrs(folder string, seqNbrs []uint32) ([]Mail, error) {
+	mc.mutex.Lock()
+	defer mc.mutex.Unlock()
+	// TODO: Check if UIDs are below 1 and react accordingly
+	var seqNbrStrings []string = make([]string, len(seqNbrs))
+	for index, seqNbr := range seqNbrs {
+		// FIXME: This is a potential unsafe cast if the sequence number would be bigger than
+		//		  2^31-1
+		seqNbrStrings[index] = strconv.Itoa(int(seqNbr))
+	}
+	set, _ := imap.NewSeqSet(strings.Join(seqNbrStrings, ","))
+	return mc.loadMails(set, folder, true, mc.client.Fetch)
 }
 
 /**
@@ -383,13 +402,16 @@ func (mc *MailCon) TrashMail(uid, origFolder string) (uint32, error) {
  * Usually, a new mail update from the server splits into 2 responses: 1 EXIST and 1 RECENT
  * The EXIST command provides the server UID of the new message received and the RECENT command
  * tells the client how many new messages have been recently received.
+ *
+ * @return Array of sequence numbers for all newly received mails
  */
 func (mc *MailCon) CheckNewMails() ([]uint32, error) {
 	mc.mutex.Lock()
 	defer mc.mutex.Unlock()
 	var (
-//		recentMsg bool = false
-		newMsgUIDs []uint32 = make([]uint32, 0)
+		recentMails uint32
+		lastSeqNumber uint32
+		newMailSeqNumbers = make([]uint32, 0)
 		err error = nil
 	)
 	if mc.client.Data != nil && len(mc.client.Data) > 0 {
@@ -400,13 +422,15 @@ func (mc *MailCon) CheckNewMails() ([]uint32, error) {
 				f := resp.Fields
 				if len(f) > 1 {
 					// The response is either an EXIST or a RECENT
-					// We expect Fields[0] to be the message ID/nbr of new messages and Fields[1]
-					// to be the information (EXIST/RECENT)
+					//			   Fields[0]	  |			   Fields[1]
+					// ---------------------------|-------------------------------
+					// last sequence number : int |				EXIST
+					// number of new mails  : int |				RECENT
 					switch n := imap.AsNumber(f[0]); strings.ToUpper(imap.AsAtom(f[1])) {
-//						case "RECENT":
-//							recentMsg = true
+						case "RECENT":
+							recentMails = n
 						case "EXISTS":
-							newMsgUIDs = append(newMsgUIDs, n)
+							lastSeqNumber = n
 					}
 				} else {
 					err = errors.New(fmt.Sprintf("Got a data update message with less than 2 " +
@@ -422,7 +446,12 @@ func (mc *MailCon) CheckNewMails() ([]uint32, error) {
 //	fmt.Printf("Received info is: %b, %s\n", recentMsg, newMsgUIDs)
 	// Empty the response message queue
 	mc.client.Data = nil
-	return newMsgUIDs, err
+	// Compute sequence numbers for all new mails
+	var i uint32
+	for i = 0; i<recentMails; i++ {
+		newMailSeqNumbers = append(newMailSeqNumbers, lastSeqNumber-i)
+	}
+	return newMailSeqNumbers, err
 }
 
 /**
