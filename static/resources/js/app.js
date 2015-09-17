@@ -3,12 +3,12 @@
  */
 goog.provide('wat.app');
 
+goog.require('wat');
 goog.require('wat.mail');
 goog.require('wat.mail.MailHandler');
 goog.require('wat.mail.MailboxFolder');
 goog.require('goog.events');
 goog.require('goog.array');
-goog.require('goog.net.XhrIo');
 goog.require('goog.Uri.QueryData');
 goog.require('goog.ui.KeyboardShortcutHandler');
 
@@ -22,12 +22,12 @@ wat.app.mailHandler = null;
  */
 wat.app.keyboardShortcutHandler = null;
 
-//TODO: outsource
-wat.app.LOAD_USER_URI_ = "/userInfo";
 /**
  * @type {string} The email address of the user.
  */
 wat.app.userMail = null;
+//TODO: outsource
+wat.app.LOAD_USER_URI_ = "/userInfo";
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 ///                                    STATIC Methods                                            ///
@@ -149,9 +149,7 @@ wat.app.addNavigationEvents_ = function() {
  * TODO: Outsource later on to a user model
  */
 wat.app.loadUser_ = function() {
-    var request = new goog.net.XhrIo();
-    // We don't need to add the folder data entry, since it defaults to INBOX
-    goog.events.listen(request, goog.net.EventType.COMPLETE, function (event) {
+    wat.xhr.send(wat.app.LOAD_USER_URI_, function (event) {
         // request complete
         var request = event.currentTarget;
         if (request.isSuccess()) {
@@ -159,9 +157,8 @@ wat.app.loadUser_ = function() {
             wat.app.userMail = userInfoJSON.email;
         } else {
             //error
-            console.log("something went wrong: " + event.getLastError());
-            console.log("^^^ " + event.getLastErrorCode());
+            console.log("something went wrong: " + request.getLastError());
+            console.log("^^^ " + request.getLastErrorCode());
         }
-    });
-    request.send(wat.app.LOAD_USER_URI_, 'POST', null);
+    }, 'POST');
 };

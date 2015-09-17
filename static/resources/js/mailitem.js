@@ -98,11 +98,29 @@ wat.mail.MailItem.prototype.renderMail = function(activateClickEventCb, opt_prep
  */
 wat.mail.MailItem.prototype.loadContent = function(successLoadCb) {
     var self = this,
-        req = new goog.net.XhrIo(),
+        //req = new goog.net.XhrIo(),
         data = new goog.Uri.QueryData();
     data.add("uid", self.Mail.UID);
     data.add("folder", self.Folder);
-    goog.events.listen(req, goog.net.EventType.COMPLETE, function(event) {
+    //goog.events.listen(req, goog.net.EventType.COMPLETE, function(event) {
+    //    // request complete
+    //    var request = event.currentTarget,
+    //        jsonResponse = {};
+    //    if (request.isSuccess()) {
+    //        jsonResponse = request.getResponseJson();
+    //        goog.array.forEach(goog.object.getKeys(jsonResponse), function(curType) {
+    //            self.Mail.Content.set(curType, new wat.mail.ContentPart(
+    //                goog.object.get(jsonResponse, curType)));
+    //        });
+    //        self.HasContentBeenLoaded = true;
+    //        if (goog.isDefAndNotNull(successLoadCb)) successLoadCb(self);
+    //    } else {
+    //        // error
+    //        console.log("something went wrong loading content for mail: " + request.getLastError());
+    //        console.log("^^^ " + request.getLastErrorCode());
+    //    }
+    //}, false, self);
+    wat.xhr.send(wat.mail.LOAD_MAILCONTENT_URI, function(event) {
         // request complete
         var request = event.currentTarget,
             jsonResponse = {};
@@ -119,8 +137,7 @@ wat.mail.MailItem.prototype.loadContent = function(successLoadCb) {
             console.log("something went wrong loading content for mail: " + request.getLastError());
             console.log("^^^ " + request.getLastErrorCode());
         }
-    }, false, self);
-    req.send(wat.mail.LOAD_MAILCONTENT_URI, 'POST', data.toString());
+    }, 'POST', data.toString());
 };
 
 /**
