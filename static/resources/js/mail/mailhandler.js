@@ -9,8 +9,6 @@ goog.require('wat.mail.MailItem');
 goog.require('wat.mail.NewMail');
 goog.require('goog.Timer');
 goog.require('goog.events');
-goog.require('goog.net.XhrIo');
-goog.require('goog.Uri.QueryData');
 goog.require('goog.json');
 goog.require('goog.array');
 goog.require('goog.structs.Map');

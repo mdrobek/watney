@@ -98,28 +98,9 @@ wat.mail.MailItem.prototype.renderMail = function(activateClickEventCb, opt_prep
  */
 wat.mail.MailItem.prototype.loadContent = function(successLoadCb) {
     var self = this,
-        //req = new goog.net.XhrIo(),
         data = new goog.Uri.QueryData();
     data.add("uid", self.Mail.UID);
     data.add("folder", self.Folder);
-    //goog.events.listen(req, goog.net.EventType.COMPLETE, function(event) {
-    //    // request complete
-    //    var request = event.currentTarget,
-    //        jsonResponse = {};
-    //    if (request.isSuccess()) {
-    //        jsonResponse = request.getResponseJson();
-    //        goog.array.forEach(goog.object.getKeys(jsonResponse), function(curType) {
-    //            self.Mail.Content.set(curType, new wat.mail.ContentPart(
-    //                goog.object.get(jsonResponse, curType)));
-    //        });
-    //        self.HasContentBeenLoaded = true;
-    //        if (goog.isDefAndNotNull(successLoadCb)) successLoadCb(self);
-    //    } else {
-    //        // error
-    //        console.log("something went wrong loading content for mail: " + request.getLastError());
-    //        console.log("^^^ " + request.getLastErrorCode());
-    //    }
-    //}, false, self);
     wat.xhr.send(wat.mail.LOAD_MAILCONTENT_URI, function(event) {
         // request complete
         var request = event.currentTarget,
@@ -228,15 +209,13 @@ wat.mail.MailItem.prototype.setSeen = function(newSeenState) {
  * @private
  */
 wat.mail.MailItem.prototype.updateFlagsRequest_ = function(folder, uid, flag, addFlags, errorCb) {
-    var self = this,
-        request = new goog.net.XhrIo(),
-        data = new goog.Uri.QueryData();
+    var data = new goog.Uri.QueryData();
     data.add("folder", folder);
     data.add("uid", uid);
     // True -> flags will be added | False -> Flags will be removed
     data.add("add", addFlags);
     data.add("flags", goog.json.serialize(flag));
-    goog.events.listen(request, goog.net.EventType.COMPLETE, function (event) {
+    wat.xhr.send(wat.mail.UPDATE_FLAGS_URI, function (event) {
         // request complete
         var request = event.currentTarget;
         if (!request.isSuccess()) {
@@ -245,8 +224,7 @@ wat.mail.MailItem.prototype.updateFlagsRequest_ = function(folder, uid, flag, ad
             console.log("^^^ " + request.getLastErrorCode());
             if (goog.isDefAndNotNull(errorCb)) errorCb(request);
         }
-    }, false, self);
-    request.send(wat.mail.UPDATE_FLAGS_URI, 'POST', data.toString());
+    }, 'POST', data.toString());
 };
 
 /**
@@ -257,11 +235,10 @@ wat.mail.MailItem.prototype.updateFlagsRequest_ = function(folder, uid, flag, ad
  */
 wat.mail.MailItem.prototype.trashRequest_ = function(origMailFolder, successCb, errorCb) {
     var self = this,
-        request = new goog.net.XhrIo(),
         data = new goog.Uri.QueryData();
     data.add("uid", self.Mail.UID);
     data.add("folder", origMailFolder);
-    goog.events.listen(request, goog.net.EventType.COMPLETE, function (event) {
+    wat.xhr.send(wat.mail.TRASH_MAIL_URI, function (event) {
         // request complete
         var req = event.currentTarget,
             trashedUID;
@@ -274,8 +251,7 @@ wat.mail.MailItem.prototype.trashRequest_ = function(origMailFolder, successCb, 
             console.log("^^^ " + req.getLastErrorCode());
             if (goog.isDefAndNotNull(errorCb)) errorCb(req);
         }
-    }, false, self);
-    request.send(wat.mail.TRASH_MAIL_URI, 'POST', data.toString());
+    }, 'POST', data.toString());
 };
 
 /**

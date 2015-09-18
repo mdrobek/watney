@@ -181,22 +181,21 @@ wat.mail.NewMail.prototype.registerCtrlBtnEvents_ = function() {
 
 wat.mail.NewMail.prototype.sendMail_ = function() {
     var self = this,
-        request = new goog.net.XhrIo(),
         data = new goog.Uri.QueryData(),
         d_to = goog.dom.getElement(self.WindowDomID+"_newMail_Window_To"),
         d_subject = goog.dom.getElement(self.WindowDomID+"_newMail_Window_Subject"),
         d_body = goog.dom.getElement(self.WindowDomID+"_newMail_Window_Text");
-    data.add("from", self.Mail.Header.Sender);
-    data.add("to", d_to.value);
-    data.add("subject", d_subject.value);
-    data.add("body", d_body.value);
 
     // 1) Clean the error field from previous tries
     goog.dom.setTextContent(goog.dom.getElement(self.WindowDomID+"_ErrMsg"), "");
     // 2) Add the COMPLETE send listener
     goog.events.listen(request, goog.net.EventType.COMPLETE, self.sendMailResponse_, true, self);
     // 3) Send the request (mail)
-    request.send(wat.mail.NewMail.SEND_MAIL_URI_, 'POST', data.toString());
+    data.add("from", self.Mail.Header.Sender);
+    data.add("to", d_to.value);
+    data.add("subject", d_subject.value);
+    data.add("body", d_body.value);
+    wat.xhr.send(wat.mail.NewMail.SEND_MAIL_URI_, null, 'POST', data.toString());
 };
 
 wat.mail.NewMail.prototype.sendMailResponse_ = function(event) {

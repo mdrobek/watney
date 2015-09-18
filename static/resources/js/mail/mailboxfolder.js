@@ -10,7 +10,6 @@ goog.provide('wat.mail.Trash');
 goog.require('wat.mail');
 goog.require('goog.array');
 goog.require('goog.events');
-goog.require('goog.net.XhrIo');
 goog.require('goog.Uri.QueryData');
 goog.require('goog.json');
 goog.require('goog.structs.AvlTree');
@@ -149,11 +148,10 @@ wat.mail.MailboxFolder.prototype.switchActiveMail = function(opt_before) {
 
 wat.mail.MailboxFolder.prototype.loadMails = function() {
     var self = this,
-        request = new goog.net.XhrIo(),
         data = new goog.Uri.QueryData();
     data.add("mailInformation", "overview");
     data.add("mailbox", self.Name);
-    goog.events.listen(request, goog.net.EventType.COMPLETE, function (event) {
+    wat.xhr.send(wat.mail.LOAD_MAILS_URI, function (event) {
         var request = event.currentTarget;
         if (request.isSuccess()) {
             var mailsJSON = request.getResponseJson(),
@@ -172,8 +170,7 @@ wat.mail.MailboxFolder.prototype.loadMails = function() {
             console.log("something went wrong: " + this.getLastError());
             console.log("^^^ " + this.getLastErrorCode());
         }
-    }, false, self);
-    request.send(wat.mail.LOAD_MAILS_URI, 'POST', data.toString());
+    }, 'POST', data.toString());
 };
 
 /**
@@ -438,9 +435,8 @@ goog.inherits(wat.mail.Inbox, wat.mail.MailboxFolder);
  * @override
  */
 wat.mail.Inbox.prototype.synchFolder = function(reregisterCb) {
-    var self = this,
-        request = new goog.net.XhrIo();
-    goog.events.listen(request, goog.net.EventType.COMPLETE, function (event) {
+    var self = this;
+    wat.xhr.send(wat.mail.CHECK_MAILS_URI, function (event) {
         // request complete
         var req = event.currentTarget,
             mailsJSON,
@@ -481,8 +477,7 @@ wat.mail.Inbox.prototype.synchFolder = function(reregisterCb) {
                         + "Error Msg: " + req.getLastError() + "\n");
             }
         }
-    }, false, self);
-    request.send(wat.mail.CHECK_MAILS_URI, 'POST');
+    }, 'POST');
 
 };
 
