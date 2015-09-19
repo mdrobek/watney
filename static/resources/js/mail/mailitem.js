@@ -69,7 +69,7 @@ wat.mail.MailItem.prototype.IsFromToday = false;
 
 /**
  *
- * @param {function} activateClickEventCb Function to be called, if the mail item overview element
+ * @param {function} [activateClickEventCb] Function to be called, if the mail item overview element
  * is clicked (thus activated). The method will be called with the current MailItem as its
  * first parameters.
  * @param {boolean} [opt_prepend] If omitted, the default behaviour is to append this rendered
@@ -130,7 +130,10 @@ wat.mail.MailItem.prototype.loadContent = function(successLoadCb) {
 wat.mail.MailItem.prototype.highlightOverviewItem = function(active) {
     var self = this,
         d_mailOverview = goog.dom.getElement(self.DomID),
-        d_mailOverviewEntry = goog.dom.getElementByClass("entry", d_mailOverview);
+        d_mailOverviewEntry;
+    if (!goog.isDefAndNotNull(d_mailOverview)) return;
+
+    d_mailOverviewEntry = goog.dom.getElementByClass("entry", d_mailOverview);
     if (active) {
         // The highlight effect has to be activated
         if (!goog.dom.classes.has(d_mailOverviewEntry, "active")) {
@@ -186,8 +189,8 @@ wat.mail.MailItem.prototype.setSeen = function(newSeenState) {
             goog.dom.classes.add(d_seenMailItem, "newMail");
         }
     }
-    // 3) Notify the user that this mail is now seen
-    wat.app.mailHandler.notifyAboutMails(false, 1);
+    // 3) Notify the user that this mail's seen status has changed
+    wat.app.mailHandler.notifyAboutMails(!newSeenState, 1);
     // 4) Now send information to server
     self.updateFlagsRequest_(self.Folder, self.Mail.UID, wat.mail.SEEN_FLAG, newSeenState,
         function(request) {
