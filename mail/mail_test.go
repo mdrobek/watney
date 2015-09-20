@@ -1,13 +1,13 @@
 package mail
 
 import (
-	"testing"
+	"fmt"
 	"mdrobek/watney/conf"
 	"reflect"
-	"fmt"
-	"strings"
-	"time"
 	"strconv"
+	"strings"
+	"testing"
+	"time"
 )
 
 const TEST_CONFIG_FILE = "../conf/test.ini"
@@ -25,7 +25,7 @@ From: root@localhost.localdomain (root)
 MIME-Version: 1.0
 Content-Type: multipart/mixed;
 	boundary="----=_Part_414413_206767080.1441196149087"
-X-GMX-Antispam: 0 (Mail was not recognized as spam); Detail=V3;
+X-GMX-Antispam: 6 (nemesis text pattern profiler); Detail=V3;
 X-GMX-Antivirus: 0 (no virus found)`
 
 var multipartMailBody1 string = `------=_Part_414413_206767080.1441196149087
@@ -60,10 +60,10 @@ func TestParseHeader(t *testing.T) {
 	}
 	// 2) Check MIME fields of Header
 	checkMimeHeader(mailHeader.MimeHeader, PMIMEHeader{
-		MimeVersion: 1.0,
-		ContentType: "multipart/mixed",
+		MimeVersion:       1.0,
+		ContentType:       "multipart/mixed",
 		MultipartBoundary: "----=_Part_414413_206767080.1441196149087",
-		Encoding: "quoted-printable",
+		Encoding:          "quoted-printable",
 	}, t)
 	// 3) Check for main fields of Header
 	if 0 == len(mailHeader.Subject) && mailHeader.Subject != "Test Message" {
@@ -73,7 +73,7 @@ func TestParseHeader(t *testing.T) {
 		t.Fatalf("Parsed Mail sender is not set: %s", err.Error())
 	}
 	if 0 == len(mailHeader.Receiver) &&
-			mailHeader.Receiver != "johnsmith@domain.org, root@localhost.localdomain," {
+		mailHeader.Receiver != "johnsmith@domain.org, root@localhost.localdomain," {
 		t.Fatalf("Parsed Mail receiver is not set: %s", err.Error())
 	}
 	expectedDate, err := time.Parse(time.RFC1123Z, "Sat, 06 Mar 2013 02:05:26 +0100")
@@ -87,7 +87,7 @@ func TestSerializeHeader(t *testing.T) {
 	if nil != err {
 		t.Fatalf("Couldn't parse header for later serialization: %s", err.Error())
 	}
-	serializedHeader :=	SerializeHeader(mailOrigHeader)
+	serializedHeader := SerializeHeader(mailOrigHeader)
 	mailParsedHeader, err := parseHeaderStr(serializedHeader)
 	if nil != err {
 		t.Fatalf("Couldn't parse serialized header: %s", err.Error())
@@ -102,7 +102,7 @@ func TestSerializeHeader(t *testing.T) {
 func TestBase64Parsing(t *testing.T) {
 	var (
 		mailParts Content
-		err error
+		err       error
 	)
 	if mailParts, err = parseMultipartContent(base64Body,
 		"--==_mimepart_55e5934148e33_35c43fd168003a1018622b"); err != nil {
@@ -117,9 +117,9 @@ func TestBase64Parsing(t *testing.T) {
 		t.Fatal("Didn't find expected Content-Type 'text/plain'")
 	} else {
 		expected := ContentPart{
-			Charset: "UTF-8",
+			Charset:  "UTF-8",
 			Encoding: "base64",
-			Body: "T3VyIG5ldyBLaWNrc3RhcnRlciBpcyBMSVZFISAKClRoZSBLaWNrc3RhcnR=",
+			Body:     "T3VyIG5ldyBLaWNrc3RhcnRlciBpcyBMSVZFISAKClRoZSBLaWNrc3RhcnR=",
 		}
 		if !reflect.DeepEqual(value, expected) {
 			t.Fatalf("Parsed 'text/plain' part didn't match expected part: %v | %v\n",
@@ -132,7 +132,7 @@ func TestMultipartParsing(t *testing.T) {
 	if header, err := parseHeaderStr(multipartMailHeader1); err != nil {
 		t.Fatalf("Error parsing header: %s", err.Error())
 	} else {
-//		t.Logf("$$$$$$$$$ Header is: %s", header)
+		//		t.Logf("$$$$$$$$$ Header is: %s", header)
 		var mailParts Content
 		if mailParts, err = parseMultipartContent(multipartMailBody1,
 			header.MimeHeader.MultipartBoundary); err != nil {
@@ -147,9 +147,9 @@ func TestMultipartParsing(t *testing.T) {
 			t.Fatalf("Didn't find expected Content-Type 'text/plain'")
 		} else {
 			expected := ContentPart{
-				Charset: "UTF-8",
+				Charset:  "UTF-8",
 				Encoding: "quoted-printable",
-				Body: "Some test text!",
+				Body:     "Some test text!",
 			}
 			if !reflect.DeepEqual(value, expected) {
 				t.Fatalf("Parsed 'text/plain' part didn't match expected part: %v | %v\n",
@@ -161,9 +161,9 @@ func TestMultipartParsing(t *testing.T) {
 			t.Fatalf("Didn't find expected Content-Type 'text/html'")
 		} else {
 			expected := ContentPart{
-				Charset: "UTF-8",
+				Charset:  "UTF-8",
 				Encoding: "quoted-printable",
-				Body: "<b>Some test text!</b>\n<br>",
+				Body:     "<b>Some test text!</b>\n<br>",
 			}
 			if !reflect.DeepEqual(value, expected) {
 				t.Fatalf("Parsed 'text/html' part didn't match expected part: %v | %v\n",
@@ -224,12 +224,12 @@ func TestAddMailToFolder(t *testing.T) {
 	var folder string = "Sent"
 	// 2) Now add a new Mail to the Sent folder and check, whether that worked well
 	msgUID, err := mc.AddMailToFolder(&Header{
-		Date: time.Now(),
-		Subject: "WATNEY: TEST",
-		Sender: "markwatney@mars.com",
+		Date:     time.Now(),
+		Subject:  "WATNEY: TEST",
+		Sender:   "markwatney@mars.com",
 		Receiver: strings.Join([]string{"henderik@nasa.com", "sat@nasa.com"}, ", "),
-		Folder: folder,
-	}, &Flags{Seen:true}, "This is some text from mars")
+		Folder:   folder,
+	}, &Flags{Seen: true}, "This is some text from mars")
 	if nil != err {
 		t.Fatal(err)
 	}
@@ -278,14 +278,39 @@ func TestLoadMailsForSeqNbrs(t *testing.T) {
 	}
 
 	var (
-		mails []Mail
+		mails       []Mail
 		mailSeqNbrs []uint32 = []uint32{57, 56, 51}
-		err error
+		err         error
 	)
 	if mails, err = mc.LoadNMailsFromFolderWithSeqNbrs("/", mailSeqNbrs); err != nil {
 		t.Fatal(err)
 	} else if len(mails) != 3 {
 		t.Fatal("Expected 3 mails to be loaded, but got: %d", len(mails))
+	}
+}
+
+func TestParseSpamHeader(t *testing.T) {
+	if header, err := parseHeaderStr(multipartMailHeader1); err != nil {
+		t.Fatal(err)
+	} else if header.SpamIndicator != 6 {
+		t.Fatalf("Spam indicator should have been 6, but was %d", header.SpamIndicator)
+	}
+}
+
+/*
+ * [0 (Mail was not recognized as spam); Detail=V3;]
+ * [6 (nemesis text pattern profiler); Detail=V3;]
+ */
+func TestParseGmxSpamHeader(t *testing.T) {
+	var (
+		testHeader1 []string = []string{"0", "(Mail was not recognized as spam);", "Detail=V3;"}
+		testHeader2 []string = []string{"6", "(nemesis text pattern profiler);", "Detail=V3;"}
+	)
+	if spamIndicator := parseGMXSpamIndicator(testHeader1); spamIndicator != 0 {
+		t.Fatalf("Spam indicator should have been 0, but was %d", spamIndicator)
+	}
+	if spamIndicator := parseGMXSpamIndicator(testHeader2); spamIndicator != 6 {
+		t.Fatalf("Spam indicator should have been 6, but was %d", spamIndicator)
 	}
 }
 
@@ -365,6 +390,8 @@ func checkMimeHeader(parsed, expected PMIMEHeader, t *testing.T) {
 
 func loadTestConfig(filename string, t *testing.T) *conf.WatneyTestConf {
 	conf, err := conf.ReadTestConfig(filename)
-	if nil != err { t.Error(err) }
+	if nil != err {
+		t.Error(err)
+	}
 	return conf
 }

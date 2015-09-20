@@ -1,36 +1,37 @@
 package mail
 
 import (
-	"github.com/mxk/go-imap/imap"
-	"errors"
-	"net/textproto"
 	"bufio"
 	"bytes"
-	"io"
-	"mime"
-	"strings"
+	"errors"
 	"fmt"
-	"strconv"
-	"time"
-	"mime/multipart"
+	"github.com/mxk/go-imap/imap"
+	"io"
 	"io/ioutil"
+	"math"
+	"mime"
+	"mime/multipart"
+	"net/textproto"
+	"strconv"
+	"strings"
+	"time"
 )
 
 func parseHeader(mi *imap.MessageInfo) (*Header, error) {
 	// 1) If no MessageInfo was passed => return and error
 	if nil == mi {
 		return nil,
-		errors.New("Couldn't parse Mail Header, because the given MessageInfo object is nil")
+			errors.New("Couldn't parse Mail Header, because the given MessageInfo object is nil")
 	}
 	// 2) If the given MessageInfo doesn't contain a header string => return and error
 	var (
 		mailHeader imap.Field
-		curHeader *Header
-		err error
+		curHeader  *Header
+		err        error
 	)
 	if mailHeader = mi.Attrs["RFC822.HEADER"]; nil == mailHeader {
 		return nil, errors.New("Couldn't parse Mail Header, because no header was provided " +
-		"in the given MessageInfo object")
+			"in the given MessageInfo object")
 	}
 	if curHeader, err = parseHeaderStr(imap.AsString(mailHeader)); err == nil {
 		curHeader.Size = mi.Size
@@ -58,11 +59,11 @@ func parseHeaderStr(header string) (*Header, error) {
 		return nil, errors.New("Header string is empty")
 	}
 	var (
-		reader *textproto.Reader = textproto.NewReader(bufio.NewReader(bytes.NewBufferString(header)))
+		reader  *textproto.Reader = textproto.NewReader(bufio.NewReader(bytes.NewBufferString(header)))
 		mHeader textproto.MIMEHeader
-		err error
+		err     error
 	)
-	if mHeader, err = reader.ReadMIMEHeader(); (err != nil && err != io.EOF) {
+	if mHeader, err = reader.ReadMIMEHeader(); err != nil && err != io.EOF {
 		return nil, err
 	}
 	//		for key, val := range mHeader {
@@ -78,11 +79,12 @@ func parseMainHeaderContent(headerContentMap textproto.MIMEHeader) (h *Header, e
 	// Todo: Several of the below used Header members could be missing in the Header string
 	var mHeader PMIMEHeader = parseMIMEHeader(headerContentMap)
 	h = &Header{
-		MimeHeader: mHeader,
-		Subject:  parseAndDecodeHeader(headerContentMap["Subject"][0], mHeader),
-		Date:  	  parseIMAPHeaderDate(headerContentMap["Date"][0]),
-		Sender:   parseAndDecodeHeader(headerContentMap["From"][0], mHeader),
-		Receiver: parseAndDecodeHeader(headerContentMap["To"][0], mHeader),
+		MimeHeader:    mHeader,
+		Subject:       parseAndDecodeHeader(headerContentMap["Subject"][0], mHeader),
+		Date:          parseIMAPHeaderDate(headerContentMap["Date"][0]),
+		Sender:        parseAndDecodeHeader(headerContentMap["From"][0], mHeader),
+		Receiver:      parseAndDecodeHeader(headerContentMap["To"][0], mHeader),
+		SpamIndicator: parseSpamIndicator(headerContentMap),
 	}
 	return h, nil
 }
@@ -92,15 +94,15 @@ func parseMainHeaderContent(headerContentMap textproto.MIMEHeader) (h *Header, e
  */
 func parseMIMEHeader(mimeHeader textproto.MIMEHeader) PMIMEHeader {
 	var (
-		params map[string]string	//e.g., "[multipart/mixed; boundary="----=_Part_414413_206767080.1441196149087"]"
-		mediatype string			//e.g., "multipart/mixed"
-		boundary string				//e.g., "----=_Part_414413_206767080.1441196149087"
-	// Special case "quoted-printable": The go multipart code, hides this field by default and
-	// simply directly decodes the body content accordingly -> make it a default here
-		encoding string	= "quoted-printable"	//e.g., "quoted-printable", "base64"
+		params    map[string]string //e.g., "[multipart/mixed; boundary="----=_Part_414413_206767080.1441196149087"]"
+		mediatype string            //e.g., "multipart/mixed"
+		boundary  string            //e.g., "----=_Part_414413_206767080.1441196149087"
+		// Special case "quoted-printable": The go multipart code, hides this field by default and
+		// simply directly decodes the body content accordingly -> make it a default here
+		encoding       string = "quoted-printable" //e.g., "quoted-printable", "base64"
 		mimeversionStr string
-		mimeversion float64	= .0	//e.g., 1.0
-		err error
+		mimeversion    float64 = .0 //e.g., 1.0
+		err            error
 	)
 	if contentArrayStr, ok := mimeHeader["Content-Type"]; ok {
 		if mediatype, params, err = mime.ParseMediaType(contentArrayStr[0]); err == nil {
@@ -114,19 +116,20 @@ func parseMIMEHeader(mimeHeader textproto.MIMEHeader) PMIMEHeader {
 		encoding = strings.TrimSpace(contentArrayStr[0])
 	}
 	// TODO: Mime versions as follows need to be parseable as well:
-	// Mime-Version:[1.0 (1.0)]
+	// Mime-Version: [1.0 (1.0)]
 	if contentArrayStr, ok := mimeHeader["Mime-Version"]; ok {
 		mimeversionStr = strings.TrimSpace(contentArrayStr[0])
 		if mimeversion, err = strconv.ParseFloat(mimeversionStr, 32); err != nil {
-			fmt.Printf("[watney] WARNING: failed to parse the mime version of mail with " +
-				"%s\n %s\n", mimeHeader["Subject"], err.Error())
+			fmt.Printf("[watney] WARNING: failed to parse the mime version of mail with "+
+				"%s\n \t%v\n \t%s\n \t%s\n", mimeHeader["Subject"], contentArrayStr,
+				mimeversionStr, err.Error())
 			mimeversion = .0
 		}
 	}
 	return PMIMEHeader{
-		MimeVersion: float32(mimeversion),
-		ContentType: mediatype,
-		Encoding: encoding,
+		MimeVersion:       float32(mimeversion),
+		ContentType:       mediatype,
+		Encoding:          encoding,
 		MultipartBoundary: boundary,
 	}
 }
@@ -134,9 +137,9 @@ func parseMIMEHeader(mimeHeader textproto.MIMEHeader) PMIMEHeader {
 func parseAndDecodeHeader(encoded string, mHeader PMIMEHeader) string {
 	var (
 		encodedValue string = strings.TrimPrefix(encoded, " ")
-		decoded string
-		dec *mime.WordDecoder = new(mime.WordDecoder)
-		err error
+		decoded      string
+		dec          *mime.WordDecoder = new(mime.WordDecoder)
+		err          error
 	)
 	if decoded, err = dec.DecodeHeader(encodedValue); err != nil {
 		fmt.Printf("[watney] WARNING: Couldn't decode string: \n\t%s\n\t%s\n", encodedValue,
@@ -152,8 +155,8 @@ func parseAndDecodeHeader(encoded string, mHeader PMIMEHeader) string {
  */
 func parseIMAPHeaderDate(dateString string) time.Time {
 	var (
-		date time.Time
-		err error
+		date     time.Time
+		err      error
 		patterns []string = []string{
 			"Mon, _2 Jan 2006 15:04:05 -0700",
 			"Mon, _2 Jan 2006 15:04:05 -0700 (MST)",
@@ -183,15 +186,15 @@ func parseContent(mi *imap.MessageInfo, mimeHeader PMIMEHeader) (Content, error)
 		return nil, errors.New("[watney] ERROR: Couldn't parse mail content due to missing content.")
 	}
 	var (
-		content string = imap.AsString(mi.Attrs["RFC822.TEXT"])
-		parts Content = make(Content, 1)
+		content string  = imap.AsString(mi.Attrs["RFC822.TEXT"])
+		parts   Content = make(Content, 1)
 	)
 	// 2) Simple Case: We have no MIME protocol, simply assume the content is plain text
 	if 0 == mimeHeader.MimeVersion {
 		parts["text/plain"] = ContentPart{
 			Encoding: "quoted-printable",
-			Charset: "UTF-8",
-			Body: content,
+			Charset:  "UTF-8",
+			Body:     content,
 		}
 		return parts, nil
 	}
@@ -199,8 +202,8 @@ func parseContent(mi *imap.MessageInfo, mimeHeader PMIMEHeader) (Content, error)
 	if !strings.Contains(mimeHeader.ContentType, "multipart") {
 		parts[mimeHeader.ContentType] = ContentPart{
 			Encoding: mimeHeader.Encoding,
-			Charset: "UTF-8",
-			Body: content,
+			Charset:  "UTF-8",
+			Body:     content,
 		}
 		return parts, nil
 	}
@@ -212,10 +215,10 @@ func parseMultipartContent(content, boundary string) (Content, error) {
 	var (
 		reader *multipart.Reader = multipart.NewReader(strings.NewReader(content),
 			boundary)
-		part *multipart.Part
-		mailParts Content = make(Content, 1)
+		part       *multipart.Part
+		mailParts  Content = make(Content, 1)
 		partHeader PMIMEHeader
-		err error
+		err        error
 	)
 	for {
 		if part, err = reader.NextPart(); err == io.EOF {
@@ -251,8 +254,8 @@ func parseMultipartContent(content, boundary string) (Content, error) {
 					// 5b) We have a content type other than multipart, just add it
 					mailParts[partHeader.ContentType] = ContentPart{
 						Encoding: partHeader.Encoding,
-						Charset: "UTF-8",
-						Body: string(readBytes),
+						Charset:  "UTF-8",
+						Body:     string(readBytes),
 					}
 				}
 			} else {
@@ -260,8 +263,8 @@ func parseMultipartContent(content, boundary string) (Content, error) {
 				// ATTENTION: We're overwriting previously parsed text/plain parts
 				mailParts["text/plain"] = ContentPart{
 					Encoding: "quoted-printable",
-					Charset: "UTF-8",
-					Body: string(readBytes),
+					Charset:  "UTF-8",
+					Body:     string(readBytes),
 				}
 			}
 		}
@@ -269,13 +272,49 @@ func parseMultipartContent(content, boundary string) (Content, error) {
 	return mailParts, nil
 }
 
+func parseSpamIndicator(headerContentMap textproto.MIMEHeader) int {
+	// 0 means: NO spam
+	var gmxSpamValue, watneySpamValue int = 0, 0
+	if spamIndicator, ok := headerContentMap["X-Gmx-Antispam"]; ok {
+		gmxSpamValue = parseGMXSpamIndicator(spamIndicator)
+	}
+	if _, ok := headerContentMap["X-Watney-Antispam"]; ok {
+		// TODO: Not yet implemented
+	}
+	// By default, a mail that is not tagged with any spam indicating header information is
+	// not a SPAM mail
+	return int(math.Max(float64(gmxSpamValue), float64(watneySpamValue)))
+}
+
+/**
+ * expected Header content:
+ * [0 (Mail was not recognized as spam); Detail=V3;]
+ * [6 (nemesis text pattern profiler); Detail=V3;]
+ * Has to be split
+ * [0] spam indicator value	| [1] description text or tool used | [2] probably analyzing details
+ *
+ * @param spamIndicators Is an array with 1 entry, as shown above
+ */
+func parseGMXSpamIndicator(spamIndicators []string) int {
+	if len(spamIndicators) > 0 {
+		var spamParts []string = strings.Split(spamIndicators[0], " ")
+		if spamValue, err := strconv.Atoi(spamParts[0]); err == nil {
+			return spamValue
+		} else {
+			fmt.Errorf("%s", err.Error())
+		}
+	}
+	return 0
+}
 
 func SerializeHeader(h *Header) string {
-	if nil == h { return "" }
+	if nil == h {
+		return ""
+	}
 	var header string
 	// 1) First deal with MIME information of header
 	if h.MimeHeader.MimeVersion > 0 {
-		header = strings.Join([]string {
+		header = strings.Join([]string{
 			fmt.Sprintf("%s: %.1f", "MIME-Version", h.MimeHeader.MimeVersion),
 			fmt.Sprintf("%s: %s;",
 				"Content-Type", h.MimeHeader.ContentType)},
@@ -303,23 +342,35 @@ func SerializeHeader(h *Header) string {
 
 func readFlags(mi *imap.MessageInfo) (f *Flags) {
 	f = &Flags{
-		Seen     : mi.Flags["\\Seen"],
-		Answered : mi.Flags["\\Answered"],
-		Deleted  : mi.Flags["\\Deleted"],
-		Flagged  : mi.Flags["\\Flagged"],
-		Draft    : mi.Flags["\\Draft"],
-		Recent   : mi.Flags["\\Recent"],
+		Seen:     mi.Flags["\\Seen"],
+		Answered: mi.Flags["\\Answered"],
+		Deleted:  mi.Flags["\\Deleted"],
+		Flagged:  mi.Flags["\\Flagged"],
+		Draft:    mi.Flags["\\Draft"],
+		Recent:   mi.Flags["\\Recent"],
 	}
-	return f;
+	return f
 }
 
 func SerializeFlags(flags *Flags) imap.Field {
 	var fieldFlags []imap.Field = make([]imap.Field, 0)
-	if flags.Seen 	  { fieldFlags = append(fieldFlags, "\\Seen")	    }
-	if flags.Answered { fieldFlags = append(fieldFlags, "\\Answered")	}
-	if flags.Deleted  { fieldFlags = append(fieldFlags, "\\Deleted")	}
-	if flags.Flagged  { fieldFlags = append(fieldFlags, "\\Flagged")	}
-	if flags.Draft    { fieldFlags = append(fieldFlags, "\\Draft")		}
-	if flags.Recent   { fieldFlags = append(fieldFlags, "\\Recent")	    }
+	if flags.Seen {
+		fieldFlags = append(fieldFlags, "\\Seen")
+	}
+	if flags.Answered {
+		fieldFlags = append(fieldFlags, "\\Answered")
+	}
+	if flags.Deleted {
+		fieldFlags = append(fieldFlags, "\\Deleted")
+	}
+	if flags.Flagged {
+		fieldFlags = append(fieldFlags, "\\Flagged")
+	}
+	if flags.Draft {
+		fieldFlags = append(fieldFlags, "\\Draft")
+	}
+	if flags.Recent {
+		fieldFlags = append(fieldFlags, "\\Recent")
+	}
 	return fieldFlags
 }

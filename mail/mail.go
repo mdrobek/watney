@@ -5,16 +5,16 @@ import (
 	"errors"
 	"fmt"
 	"github.com/mxk/go-imap/imap"
+	"github.com/scorredoira/email"
 	"io"
 	"log"
 	"mdrobek/watney/conf"
-	"os"
-	"strings"
-	"time"
-	"github.com/scorredoira/email"
 	"net/smtp"
-	"sync"
+	"os"
 	"strconv"
+	"strings"
+	"sync"
+	"time"
 )
 
 type MailCon struct {
@@ -50,9 +50,10 @@ type Mail struct {
 }
 
 type MailInformation string
+
 const (
-	OVERVIEW string = "overview"	// UID, Header, Flags
-	FULL string = "full"			// UID, Header, Flags, Content
+	OVERVIEW string = "overview" // UID, Header, Flags
+	FULL     string = "full"     // UID, Header, Flags, Content
 )
 
 type Header struct {
@@ -70,6 +71,9 @@ type Header struct {
 	// receiver address of this mail (To:)
 	// TODO: Receiver can be multiple mail addresses!
 	Receiver string
+	// Whether the mail has been classified as spam and if so, with what degree
+	// -1 - not been analysed | 0 - no spam | >0 - classified as spam (number tells the tool used)
+	SpamIndicator int
 	// The parsed MIMEHeader
 	MimeHeader PMIMEHeader
 }
@@ -103,17 +107,17 @@ type ContentPart struct {
 // Holds the following information of a mail: Seen, Deleted, Answered
 type Flags struct {
 	// Whether the mail has been read already
-	Seen bool			`flag: "\\Seen"`
+	Seen bool `flag: "\\Seen"`
 	// Message is "deleted" for removal by later EXPUNGE
-	Deleted bool		`flag: "\\Deleted"`
+	Deleted bool `flag: "\\Deleted"`
 	// Whether the mail was answered
-	Answered bool		`flag: "\\Answered"`
+	Answered bool `flag: "\\Answered"`
 	// Message is "flagged" for urgent/special attention
-	Flagged bool		`flag: "\\Flagged"`
+	Flagged bool `flag: "\\Flagged"`
 	// Message has not completed composition (marked as a draft).
-	Draft bool			`flag: "\\Draft"`
+	Draft bool `flag: "\\Draft"`
 	// Message is "recently" arrived in this mailbox.
-	Recent bool			`flag: "\\Recent"`
+	Recent bool `flag: "\\Recent"`
 }
 
 // Used to switch between the IMAP fetch used to retrieve mails
@@ -212,7 +216,6 @@ func (mc *MailCon) IsAuthenticated() bool {
 	return false
 }
 
-
 /**
 @see interface io.Closer
 */
@@ -249,7 +252,9 @@ func (mc *MailCon) LoadAllMailsFromFolder(folder string) ([]Mail, error) {
  */
 func (mc *MailCon) LoadAllMailOverviewsFromFolder(folder string) ([]Mail, error) {
 	// Check if there is no given folder and assume root in this case (= INBOX)
-	if 0 == len(folder) { folder = "/" }
+	if 0 == len(folder) {
+		folder = "/"
+	}
 	return mc.LoadNMailsFromFolder(folder, -1, false)
 }
 
@@ -316,17 +321,17 @@ func (mc *MailCon) LoadMailFromFolderWithUID(folder string, uid uint32) (Mail, e
 	defer mc.mutex.Unlock()
 	if uid < 1 {
 		return Mail{},
-			errors.New(fmt.Sprintf("Couldn't retrieve mail, because mail UID (%d) needs to " +
-			"be greater than 0", uid));
+			errors.New(fmt.Sprintf("Couldn't retrieve mail, because mail UID (%d) needs to "+
+				"be greater than 0", uid))
 	}
 	var (
 		mails MailSlice
-		err error
+		err   error
 	)
 	set, _ := imap.NewSeqSet(fmt.Sprintf("%d", uid))
 	if mails, err = mc.loadMails(set, folder, true, mc.client.UIDFetch); err != nil {
 		return Mail{},
-			errors.New(fmt.Sprintf("No mail could be retrieved for the given ID: %d; due to " +
+			errors.New(fmt.Sprintf("No mail could be retrieved for the given ID: %d; due to "+
 				"the error:\n%s\n", uid, err.Error()))
 	}
 	if len(mails) == 0 {
@@ -362,7 +367,11 @@ func (mc *MailCon) UpdateMailFlags(folder, uid string, f *Flags, add bool) error
 		return err
 	}
 	// 2) Prepare parameters for update request and perform the request
-	if add { task = "+" } else { task = "-" }
+	if add {
+		task = "+"
+	} else {
+		task = "-"
+	}
 	set, _ := imap.NewSeqSet(uid)
 	_, err := mc.waitFor(mc.client.UIDStore(set, strings.Replace("*FLAGS", "*", task, 1),
 		SerializeFlags(f)))
@@ -409,10 +418,10 @@ func (mc *MailCon) CheckNewMails() ([]uint32, error) {
 	mc.mutex.Lock()
 	defer mc.mutex.Unlock()
 	var (
-		recentMails uint32
-		lastSeqNumber uint32
-		newMailSeqNumbers = make([]uint32, 0)
-		err error = nil
+		recentMails       uint32
+		lastSeqNumber     uint32
+		newMailSeqNumbers       = make([]uint32, 0)
+		err               error = nil
 	)
 	if mc.client.Data != nil && len(mc.client.Data) > 0 {
 		for _, resp := range mc.client.Data {
@@ -427,28 +436,28 @@ func (mc *MailCon) CheckNewMails() ([]uint32, error) {
 					// last sequence number : int |				EXIST
 					// number of new mails  : int |				RECENT
 					switch n := imap.AsNumber(f[0]); strings.ToUpper(imap.AsAtom(f[1])) {
-						case "RECENT":
-							recentMails = n
-						case "EXISTS":
-							lastSeqNumber = n
+					case "RECENT":
+						recentMails = n
+					case "EXISTS":
+						lastSeqNumber = n
 					}
 				} else {
-					err = errors.New(fmt.Sprintf("Got a data update message with less than 2 " +
+					err = errors.New(fmt.Sprintf("Got a data update message with less than 2 "+
 						"fields: %s", resp.Fields))
 					fmt.Printf("[watney]: ERROR: %s\n", err.Error())
 				}
 			} else {
-				err = errors.New(fmt.Sprintf("Unhandled response in message queue, while " +
+				err = errors.New(fmt.Sprintf("Unhandled response in message queue, while "+
 					"checking for new mails: \n\t%s", resp.String()))
 			}
 		}
 	}
-//	fmt.Printf("Received info is: %b, %s\n", recentMsg, newMsgUIDs)
+	//	fmt.Printf("Received info is: %b, %s\n", recentMsg, newMsgUIDs)
 	// Empty the response message queue
 	mc.client.Data = nil
 	// Compute sequence numbers for all new mails
 	var i uint32
-	for i = 0; i<recentMails; i++ {
+	for i = 0; i < recentMails; i++ {
 		newMailSeqNumbers = append(newMailSeqNumbers, lastSeqNumber-i)
 	}
 	return newMailSeqNumbers, err
@@ -466,7 +475,7 @@ func (mc *MailCon) AddMailToFolder(h *Header, f *Flags, content string) (uint32,
 }
 
 func (mc *MailCon) SendMail(a smtp.Auth, from string, to []string, subject string,
-		body string) (err error) {
+	body string) (err error) {
 	mc.mutex.Lock()
 	defer mc.mutex.Unlock()
 	// 1) Create new SMTP message and send it
@@ -482,16 +491,15 @@ func (mc *MailCon) SendMail(a smtp.Auth, from string, to []string, subject strin
 	if nil == err {
 		// Todo: Think about having this in its own go-routine -> how to handle a possible error?
 		_, err = mc.createMailInFolder_internal(&Header{
-			Date: time.Now(),
-			Subject: subject,
-			Sender: from,
+			Date:     time.Now(),
+			Subject:  subject,
+			Sender:   from,
 			Receiver: strings.Join(to, ", "),
-			Folder: "Sent",
-		}, &Flags{Seen:true}, body)
+			Folder:   "Sent",
+		}, &Flags{Seen: true}, body)
 	}
 	return err
 }
-
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 ///										Private Methods											 ///
@@ -501,18 +509,18 @@ func (mc *MailCon) SendMail(a smtp.Auth, from string, to []string, subject strin
  * ATTENTION: DOES NOT LOCK THE IMAP CONNECTION! => Has to be wrapped into a mutex lock method
  */
 func (mc *MailCon) loadMails(set *imap.SeqSet, folder string, withContent bool,
-		curFetchFunc FetchFunc) ([]Mail, error) {
+	curFetchFunc FetchFunc) ([]Mail, error) {
 	// 1) First check if we need to select a specific folder in the mailbox or if it is root
 	if err := mc.selectFolder(folder, true); err != nil {
 		return []Mail{}, err
 	}
 	var (
-		cmd *imap.Command
+		cmd          *imap.Command
 		itemsToFetch []string = []string{"UID", "FLAGS", "INTERNALDATE", "RFC822.SIZE",
 			"RFC822.HEADER"}
-		mails []Mail = []Mail{}
+		mails       []Mail = []Mail{}
 		mailContent Content
-		err error
+		err         error
 	)
 	if withContent {
 		itemsToFetch = append(itemsToFetch, "RFC822.TEXT")
@@ -537,9 +545,9 @@ func (mc *MailCon) loadMails(set *imap.SeqSet, folder string, withContent bool,
 			}
 			// d) Build the mail object
 			mails = append(mails, Mail{
-				UID : resp.MessageInfo().UID,
+				UID:     resp.MessageInfo().UID,
 				Header:  mailHeader,
-				Flags: flags,
+				Flags:   flags,
 				Content: mailContent,
 			})
 		}
@@ -555,19 +563,18 @@ func (mc *MailCon) loadMails(set *imap.SeqSet, folder string, withContent bool,
  * ATTENTION: DOES NOT LOCK THE IMAP CONNECTION! => Has to be wrapped into a mutex lock method
  */
 func (mc *MailCon) createMailInFolder_internal(h *Header, f *Flags,
-		content string) (uid uint32, err error) {
+	content string) (uid uint32, err error) {
 	var (
 		// Create the msg:
 		// Header info + empty line + content + empty line
-		msg string = strings.Join([]string{SerializeHeader(h), "", content, ""}, "\r\n")
-		lit imap.Literal = imap.NewLiteral([]byte(msg))
-		mbox string = fmt.Sprintf("%s%s%s", mc.mailbox, mc.delim, h.Folder)
-		cmd *imap.Command
+		msg  string       = strings.Join([]string{SerializeHeader(h), "", content, ""}, "\r\n")
+		lit  imap.Literal = imap.NewLiteral([]byte(msg))
+		mbox string       = fmt.Sprintf("%s%s%s", mc.mailbox, mc.delim, h.Folder)
+		cmd  *imap.Command
 		resp *imap.Response
 	)
 	// 1) Execute the actual append mail command
-	if cmd, err = mc.client.Append(mbox, imap.AsFlagSet(SerializeFlags(f)), &h.Date, lit);
-		err != nil {
+	if cmd, err = mc.client.Append(mbox, imap.AsFlagSet(SerializeFlags(f)), &h.Date, lit); err != nil {
 		return 0, err
 	}
 	if resp, err = cmd.Result(imap.OK); err != nil {
@@ -616,8 +623,7 @@ func (mc *MailCon) moveMail(uid, folder, toFolder string) (uint32, error) {
 	}
 	// 2) Copy the mail internally to the new folder
 	if _, err := mc.waitFor(mc.client.UIDStore(set, "+FLAGS",
-			SerializeFlags(&Flags{Deleted:true})));
-		err != nil {
+		SerializeFlags(&Flags{Deleted: true}))); err != nil {
 		return 0, fmt.Errorf("[watney] ERROR waiting for result of update flags command\n\t%s\n",
 			err.Error())
 	}
@@ -734,14 +740,14 @@ func (mc *MailCon) keepAlive(every int) {
 	go func() {
 		for {
 			select {
-			case <- ticker.C:
+			case <-ticker.C:
 				// Send Noop to keep connection alive and receive new updates from the server
 				mc.mutex.Lock()
 				if _, err := mc.waitFor(mc.client.Noop()); err != nil {
 					mc.logMC(err.Error(), imap.LogAll)
 				}
 				mc.mutex.Unlock()
-			case <- mc.QuitChan:
+			case <-mc.QuitChan:
 				ticker.Stop()
 				return
 			}
@@ -765,7 +771,7 @@ func (mc *MailCon) sendMailSkipCert(a smtp.Auth, from string, to []string, msg [
 	}
 	if ok, _ := c.Extension("STARTTLS"); ok {
 		config := &tls.Config{
-			ServerName: mc.conf.SMTPAddress,
+			ServerName:         mc.conf.SMTPAddress,
 			InsecureSkipVerify: mc.conf.SkipCertificateVerification,
 		}
 		if err = c.StartTLS(config); err != nil {
