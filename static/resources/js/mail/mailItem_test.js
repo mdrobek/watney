@@ -1,8 +1,8 @@
 /**
  * Created by mdrobek on 16/09/15.
  */
-goog.provide('wat.mail.MailTest');
-goog.setTestOnly('wat.mail.MailTest');
+goog.provide('wat.mail.MailItemTest');
+goog.setTestOnly('wat.mail.MailItemTest');
 
 goog.require('wat');
 goog.require('wat.app');

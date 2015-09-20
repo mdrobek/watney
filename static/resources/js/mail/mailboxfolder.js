@@ -28,6 +28,8 @@ wat.mail.MailboxFolder = function() {};
 wat.mail.MailboxFolder.INBOX = "/";
 wat.mail.MailboxFolder.SENT = "Sent";
 wat.mail.MailboxFolder.TRASH = "Trash";
+// Reminder: This folder only exists on the client-side
+wat.mail.MailboxFolder.SPAM = "Spam";
 
 /**
  * The name of the mailbox folder (one of the static names defined above).
@@ -161,6 +163,17 @@ wat.mail.MailboxFolder.prototype.loadMails = function() {
                 unseenMails = goog.array.filter(mails, function(curMail) {
                     return !curMail.Mail.Flags.Seen;
                 });
+            // In case this is the Inbox, filter all spam mails and add them to the Spam folder
+            if (self.Name === wat.mail.MailboxFolder.INBOX) {
+                var spamMails = goog.array.filter(mails, function(curMail) {
+                    return curMail.Mail.Header.SpamIndicator > 0;
+                });
+                wat.app.mailHandler.addMailsToSpamFolder(spamMails);
+                // remove spam mails from original mail array
+                goog.array.forEach(spamMails, function(curSpam) {
+                    goog.array.remove(mails, curSpam);
+                });
+            }
             self.addMailsToFolder(mails);
             self.renderMailboxContent_();
             wat.app.mailHandler.notifyAboutMails(true, unseenMails.length);
@@ -246,34 +259,6 @@ wat.mail.MailboxFolder.prototype.getOtherItem = function(curMailItem) {
     //     items in the list => return the item that is timely after the given one
     else return self.getNextItem(nextItem, false);
 };
-
-//wat.mail.MailboxFolder.prototype.getOtherItem = function(curMailItem) {
-//    // 1) If it is not part of this mailbox folder, simply return null
-//    if (!this.contains(curMailItem)) return null;
-//
-//    var self = this,
-//        nextItem = null;
-//    // 1) If there's less than or 1 mail in the mailbox, no 'next' item exists
-//    if (self.mails_.getCount() <= 1) return null;
-//    // 2) First try to find item that is timely before the given item
-//    self.mails_.inOrderTraverse(function(curItem) {
-//        if (curItem !== curMailItem) {
-//            nextItem = curItem;
-//            return true;
-//        }
-//    }, curMailItem);
-//    // 2a) If we found the next item, return it
-//    if (null != nextItem) return nextItem;
-//    // 3) If not, traverse in the opposite direction to find the item timely after the given one
-//    self.mails_.reverseOrderTraverse(function(curItem) {
-//        if (curItem !== curMailItem) {
-//            nextItem = curItem;
-//            return true;
-//        }
-//    }, curMailItem);
-//    // 3a) There needs to be a result here, otherwise case 1) or 2) would've been true
-//    return nextItem;
-//};
 
 /**
  * This method selects the next mail item in the overview list that is the sibling of the given
@@ -599,5 +584,69 @@ wat.mail.Trash.prototype.updateCtrlBtns_ = function(forMail) {
 };
 
 wat.mail.Trash.prototype.deleteActiveMail = function() {
+    console.log("TODO: Delete of active mailitem in trash folder hasn't been implemented yet!");
+};
+
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+///                                  Spam Constructor                                            ///
+////////////////////////////////////////////////////////////////////////////////////////////////////
+/**
+ * The Spam folder is a pure client-side mailbox folder that is not mirrored on the server backend.
+ * All mails in this folder are physically located in the INBOX folder, but have been classified as
+ * spam.
+ * @constructor
+ * @abstract
+ */
+wat.mail.Spam = function() {
+    this.mails_ = new goog.structs.AvlTree(wat.mail.MailItem.comparator);
+    this.Name = wat.mail.MailboxFolder.TRASH;
+};
+goog.inherits(wat.mail.Spam, wat.mail.MailboxFolder);
+
+/**
+ * Special treatment
+ * @override
+ */
+wat.mail.Spam.prototype.loadMails = function() { /* Nothing to do here */ };
+/**
+ * Special treatment
+ * @override
+ */
+wat.mail.Spam.prototype.synchFolder = function() { /* Nothing to do here */ };
+
+/**
+ * @override
+ */
+wat.mail.Spam.prototype.activate = function() {
+    var self = this;
+    // 1) Change the control buttons for the specific mail folder
+    self.renderCtrlbar();
+    // 2) Clean mail overview list
+    goog.dom.removeChildren(goog.dom.getElement("mailItems"));
+    // 3) Local client-folder: always just render the content
+    self.renderMailboxContent_();
+};
+/**
+ *
+ */
+wat.mail.Spam.prototype.renderCtrlbar = function() {
+    var d_ctrlBarContainer = goog.dom.getElement("ctrlBarContainer"),
+        d_newCtrlBar = goog.soy.renderAsElement(wat.soy.mail.spamCtrlBar, this);
+    // 2) Remove the current control bar and add the new one
+    goog.dom.removeChildren(d_ctrlBarContainer);
+    goog.dom.appendChild(d_ctrlBarContainer, d_newCtrlBar);
+};
+
+/**
+ * Resets all control button events for the current mail (e.g., reply, forward and delete button).
+ * @param {wat.mail.MailItem} forMail
+ * @public
+ */
+wat.mail.Spam.prototype.updateCtrlBtns_ = function(forMail) {
+    console.log("Trash.updateCtrlBtns_ NOT YET IMPLEMENTED");
+};
+
+wat.mail.Spam.prototype.deleteActiveMail = function() {
     console.log("TODO: Delete of active mailitem in trash folder hasn't been implemented yet!");
 };

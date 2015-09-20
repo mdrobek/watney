@@ -123,6 +123,9 @@ wat.app.addNavigationEvents_ = function() {
                 domName: "Sent_Btn",
                 mailboxFolder: wat.mail.MailboxFolder.SENT
             }, {
+                domName: "Spam_Btn",
+                mailboxFolder: wat.mail.MailboxFolder.SPAM
+            }, {
                 domName: "Trash_Btn",
                 mailboxFolder: wat.mail.MailboxFolder.TRASH
             }];

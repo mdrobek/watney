@@ -54,6 +54,9 @@ wat.mail.MailHeader.prototype.Folder = null;
 wat.mail.MailHeader.prototype.Receiver = null;
 wat.mail.MailHeader.prototype.Sender = null;
 wat.mail.MailHeader.prototype.Size = null;
+// Whether the mail has been classified as spam and if so, with what degree
+// -1 - not been analysed | 0 - no spam | >0 - classified as spam (number tells the tool used)
+wat.mail.MailHeader.prototype.SpamIndicator = -1;
 wat.mail.MailHeader.prototype.Subject = null;
 // The MIME information of this Mails header
 wat.mail.MailHeader.prototype.MimeHeader = {
@@ -145,6 +148,7 @@ wat.mail.ReceivedMail = function(jsonData) {
     this.Header.Date = jsonData.Header.Date;
     this.Header.Folder = jsonData.Header.Folder;
     this.Header.Size = jsonData.Header.Size;
+    this.Header.SpamIndicator = jsonData.Header.SpamIndicator;
     this.Header.MimeHeader = jsonData.Header.MimeHeader;
     this.Flags = new wat.mail.MailFlags(jsonData.Flags.Seen, jsonData.Flags.Deleted,
         jsonData.Flags.Answered, jsonData.Flags.Flagged, jsonData.Flags.Draft,

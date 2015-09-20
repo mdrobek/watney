@@ -41,6 +41,7 @@ wat.mail.MailHandler = function() {
     this.mailboxFolders_.set(wat.mail.MailboxFolder.INBOX, new wat.mail.Inbox());
     this.mailboxFolders_.set(wat.mail.MailboxFolder.SENT, new wat.mail.Sent());
     this.mailboxFolders_.set(wat.mail.MailboxFolder.TRASH, new wat.mail.Trash());
+    this.mailboxFolders_.set(wat.mail.MailboxFolder.SPAM, new wat.mail.Spam());
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -70,21 +71,24 @@ wat.mail.MailHandler.prototype.unreadMails_ = 0;
 ///                                    Public methods                                            ///
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 /**
- * @param {string} toMailbox The name of the mailbox folder that is being activated.
+ * Switches to the given folder name in the main mailbox.
+ * @param {string} mailboxFolder The name of the mailbox folder that is being activated.
+ * @throws In case an invalid mailbox string has been passed, a string with an error message.
  * @public
  */
-wat.mail.MailHandler.prototype.switchMailboxFolder = function(toMailbox) {
-    if (this.SelectedMailbox === toMailbox) return;
+wat.mail.MailHandler.prototype.switchMailboxFolder = function(mailboxFolder) {
+    if (this.SelectedMailbox === mailboxFolder) return;
     var self = this;
-    self.SelectedMailbox = toMailbox;
-    if (!self.mailboxFolders_.containsKey(toMailbox)) {
-        // TODO: Error here for a mailbox that is unknown
-        console.log("MailHandler.switchMailboxFolder : NOT YET IMPLEMENTED");
+    if (!self.mailboxFolders_.containsKey(mailboxFolder)) {
+        throw "Invalid mailbox exception";
     } else {
-        // 1) Deactivate current mailbox
-        self.mailboxFolders_.get(self.SelectedMailbox).deactivate();
+        // 1) Deactivate current mailbox (if one is activated)
+        if ("" !== self.SelectedMailbox) {
+            self.mailboxFolders_.get(self.SelectedMailbox).deactivate();
+        }
         // 2) Activate new mailbox
-        self.mailboxFolders_.get(toMailbox).activate();
+        self.mailboxFolders_.get(mailboxFolder).activate();
+        self.SelectedMailbox = mailboxFolder;
     }
 };
 
@@ -98,13 +102,6 @@ wat.mail.MailHandler.prototype.registerUpdateEvents = function(opt_enable) {
     var self = this,
         inbox = self.mailboxFolders_.get(wat.mail.MailboxFolder.INBOX);
     if (!goog.isDefAndNotNull(opt_enable) || opt_enable) {
-        //self.pollTimer_ = new goog.Timer(wat.mail.MailHandler.UPDATE_TIME);
-        //self.pollTimer_.start();
-        //goog.events.listenOnce(self.pollTimer_, goog.Timer.TICK, function() {
-        //    console.log("### Starting poll for new mails");
-        //    self.pollTimer_.stop();
-        //    inbox.checkForNewMails(self.registerUpdateEvents);
-        //});
         goog.Timer.callOnce(function() {
             //console.log("### Starting poll for new mails");
             inbox.synchFolder(self.registerUpdateEvents);
@@ -187,6 +184,12 @@ wat.mail.MailHandler.prototype.notifyAboutMails = function(quantity, opt_enable)
     }
     // 1) update window title
     self.updateTitle();
+};
+
+wat.mail.MailHandler.prototype.addMailsToSpamFolder = function(mails) {
+    var self = this,
+        spamMailbox = self.mailboxFolders_.get(wat.mail.MailboxFolder.SPAM);
+    spamMailbox.addMailsToFolder(mails);
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
