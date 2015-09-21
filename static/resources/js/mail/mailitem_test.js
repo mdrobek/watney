@@ -32,6 +32,7 @@ var inboxMail_json = {
         },
         Sender: "foo@bar.de",
         Receiver: "mark@watney.de",
+        SpamIndicator: 6,
         Subject: "TestMail"
     },
     Flags: {

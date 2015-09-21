@@ -14,7 +14,6 @@ goog.require('goog.Uri.QueryData');
 goog.require('goog.json');
 goog.require('goog.structs.AvlTree');
 
-
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 ///                                     Constructor                                              ///
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -36,6 +35,16 @@ wat.mail.MailboxFolder.SPAM = "Spam";
  * @type {string}
  */
 wat.mail.MailboxFolder.prototype.Name = "";
+/**
+ * The name of the mailbox folder as displayed in the UI.
+ * @type {string}
+ */
+wat.mail.MailboxFolder.prototype.DisplayName = "";
+/**
+ * The dom ID used to identify this mailbox in the navigation menu.
+ * @type {string}
+ */
+wat.mail.MailboxFolder.prototype.NavDomID = "";
 /**
  * ATTENTION: Has to be assigned in each implementation constructor (Inbox, Sent, Trash)
  * @type {goog.structs.AvlTree}
@@ -79,6 +88,29 @@ wat.mail.MailboxFolder.prototype.synchFolder = goog.abstractMethod;
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 ///                                  Public methods                                              ///
 ////////////////////////////////////////////////////////////////////////////////////////////////////
+/**
+ * This method renders the navigation button in the left navigation menu.
+ * @param {boolean} [opt_isActive] True - The rendered navigation button will be set active.
+ *                                 False - Otherwise.
+ * @public
+ */
+wat.mail.MailboxFolder.prototype.renderNavigation = function(opt_isActive) {
+    var self = this,
+        d_navBarContainer = goog.dom.getElement("navBarContainer"),
+        d_newNavButton = goog.soy.renderAsElement(wat.soy.mail.mailNavEntry, {
+            DomID: self.NavDomID,
+            ButtonName: self.DisplayName,
+            IsActive: opt_isActive
+        });
+    // 1) Add the click event to the menu button
+    goog.events.listen(d_newNavButton, goog.events.EventType.CLICK, function() {
+        // 1a) Switch to the new mailbox
+        wat.app.mailHandler.switchMailboxFolder(self.Name);
+    });
+    // 2) Append the menu entry to the navigation bar
+    goog.dom.appendChild(d_navBarContainer, d_newNavButton);
+};
+
 /**
  * @param {wat.mail.MailItem} mailItem
  */
@@ -301,23 +333,29 @@ wat.mail.MailboxFolder.prototype.getNextItem = function(curMailItem, opt_before)
 };
 
 wat.mail.MailboxFolder.prototype.activate = function() {
-    var self = this;
-    // 1) Change the control buttons for the specific mail folder
+    var self = this,
+        d_navBtn = goog.dom.getElement(self.NavDomID);
+    // 1) Add highlight for new button
+    goog.dom.classes.add(d_navBtn, "active");
+    // 2) Change the control buttons for the specific mail folder
     self.renderCtrlbar();
-    // 2) Clean mail overview list
+    // 3) Clean mail overview list
     goog.dom.removeChildren(goog.dom.getElement("mailItems"));
-    // 3) Check, whether we need to retrieve the Mails for the given mailbox ...
+    // 4) Check, whether we need to retrieve the Mails for the given mailbox ...
     if (!self.retrieved_) {
-        // 3a) ... and if so, do it
+        // 4a) ... and if so, do it
         self.loadMails();
     } else {
-        // 3b) ... otherwise just render the mails
+        // 4b) ... otherwise just render the mails
         self.renderMailboxContent_();
     }
 };
 
 wat.mail.MailboxFolder.prototype.deactivate = function() {
-   // TODO
+    var d_curNavBtn = goog.dom.getElement(this.NavDomID);
+    if (goog.dom.classes.has(d_curNavBtn, "active")) {
+        goog.dom.classes.remove(d_curNavBtn, "active");
+    }
 };
 
 /**
@@ -353,13 +391,12 @@ wat.mail.MailboxFolder.prototype.showMail = function(activatedMail) {
     self.lastActiveMailItem_ = activatedMail;
 };
 
-
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 ///                                 Private methods                                              ///
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 /**
  *
- * @private
+ * @protected
  */
 wat.mail.MailboxFolder.prototype.renderMailboxContent_ = function() {
     var self = this;
@@ -412,6 +449,8 @@ wat.mail.MailboxFolder.prototype.fillMailPage_ = function(withMailItem) {
 wat.mail.Inbox = function() {
     this.mails_ = new goog.structs.AvlTree(wat.mail.MailItem.comparator);
     this.Name = wat.mail.MailboxFolder.INBOX;
+    this.DisplayName = "Inbox";
+    this.NavDomID = "Inbox_Btn";
 };
 goog.inherits(wat.mail.Inbox, wat.mail.MailboxFolder);
 
@@ -516,6 +555,8 @@ wat.mail.Inbox.prototype.updateCtrlBtns_ = function(forMail) {
 wat.mail.Sent = function() {
     this.mails_ = new goog.structs.AvlTree(wat.mail.MailItem.comparator);
     this.Name = wat.mail.MailboxFolder.SENT;
+    this.DisplayName = this.Name;
+    this.NavDomID = "Sent_Btn";
 };
 goog.inherits(wat.mail.Sent, wat.mail.MailboxFolder);
 
@@ -551,6 +592,8 @@ wat.mail.Sent.prototype.updateCtrlBtns_ = function(forMail) {
 wat.mail.Trash = function() {
     this.mails_ = new goog.structs.AvlTree(wat.mail.MailItem.comparator);
     this.Name = wat.mail.MailboxFolder.TRASH;
+    this.DisplayName = this.Name;
+    this.NavDomID = "Trash_Btn";
 };
 goog.inherits(wat.mail.Trash, wat.mail.MailboxFolder);
 
@@ -600,7 +643,9 @@ wat.mail.Trash.prototype.deleteActiveMail = function() {
  */
 wat.mail.Spam = function() {
     this.mails_ = new goog.structs.AvlTree(wat.mail.MailItem.comparator);
-    this.Name = wat.mail.MailboxFolder.TRASH;
+    this.Name = wat.mail.MailboxFolder.SPAM;
+    this.DisplayName = this.Name;
+    this.NavDomID = "Spam_Btn";
 };
 goog.inherits(wat.mail.Spam, wat.mail.MailboxFolder);
 
@@ -619,12 +664,15 @@ wat.mail.Spam.prototype.synchFolder = function() { /* Nothing to do here */ };
  * @override
  */
 wat.mail.Spam.prototype.activate = function() {
-    var self = this;
-    // 1) Change the control buttons for the specific mail folder
+    var self = this,
+        d_navBtn = goog.dom.getElement(self.NavDomID);
+    // 1) Add highlight for new button
+    goog.dom.classes.add(d_navBtn, "active");
+    // 2) Change the control buttons for the specific mail folder
     self.renderCtrlbar();
-    // 2) Clean mail overview list
+    // 3) Clean mail overview list
     goog.dom.removeChildren(goog.dom.getElement("mailItems"));
-    // 3) Local client-folder: always just render the content
+    // 4) Local client-folder: always just render the content
     self.renderMailboxContent_();
 };
 /**

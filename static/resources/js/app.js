@@ -39,16 +39,16 @@ wat.app.LOAD_USER_URI_ = "/userInfo";
 wat.app.start = function() {
     // 1) Load user details
     wat.app.loadUser_();
-    // 2) Add all events to the mailbox buttons on the left nav bar
-    wat.app.addNavigationEvents_();
-    // 3) Create a keyboard shortcut handler and register the shortcuts for the mail page
+    // 2) Create a keyboard shortcut handler and register the shortcuts for the mail page
     wat.app.keyboardShortcutHandler = new goog.ui.KeyboardShortcutHandler(document);
     goog.events.listen(wat.app.keyboardShortcutHandler,
         goog.ui.KeyboardShortcutHandler.EventType.SHORTCUT_TRIGGERED,
         wat.app.keyboardShortcutCb_);
     wat.app.enableMailKeyboardShortcuts(true);
-    // 4) Start loading mails
+    // 3) Start loading mails
     wat.app.mailHandler = new wat.mail.MailHandler();
+    // 3a) Add all events to the mailbox buttons on the left nav bar
+    wat.app.mailHandler.addNavigationButtons();
     wat.app.mailHandler.switchMailboxFolder(wat.mail.MailboxFolder.INBOX);
     wat.app.mailHandler.registerUpdateEvents();
 };
@@ -113,39 +113,6 @@ wat.app.keyboardShortcutCb_ = function(ev) {
         default:
             console.log("No callback has been registered for keyboard shortcut: " + ev.identifier);
     }
-};
-
-wat.app.addNavigationEvents_ = function() {
-    var btns = [{
-                domName: "Inbox_Btn",
-                mailboxFolder: wat.mail.MailboxFolder.INBOX
-            }, {
-                domName: "Sent_Btn",
-                mailboxFolder: wat.mail.MailboxFolder.SENT
-            }, {
-                domName: "Spam_Btn",
-                mailboxFolder: wat.mail.MailboxFolder.SPAM
-            }, {
-                domName: "Trash_Btn",
-                mailboxFolder: wat.mail.MailboxFolder.TRASH
-            }];
-    goog.array.forEach(btns, function(curBtn) {
-        var d_newClickedBtn = goog.dom.getElement(curBtn.domName);
-        goog.events.listen(d_newClickedBtn, goog.events.EventType.CLICK, function() {
-            if (wat.app.mailHandler.SelectedMailbox === curBtn.mailboxFolder) return;
-            // 1) Remove highlight of other buttons
-            goog.array.forEach(btns, function(curBtn) {
-                var d_curBtn = goog.dom.getElement(curBtn.domName);
-                if (goog.dom.classes.has(d_curBtn, "active")) {
-                    goog.dom.classes.remove(d_curBtn, "active");
-                }
-            });
-            // 2) Add highlight for new button
-            goog.dom.classes.add(d_newClickedBtn, "active");
-            // 3) Switch to the new mailbox
-            wat.app.mailHandler.switchMailboxFolder(curBtn.mailboxFolder);
-        });
-    });
 };
 
 /**

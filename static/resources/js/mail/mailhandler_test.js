@@ -29,9 +29,10 @@ function nextXhr() {
 
 function setUp() {
     wat.xhr = goog.testing.net.XhrIo;
-    mhMock = new goog.testing.LooseMock(wat.mail.MailHandler);
+    //mhMock = new goog.testing.LooseMock(wat.mail.MailHandler);
     handler = new wat.mail.MailHandler();
     wat.app.mailHandler = handler;
+    handler.addNavigationButtons();
 }
 
 function tearDown() {
@@ -39,6 +40,7 @@ function tearDown() {
     goog.testing.net.XhrIo.cleanup();
     goog.dom.removeChildren(goog.dom.getElement("mailItems"));
     goog.dom.removeChildren(goog.dom.getElement("ctrlBarContainer"));
+    goog.dom.removeChildren(goog.dom.getElement("navBarContainer"));
 }
 
 function testSwitchMailboxFolder() {

@@ -91,6 +91,15 @@ body {
     color: #eeeeee;
     background-color: #317461;
 }
+.nav-sidebar > li > .newMail {
+    display: none;
+}
+.nav-sidebar > li > .mailUpdate > .newMail {
+    display: inline;
+    font-weight: bold;
+    color: black;
+    font-size: 15px;
+}
 .nav-sidebar > .active > a,
 .nav-sidebar > .active > a:focus {
     color: #eeeeee;

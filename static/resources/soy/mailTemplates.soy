@@ -163,3 +163,18 @@
         </button>
     </div>
 {/template}
+
+
+/**
+ * Template to create a navigation button entry on the left menu navigation.
+ *
+ * @param DomID
+ * @param ButtonName
+ * @param IsActive
+ */
+{template .mailNavEntry}
+    <li id="{$DomID}" {if $IsActive}class="active"{/if}>
+        <a href="#">{$ButtonName}{if $IsActive} <span class="sr-only">(current)</span>{/if}</a>
+        <div class="newMail"></div>
+    </li>
+{/template}
