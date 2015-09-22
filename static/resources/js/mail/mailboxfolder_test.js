@@ -8,6 +8,8 @@ goog.require('wat');
 goog.require('wat.app');
 goog.require('wat.mail');
 goog.require('wat.mail.MailHandler');
+goog.require('wat.testing.MailJson');
+goog.require('wat.testing.ContentJson');
 goog.require('goog.dom');
 goog.require('goog.dom.classes');
 goog.require('goog.testing');
@@ -75,4 +77,35 @@ function testDeactivateMailbox() {
     inbox.deactivate();
     assertFalse("Expect CSS class active being removed from inbox after mailbox switch",
         goog.dom.classes.has(goog.dom.getElement(inbox.NavDomID), "active"));
+}
+
+function testLoadMails() {
+    var inbox = new wat.mail.Inbox(),
+        trash = new wat.mail.Trash(),
+        inboxMailJson = goog.object.unsafeClone(wat.testing.MailJson),
+        trashMailJson = goog.object.unsafeClone(wat.testing.MailJson),
+        inboxLoadXhr, trashLoadXhr;
+    // Run the load methods for the Trash and Inbox folder
+    trash.loadMails();
+    trashLoadXhr = nextXhr();
+    inbox.loadMails();
+    inboxLoadXhr = nextXhr();
+    // Set up the expected method calls for the mailhandler object
+    mhMock.notifyAboutMails(true, 1).$times(2);
+    mhMock.$replay();
+    // Simulate that the loadMails() method for the Trash mailbox returns before, the Inbox method
+    trashMailJson.Header.Folder = wat.mail.MailboxFolder.TRASH;
+    trashMailJson.UID = 2;
+    trashLoadXhr.simulateResponse(200, goog.json.serialize([trashMailJson]));
+    assertEquals("Expect changed number of mails in the mailbox whose XHR has returned",
+        1, trash.mails_.getCount());
+    assertEquals("Expect unchanged number of mails in the mailbox whose XHR has not returned",
+        0, inbox.mails_.getCount());
+    inboxMailJson.Header.SpamIndicator = 0;
+    inboxLoadXhr.simulateResponse(200, goog.json.serialize([inboxMailJson]));
+    assertEquals("Expect changed number of mails in the mailbox whose XHR has returned",
+        1, inbox.mails_.getCount());
+    assertEquals("Expect unchanged number of mails in the mailbox whose XHR has not returned",
+        1, trash.mails_.getCount());
+    mhMock.$verify();
 }

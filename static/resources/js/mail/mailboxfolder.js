@@ -46,11 +46,19 @@ wat.mail.MailboxFolder.prototype.DisplayName = "";
  */
 wat.mail.MailboxFolder.prototype.NavDomID = "";
 /**
+ * Stores all the mails that are by default shown in this mailbox.
  * ATTENTION: Has to be assigned in each implementation constructor (Inbox, Sent, Trash)
  * @type {goog.structs.AvlTree}
  * @protected
  */
 wat.mail.MailboxFolder.prototype.mails_ = null;
+/**
+ * Contains all those mails that are by default not shown in the mail list overview.
+ * ATTENTION: Has to be assigned in each implementation constructor (Inbox, Sent, Trash)
+ * @type {goog.structs.AvlTree}
+ * @protected
+ */
+wat.mail.MailboxFolder.prototype.hiddenMails_ = null;
 /**
  * Whether the mails for this folder have already been loaded or not
  * @type {boolean}
@@ -140,11 +148,17 @@ wat.mail.MailboxFolder.prototype.add = function(mail) {
  */
 wat.mail.MailboxFolder.prototype.addMailsToFolder = function(mails) {
     // Special treatment for mails that are flagged as deleted
-    var self = this,
-        consideredMails = goog.array.filter(mails, function(curMail) {
-            return !curMail.Mail.Flags.Deleted;
-        });
-    goog.array.forEach(consideredMails, function(curMail) { self.mails_.add(curMail); });
+    var self = this;
+    goog.array.forEach(mails, function(curMail) {
+        if (curMail.Mail.Flags.Deleted) {
+            self.hiddenMails_.add(curMail);
+        }
+    });
+    goog.array.forEach(mails, function(curMail) {
+        if (!curMail.Mail.Flags.Deleted) {
+            self.mails_.add(curMail);
+        }
+    });
 };
 
 /**
@@ -180,6 +194,9 @@ wat.mail.MailboxFolder.prototype.switchActiveMail = function(opt_before) {
     return self.switchToSibling(self.lastActiveMailItem_, opt_before);
 };
 
+/**
+ *
+ */
 wat.mail.MailboxFolder.prototype.loadMails = function() {
     var self = this,
         data = new goog.Uri.QueryData();
@@ -188,28 +205,19 @@ wat.mail.MailboxFolder.prototype.loadMails = function() {
     wat.xhr.send(wat.mail.LOAD_MAILS_URI, function (event) {
         var request = event.currentTarget;
         if (request.isSuccess()) {
+            self.retrieved_ = true;
             var mailsJSON = request.getResponseJson(),
                 mails = goog.array.map(mailsJSON, function(curMailJSON) {
                     return new wat.mail.MailItem(curMailJSON, self.Name);
                 }),
-                unseenMails = goog.array.filter(mails, function(curMail) {
-                    return !curMail.Mail.Flags.Seen;
-                });
-            // In case this is the Inbox, filter all spam mails and add them to the Spam folder
-            if (self.Name === wat.mail.MailboxFolder.INBOX) {
-                var spamMails = goog.array.filter(mails, function(curMail) {
-                    return curMail.Mail.Header.SpamIndicator > 0;
-                });
-                wat.app.mailHandler.addMailsToSpamFolder(spamMails);
-                // remove spam mails from original mail array
-                goog.array.forEach(spamMails, function(curSpam) {
-                    goog.array.remove(mails, curSpam);
-                });
-            }
+                unseenMails;
+            mails = self.postProcessMails_(mails);
             self.addMailsToFolder(mails);
             self.renderMailboxContent_();
+            unseenMails = goog.array.filter(mails, function(curMail) {
+                return !curMail.Mail.Flags.Seen;
+            });
             wat.app.mailHandler.notifyAboutMails(true, unseenMails.length);
-            self.retrieved_ = true;
         } else {
             //error
             console.log("something went wrong: " + this.getLastError());
@@ -392,7 +400,7 @@ wat.mail.MailboxFolder.prototype.showMail = function(activatedMail) {
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
-///                                 Private methods                                              ///
+///                               Protected methods                                              ///
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 /**
  *
@@ -418,7 +426,7 @@ wat.mail.MailboxFolder.prototype.renderMailboxContent_ = function() {
 /**
  *
  * @param {wat.mail.MailItem} withMailItem
- * @private
+ * @protected
  */
 wat.mail.MailboxFolder.prototype.fillMailPage_ = function(withMailItem) {
     var mail = withMailItem.Mail,
@@ -438,6 +446,18 @@ wat.mail.MailboxFolder.prototype.fillMailPage_ = function(withMailItem) {
     goog.dom.appendChild(d_mailDetailsContent, goog.dom.htmlToDocumentFragment(plainContent));
 };
 
+/**
+ * This method runs through the given retrieved mails from the backend and filters dependent on the
+ * specific mailbox implementation those mails, that are part of this mailbox, but have to be
+ * excluded for particular reasons.
+ * @param {[wat.mail.ReceivedMail]} retrievedMails All mails that have been loaded from the
+ * backend.
+ * @protected
+ * @return [wat.mail.ReceivedMail] An array of filtered mails.
+ */
+wat.mail.MailboxFolder.prototype.postProcessMails_ = function(retrievedMails) {
+    return retrievedMails;
+};
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 ///                                  INBOX Constructor                                           ///
@@ -448,6 +468,7 @@ wat.mail.MailboxFolder.prototype.fillMailPage_ = function(withMailItem) {
  */
 wat.mail.Inbox = function() {
     this.mails_ = new goog.structs.AvlTree(wat.mail.MailItem.comparator);
+    this.hiddenMails_ = new goog.structs.AvlTree(wat.mail.MailItem.comparator);
     this.Name = wat.mail.MailboxFolder.INBOX;
     this.DisplayName = "Inbox";
     this.NavDomID = "Inbox_Btn";
@@ -467,6 +488,8 @@ wat.mail.Inbox.prototype.synchFolder = function(reregisterCb) {
             mails;
         if (req.isSuccess()) {
             mailsJSON = req.getResponseJson();
+            // TODO: Go on here with sorting new mails into spam mails
+            //       => add spam mails to spam folder instead
             mails = goog.array.map(mailsJSON, function(curMailJSON) {
                 var newMail = new wat.mail.MailItem(curMailJSON, self.Name);
                 newMail.renderMail(function(mail) {
@@ -477,7 +500,6 @@ wat.mail.Inbox.prototype.synchFolder = function(reregisterCb) {
                 }, true);
                 return newMail;
             });
-            //console.log("### Finished poll for new mails: " + mails);
             if (goog.isDefAndNotNull(mails) && mails.length > 0) {
                 self.addMailsToFolder(mails);
                 wat.app.mailHandler.notifyAboutMails(true, mails.length);
@@ -505,6 +527,23 @@ wat.mail.Inbox.prototype.synchFolder = function(reregisterCb) {
 
 };
 
+/**
+ * @override
+ */
+wat.mail.Inbox.prototype.postProcessMails_ = function(retrievedMails) {
+    // In case this is the Inbox, filter all spam mails and add them to the Spam folder
+    var spamMails = goog.array.filter(retrievedMails, function(curMail) {
+        return curMail.Mail.Header.SpamIndicator > 0;
+    });
+    if (spamMails.length > 0) {
+        wat.app.mailHandler.addMailsToSpamFolder(spamMails);
+    }
+    // remove spam mails from original mail array
+    goog.array.forEach(spamMails, function(curSpam) {
+        goog.array.remove(retrievedMails, curSpam);
+    });
+    return retrievedMails;
+};
 ////////////////////////////////////        ABSTRACT METHODS
 
 /**
@@ -554,6 +593,7 @@ wat.mail.Inbox.prototype.updateCtrlBtns_ = function(forMail) {
  */
 wat.mail.Sent = function() {
     this.mails_ = new goog.structs.AvlTree(wat.mail.MailItem.comparator);
+    this.hiddenMails_ = new goog.structs.AvlTree(wat.mail.MailItem.comparator);
     this.Name = wat.mail.MailboxFolder.SENT;
     this.DisplayName = this.Name;
     this.NavDomID = "Sent_Btn";
@@ -591,6 +631,7 @@ wat.mail.Sent.prototype.updateCtrlBtns_ = function(forMail) {
  */
 wat.mail.Trash = function() {
     this.mails_ = new goog.structs.AvlTree(wat.mail.MailItem.comparator);
+    this.hiddenMails_ = new goog.structs.AvlTree(wat.mail.MailItem.comparator);
     this.Name = wat.mail.MailboxFolder.TRASH;
     this.DisplayName = this.Name;
     this.NavDomID = "Trash_Btn";
@@ -643,6 +684,7 @@ wat.mail.Trash.prototype.deleteActiveMail = function() {
  */
 wat.mail.Spam = function() {
     this.mails_ = new goog.structs.AvlTree(wat.mail.MailItem.comparator);
+    this.hiddenMails_ = new goog.structs.AvlTree(wat.mail.MailItem.comparator);
     this.Name = wat.mail.MailboxFolder.SPAM;
     this.DisplayName = this.Name;
     this.NavDomID = "Spam_Btn";
