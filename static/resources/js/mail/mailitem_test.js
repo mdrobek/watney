@@ -108,7 +108,7 @@ function testSetSeen() {
     var testInboxItem = new wat.mail.MailItem(inboxMailJson, "/"),
         updateFlagXhr;
     testInboxItem.renderMail();
-    mhMock.notifyAboutMails(false, 1);
+    mhMock.notifyAboutMails(1, true);
     mhMock.$replay();
     testInboxItem.setSeen(true);
     mhMock.$verify();

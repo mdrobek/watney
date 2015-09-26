@@ -188,15 +188,15 @@ wat.mail.MailHandler.prototype.switchToSibling = function(opt_before) {
 /**
  * This method performs all tasks necessary to notify the user about the arrival of new mails.
  * @param {int} quantity How many mails are either unread/recent or seen
- * @param {boolean} [opt_enable] True - Unread/New mails are available/have arrived
- *                               False - Mails have been read (are not unseen/recent anymore)
+ * @param {boolean} [opt_seen] True - Mails have been read (are not unseen/recent anymore)
+ *                             False|Omitted - Unread/New mails are available/have arrived
  */
-wat.mail.MailHandler.prototype.notifyAboutMails = function(quantity, opt_enable) {
+wat.mail.MailHandler.prototype.notifyAboutMails = function(quantity, opt_seen) {
     var self = this;
-    if (goog.isDefAndNotNull(opt_enable) && opt_enable) {
-        self.unreadMails_ += quantity;
-    } else {
+    if (goog.isDefAndNotNull(opt_seen) && opt_seen) {
         self.unreadMails_ -= quantity;
+    } else {
+        self.unreadMails_ += quantity;
     }
     // 1) update window title
     self.updateTitle();

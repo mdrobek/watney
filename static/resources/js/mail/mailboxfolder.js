@@ -217,7 +217,7 @@ wat.mail.MailboxFolder.prototype.loadMails = function() {
             unseenMails = goog.array.filter(mails, function(curMail) {
                 return !curMail.Mail.Flags.Seen;
             });
-            wat.app.mailHandler.notifyAboutMails(true, unseenMails.length);
+            wat.app.mailHandler.notifyAboutMails(unseenMails.length);
         } else {
             //error
             console.log("something went wrong: " + this.getLastError());
@@ -502,7 +502,7 @@ wat.mail.Inbox.prototype.synchFolder = function(reregisterCb) {
             });
             if (goog.isDefAndNotNull(mails) && mails.length > 0) {
                 self.addMailsToFolder(mails);
-                wat.app.mailHandler.notifyAboutMails(true, mails.length);
+                wat.app.mailHandler.notifyAboutMails(mails.length);
             }
             if (goog.isDefAndNotNull(reregisterCb)) reregisterCb.call(wat.app.mailHandler);
         } else {
@@ -533,11 +533,15 @@ wat.mail.Inbox.prototype.synchFolder = function(reregisterCb) {
 wat.mail.Inbox.prototype.postProcessMails_ = function(retrievedMails) {
     // In case this is the Inbox, filter all spam mails and add them to the Spam folder
     var spamMails = goog.array.filter(retrievedMails, function(curMail) {
-        return curMail.Mail.Header.SpamIndicator > 0;
-    });
+            return curMail.Mail.Header.SpamIndicator > 0;
+        }),
+        unreadSpamMails = goog.array.filter(spamMails, function(curSpamMail) {
+            return !curSpamMail.Mail.Flags.Seen;
+        });
     if (spamMails.length > 0) {
         wat.app.mailHandler.addMailsToSpamFolder(spamMails);
     }
+    wat.app.mailHandler.notifyAboutMails(unreadSpamMails.length);
     // remove spam mails from original mail array
     goog.array.forEach(spamMails, function(curSpam) {
         goog.array.remove(retrievedMails, curSpam);

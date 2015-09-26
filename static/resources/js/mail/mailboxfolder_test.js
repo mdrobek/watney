@@ -91,7 +91,7 @@ function testLoadMails() {
     inbox.loadMails();
     inboxLoadXhr = nextXhr();
     // Set up the expected method calls for the mailhandler object
-    mhMock.notifyAboutMails(true, 1).$times(2);
+    mhMock.notifyAboutMails(1).$times(2);
     mhMock.$replay();
     // Simulate that the loadMails() method for the Trash mailbox returns before, the Inbox method
     trashMailJson.Header.Folder = wat.mail.MailboxFolder.TRASH;

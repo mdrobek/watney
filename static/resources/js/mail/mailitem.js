@@ -190,7 +190,7 @@ wat.mail.MailItem.prototype.setSeen = function(newSeenState) {
         }
     }
     // 3) Notify the user that this mail's seen status has changed
-    wat.app.mailHandler.notifyAboutMails(!newSeenState, 1);
+    wat.app.mailHandler.notifyAboutMails(1, newSeenState);
     // 4) Now send information to server
     self.updateFlagsRequest_(self.Folder, self.Mail.UID, wat.mail.SEEN_FLAG, newSeenState,
         function(request) {
