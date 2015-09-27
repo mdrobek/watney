@@ -8,6 +8,7 @@ goog.require('wat');
 goog.require('wat.app');
 goog.require('wat.mail.MailHandler');
 goog.require('wat.mail.MailItem');
+goog.require('wat.testing');
 goog.require('wat.testing.MailJson');
 goog.require('wat.testing.ContentJson');
 goog.require('goog.object');
@@ -43,7 +44,7 @@ function nextXhr() {
 
 function setUp() {
     wat.xhr = goog.testing.net.XhrIo;
-    inboxMailJson = goog.object.unsafeClone(wat.testing.MailJson);
+    inboxMailJson = wat.testing.createInboxMail();
     contentJson = goog.object.unsafeClone(wat.testing.ContentJson);
     mhMock = new goog.testing.LooseMock(wat.mail.MailHandler);
     wat.app.mailHandler = mhMock;
@@ -105,10 +106,12 @@ function testHighlightItem() {
 }
 
 function testSetSeen() {
-    var testInboxItem = new wat.mail.MailItem(inboxMailJson, "/"),
+    var testInboxItem = new wat.mail.MailItem(inboxMailJson, inboxMailJson.Header.Folder),
         updateFlagXhr;
     testInboxItem.renderMail();
-    mhMock.notifyAboutMails(1, true);
+    // Expect notify for Spam mail
+    mhMock.notifyAboutMails(1, inboxMailJson.Header.Folder, true);
+    mhMock.updateNavigationBarButton(inboxMailJson.Header.Folder);
     mhMock.$replay();
     testInboxItem.setSeen(true);
     mhMock.$verify();

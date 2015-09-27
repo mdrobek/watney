@@ -39,8 +39,9 @@ wat.mail.MailFlags.prototype.Draft = false;
 // Message is "recently" arrived in this mailbox.
 wat.mail.MailFlags.prototype.Recent = false;
 // Common used flags
-wat.mail.SEEN_FLAG = new wat.mail.MailFlags(true, false, false, false, false, false);
-wat.mail.DELETE_FLAG = new wat.mail.MailFlags(false, true, false, false, false, false);
+wat.mail.MailFlags.SEEN = new wat.mail.MailFlags(true, false, false, false, false, false);
+wat.mail.MailFlags.DELETED = new wat.mail.MailFlags(false, true, false, false, false, false);
+wat.mail.MailFlags.RECENT = new wat.mail.MailFlags(false, false, false, false, false, true);
 
 wat.mail.MailHeader = function(sender, receiver, subject) {
     this.Sender = sender;
@@ -49,7 +50,7 @@ wat.mail.MailHeader = function(sender, receiver, subject) {
 };
 // IsoString of Date
 wat.mail.MailHeader.prototype.Date = null;
-// Folder the mail is located in
+// Folder the mail is located on the IMAP server side
 wat.mail.MailHeader.prototype.Folder = null;
 wat.mail.MailHeader.prototype.Receiver = null;
 wat.mail.MailHeader.prototype.Sender = null;

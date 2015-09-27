@@ -86,19 +86,22 @@ body {
     font-size: 20px;
     color: #eeeeee;
 }
+.nav-sidebar > li .strong {
+    font-weight: bold;
+}
 .nav-sidebar > li > a:hover {
     color: #eeeeee;
     background-color: #317461;
 }
-.nav-sidebar > li > .newMail {
-    display: none;
-}
-.nav-sidebar > li > .mailUpdate > .newMail {
-    display: inline;
-    font-weight: bold;
-    color: black;
-    font-size: 15px;
-}
+/*.nav-sidebar > li > .newMail {*/
+    /*display: none;*/
+/*}*/
+/*.nav-sidebar > li > .mailUpdate > .newMail {*/
+    /*display: inline;*/
+    /*font-weight: bold;*/
+    /*color: black;*/
+    /*font-size: 15px;*/
+/*}*/
 .nav-sidebar > .active > a,
 .nav-sidebar > .active > a:focus {
     color: #eeeeee;
@@ -107,6 +110,10 @@ body {
 .logout-Btn {
     font-family: Battlestar;
     font-size: 20px;
+}
+
+.strong {
+    font-weight: bold;
 }
 
 .navbar-brand {

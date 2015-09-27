@@ -8,8 +8,11 @@ goog.require('wat');
 goog.require('wat.app');
 goog.require('wat.mail');
 goog.require('wat.mail.MailHandler');
+goog.require('wat.testing');
 goog.require('wat.testing.MailJson');
 goog.require('wat.testing.ContentJson');
+goog.require('goog.date.Interval');
+goog.require('goog.date.DateTime');
 goog.require('goog.dom');
 goog.require('goog.dom.classes');
 goog.require('goog.testing');
@@ -25,6 +28,11 @@ goog.require('goog.testing.jsunit');
 var mhMock;
 
 /**
+ * @type {wat.mail.MailboxFolder}
+ */
+var inbox, spam, trash;
+
+/**
  * @return {goog.testing.net.XhrIo}
  */
 function nextXhr() {
@@ -33,6 +41,9 @@ function nextXhr() {
 
 function setUp() {
     wat.xhr = goog.testing.net.XhrIo;
+    inbox = new wat.mail.Inbox();
+    spam = new wat.mail.Spam();
+    trash = new wat.mail.Trash();
     mhMock = new goog.testing.LooseMock(wat.mail.MailHandler);
     wat.app.mailHandler = mhMock;
 }
@@ -46,8 +57,6 @@ function tearDown() {
 }
 
 function testRenderNavigation() {
-    var inbox = new wat.mail.Inbox(),
-        spam =  new wat.mail.Spam();
     // 1) Test correct DOM structure and content to be set
     inbox.renderNavigation(true);
     assertEquals("Rendering 1 mailbox navigation entry creates 1 navigation button",
@@ -72,7 +81,6 @@ function testRenderNavigation() {
 }
 
 function testDeactivateMailbox() {
-    var inbox = new wat.mail.Inbox();
     inbox.renderNavigation(true);
     inbox.deactivate();
     assertFalse("Expect CSS class active being removed from inbox after mailbox switch",
@@ -80,32 +88,84 @@ function testDeactivateMailbox() {
 }
 
 function testLoadMails() {
-    var inbox = new wat.mail.Inbox(),
-        trash = new wat.mail.Trash(),
-        inboxMailJson = goog.object.unsafeClone(wat.testing.MailJson),
-        trashMailJson = goog.object.unsafeClone(wat.testing.MailJson),
+    var inboxMailJson = wat.testing.createInboxMail(wat.mail.MailFlags.RECENT),
+        trashMailJson = wat.testing.createTrashMail(wat.mail.MailFlags.RECENT),
         inboxLoadXhr, trashLoadXhr;
+    goog.array.forEach([inbox, trash], function(curFolder) { curFolder.renderNavigation(); });
     // Run the load methods for the Trash and Inbox folder
     trash.loadMails();
     trashLoadXhr = nextXhr();
     inbox.loadMails();
     inboxLoadXhr = nextXhr();
     // Set up the expected method calls for the mailhandler object
-    mhMock.notifyAboutMails(1).$times(2);
+    mhMock.notifyAboutMails(1, wat.mail.MailboxFolder.TRASH);
+    mhMock.notifyAboutMails(1, wat.mail.MailboxFolder.INBOX);
     mhMock.$replay();
     // Simulate that the loadMails() method for the Trash mailbox returns before, the Inbox method
-    trashMailJson.Header.Folder = wat.mail.MailboxFolder.TRASH;
-    trashMailJson.UID = 2;
     trashLoadXhr.simulateResponse(200, goog.json.serialize([trashMailJson]));
     assertEquals("Expect changed number of mails in the mailbox whose XHR has returned",
         1, trash.mails_.getCount());
     assertEquals("Expect unchanged number of mails in the mailbox whose XHR has not returned",
         0, inbox.mails_.getCount());
-    inboxMailJson.Header.SpamIndicator = 0;
     inboxLoadXhr.simulateResponse(200, goog.json.serialize([inboxMailJson]));
     assertEquals("Expect changed number of mails in the mailbox whose XHR has returned",
         1, inbox.mails_.getCount());
     assertEquals("Expect unchanged number of mails in the mailbox whose XHR has not returned",
         1, trash.mails_.getCount());
     mhMock.$verify();
+}
+
+function testSynchFolder() {
+    var mail2Date = new goog.date.DateTime();
+    mail2Date.add(new goog.date.Interval(goog.date.DateTime.MINUTES, 5));
+    var inboxMail1 = wat.testing.createInboxMail( wat.mail.MailFlags.RECENT),
+        // Make sure, both mails have different dates (see bug watney-26)
+        inboxMail2 = wat.testing.createInboxMail(wat.mail.MailFlags.RECENT, mail2Date),
+        spamMail = wat.testing.createSpamMail(wat.mail.MailFlags.RECENT),
+        spamMailObj = new wat.mail.MailItem(spamMail, wat.mail.MailboxFolder.SPAM),
+        inboxXHR;
+    goog.array.forEach([inbox, spam], function(curFolder) { curFolder.renderNavigation(); });
+    inbox.synchFolder();
+    inboxXHR = nextXhr();
+    // Set up expected method calls for spam mails
+    mhMock.addMailsToSpamFolder([spamMailObj]);
+    mhMock.notifyAboutMails(2, wat.mail.MailboxFolder.INBOX);
+    mhMock.$replay();
+    inboxXHR.simulateResponse(200, goog.json.serialize([inboxMail1, inboxMail2, spamMail]));
+    assertEquals("Expect correct number of inbox mails", 2, inbox.mails_.getCount());
+    mhMock.$verify();
+}
+
+function testUpdateNavigationBar() {
+    var mail2Date = new goog.date.DateTime();
+    mail2Date.add(new goog.date.Interval(goog.date.DateTime.MINUTES, 5));
+    var spamMail1 = new wat.mail.MailItem(wat.testing.createSpamMail(wat.mail.MailFlags.RECENT),
+            wat.mail.MailboxFolder.SPAM),
+        // Make sure, both mails have different dates (see bug watney-26)
+        spamMail2 = new wat.mail.MailItem(
+            wat.testing.createSpamMail(wat.mail.MailFlags.RECENT, mail2Date),
+            wat.mail.MailboxFolder.SPAM),
+        d_navbarButton, d_navbarButtonA;
+    spam.renderNavigation();
+    goog.array.forEach([spamMail1, spamMail2], function(curMail) {
+        curMail.renderMail();
+        spam.mails_.add(curMail);
+    });
+    // Test 1) Check that the folder is highlighted after new mails have arrived
+    spam.updateNavigationBar();
+    d_navbarButton = goog.dom.getElement(spam.NavDomID);
+    d_navbarButtonA = goog.dom.getElementsByTagNameAndClass("a", null, d_navbarButton)[0];
+    assertEquals("Expect navigation bar button text to show arrival of new mails",
+        "Spam (2)", goog.dom.getTextContent(d_navbarButtonA));
+    assertTrue("Expect navigation bar button to be highlighted on new mail arrival",
+        goog.dom.classes.has(d_navbarButton, "strong"));
+    // Test 2) Check that folder is reset after all mails are read
+    goog.array.forEach(spam.mails_.getValues(), function(curSpam) {
+        curSpam.Mail.Flags.Seen = true;
+    });
+    spam.updateNavigationBar();
+    assertEquals("Expect navigation bar button text to only show button name after mails have "
+        + "been read", "Spam", goog.dom.getTextContent(d_navbarButtonA));
+    assertFalse("Expect navigation bar button to be reset after mails have been read",
+        goog.dom.classes.has(d_navbarButton, "strong"));
 }

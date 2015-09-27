@@ -6,6 +6,7 @@ goog.provide('wat.mail.MailItem');
 
 goog.require('wat');
 goog.require('wat.mail');
+goog.require('wat.mail.MailFlags');
 goog.require('wat.mail.ReceivedMail');
 goog.require('wat.soy.mail');
 goog.require('goog.object');
@@ -25,7 +26,8 @@ goog.require('goog.date.Date');
  * A MailItem reflects the UI element of a received mail that is shown in the overview and main
  * mail page.
  * @param {wat.mail.ReceivedMail} jsonData
- * @param {string} folder
+ * @param {string} folder The name of the folder, this mail resides in (one of
+ *                        wat.mail.MailboxFolder.*)
  * @constructor
  */
 wat.mail.MailItem = function(jsonData, folder) {
@@ -51,7 +53,8 @@ wat.mail.MailItem = function(jsonData, folder) {
  */
 wat.mail.MailItem.prototype.Mail = null;
 wat.mail.MailItem.prototype.DomID = "";
-// The folder in which the mail currently resides
+// The folder in which the mail currently resides on the client-side (this folder might not exist
+// on the server-side; see wat.mail.MailHeader.Folder for server-side information)
 wat.mail.MailItem.prototype.Folder = "";
 // The folder, the mail was located before it has been moved
 wat.mail.MailItem.prototype.Previous_Folder = "";
@@ -100,7 +103,7 @@ wat.mail.MailItem.prototype.loadContent = function(successLoadCb) {
     var self = this,
         data = new goog.Uri.QueryData();
     data.add("uid", self.Mail.UID);
-    data.add("folder", self.Folder);
+    data.add("folder", self.Mail.Header.Folder);
     wat.xhr.send(wat.mail.LOAD_MAILCONTENT_URI, function(event) {
         // request complete
         var request = event.currentTarget,
@@ -190,10 +193,12 @@ wat.mail.MailItem.prototype.setSeen = function(newSeenState) {
         }
     }
     // 3) Notify the user that this mail's seen status has changed
-    wat.app.mailHandler.notifyAboutMails(1, newSeenState);
-    // 4) Now send information to server
-    self.updateFlagsRequest_(self.Folder, self.Mail.UID, wat.mail.SEEN_FLAG, newSeenState,
-        function(request) {
+    wat.app.mailHandler.notifyAboutMails(1, self.Folder, newSeenState);
+    // 4) Update the navigation bar button that is associated with the folder, this mail resides in
+    wat.app.mailHandler.updateNavigationBarButton(self.Folder);
+    // 5) Now send information to server
+    self.updateFlagsRequest_(self.Mail.Header.Folder, self.Mail.UID, wat.mail.MailFlags.SEEN,
+        newSeenState, function(request) {
             // TODO: Revert changes in client state of Seen flag
     });
 };

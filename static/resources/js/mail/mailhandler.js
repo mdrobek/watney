@@ -188,30 +188,58 @@ wat.mail.MailHandler.prototype.switchToSibling = function(opt_before) {
 /**
  * This method performs all tasks necessary to notify the user about the arrival of new mails.
  * @param {int} quantity How many mails are either unread/recent or seen
+ * @param {string} folder The mailbox folder for which the mail update occurred (one of
+ *                        wat.mail.MailboxFolder.*)
  * @param {boolean} [opt_seen] True - Mails have been read (are not unseen/recent anymore)
  *                             False|Omitted - Unread/New mails are available/have arrived
  */
-wat.mail.MailHandler.prototype.notifyAboutMails = function(quantity, opt_seen) {
+wat.mail.MailHandler.prototype.notifyAboutMails = function(quantity, folder, opt_seen) {
     var self = this;
     if (goog.isDefAndNotNull(opt_seen) && opt_seen) {
         self.unreadMails_ -= quantity;
     } else {
         self.unreadMails_ += quantity;
     }
-    // 1) update window title
-    self.updateTitle();
+    // 1) Update window title
+    self.updateTitle_();
 };
 
+/**
+ * Updates the navigation bar element associated with the given folder.
+ * @param {string} folder The name of the folder, whose nav bar button should be updated;
+ */
+wat.mail.MailHandler.prototype.updateNavigationBarButton = function(folder) {
+    this.mailboxFolders_.get(folder).updateNavigationBar();
+};
+
+/**
+ *
+ * @param {[wat.mail.MailItem]} mails All mails that are marked as SPAM.
+ */
 wat.mail.MailHandler.prototype.addMailsToSpamFolder = function(mails) {
     var self = this,
-        spamMailbox = self.mailboxFolders_.get(wat.mail.MailboxFolder.SPAM);
+        spamMailbox = self.mailboxFolders_.get(wat.mail.MailboxFolder.SPAM),
+        unreadSpamMails;
+    // 1) Change folder name these mails are residing in
+    goog.array.forEach(mails, function(curSpamMail) {
+        curSpamMail.Folder = wat.mail.MailboxFolder.SPAM;
+    });
+    // 2) Add mails to the Spam mailbox folder
     spamMailbox.addMailsToFolder(mails);
+    unreadSpamMails = spamMailbox.getUnreadMails();
+    if (unreadSpamMails.length > 0 ) {
+        self.notifyAboutMails(unreadSpamMails.length, wat.mail.MailboxFolder.SPAM);
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 ///                                   Private Methods                                            ///
 ////////////////////////////////////////////////////////////////////////////////////////////////////
-wat.mail.MailHandler.prototype.updateTitle = function() {
+/**
+ * Changes the document title to indicate new mails have arrived/mails have been read.
+ * @private
+ */
+wat.mail.MailHandler.prototype.updateTitle_ = function() {
     var self = this;
     if (self.unreadMails_ <= 0){
         document.title = "Watney";
@@ -219,7 +247,6 @@ wat.mail.MailHandler.prototype.updateTitle = function() {
     } else {
         document.title = "Watney (" + self.unreadMails_ + ")";
     }
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////

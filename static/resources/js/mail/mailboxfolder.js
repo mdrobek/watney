@@ -147,17 +147,24 @@ wat.mail.MailboxFolder.prototype.add = function(mail) {
  * @param {wat.mail.MailItem[]} mails
  */
 wat.mail.MailboxFolder.prototype.addMailsToFolder = function(mails) {
-    // Special treatment for mails that are flagged as deleted
     var self = this;
+    // 1) Add normal mails regular AvlTree and mails that are flagged as deleted to hidden AvlTree
     goog.array.forEach(mails, function(curMail) {
+        var curTree = self.mails_;
         if (curMail.Mail.Flags.Deleted) {
-            self.hiddenMails_.add(curMail);
+            curTree = self.hiddenMails_;
         }
+        // TODO: Check for already existing date in the Tree
+        //       See bug: watney-26: MailItems with same Date disappear
+        curTree.add(curMail);
     });
-    goog.array.forEach(mails, function(curMail) {
-        if (!curMail.Mail.Flags.Deleted) {
-            self.mails_.add(curMail);
-        }
+    // 2) Update the navigation bar visualization for this folder
+    self.updateNavigationBar();
+};
+
+wat.mail.MailboxFolder.prototype.getUnreadMails = function() {
+    return goog.array.filter(this.mails_.getValues(), function(curMail) {
+        if (!curMail.Mail.Flags.Seen) return true;
     });
 };
 
@@ -208,7 +215,7 @@ wat.mail.MailboxFolder.prototype.loadMails = function() {
             self.retrieved_ = true;
             var mailsJSON = request.getResponseJson(),
                 mails = goog.array.map(mailsJSON, function(curMailJSON) {
-                    return new wat.mail.MailItem(curMailJSON, self.Name);
+                    return new wat.mail.MailItem(curMailJSON, curMailJSON.Header.Folder);
                 }),
                 unseenMails;
             mails = self.postProcessMails_(mails);
@@ -217,7 +224,9 @@ wat.mail.MailboxFolder.prototype.loadMails = function() {
             unseenMails = goog.array.filter(mails, function(curMail) {
                 return !curMail.Mail.Flags.Seen;
             });
-            wat.app.mailHandler.notifyAboutMails(unseenMails.length);
+            if (unseenMails.length > 0) {
+                wat.app.mailHandler.notifyAboutMails(unseenMails.length, self.Name);
+            }
         } else {
             //error
             console.log("something went wrong: " + this.getLastError());
@@ -399,6 +408,25 @@ wat.mail.MailboxFolder.prototype.showMail = function(activatedMail) {
     self.lastActiveMailItem_ = activatedMail;
 };
 
+/**
+ * Updates the left navigation bar about new arrived mails or mails have been read.
+ * @public
+ */
+wat.mail.MailboxFolder.prototype.updateNavigationBar = function() {
+    var self = this,
+        d_navbarButton = goog.dom.getElement(self.NavDomID),
+        d_navbarButtonA = goog.dom.getElementsByTagNameAndClass("a", null, d_navbarButton)[0],
+        unreadMails = self.getUnreadMails(),
+        label = self.DisplayName;
+    if (unreadMails.length > 0) {
+        label = label + " (" + unreadMails.length + ")";
+        goog.dom.classes.add(d_navbarButton, "strong");
+    } else {
+        goog.dom.classes.remove(d_navbarButton, "strong");
+    }
+    goog.dom.setTextContent(d_navbarButtonA, label);
+};
+
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 ///                               Protected methods                                              ///
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -450,10 +478,10 @@ wat.mail.MailboxFolder.prototype.fillMailPage_ = function(withMailItem) {
  * This method runs through the given retrieved mails from the backend and filters dependent on the
  * specific mailbox implementation those mails, that are part of this mailbox, but have to be
  * excluded for particular reasons.
- * @param {[wat.mail.ReceivedMail]} retrievedMails All mails that have been loaded from the
+ * @param {[wat.mail.MailItem]} retrievedMails All mails that have been loaded from the
  * backend.
  * @protected
- * @return [wat.mail.ReceivedMail] An array of filtered mails.
+ * @return [wat.mail.MailItem] An array of filtered mails.
  */
 wat.mail.MailboxFolder.prototype.postProcessMails_ = function(retrievedMails) {
     return retrievedMails;
@@ -488,10 +516,8 @@ wat.mail.Inbox.prototype.synchFolder = function(reregisterCb) {
             mails;
         if (req.isSuccess()) {
             mailsJSON = req.getResponseJson();
-            // TODO: Go on here with sorting new mails into spam mails
-            //       => add spam mails to spam folder instead
             mails = goog.array.map(mailsJSON, function(curMailJSON) {
-                var newMail = new wat.mail.MailItem(curMailJSON, self.Name);
+                var newMail = new wat.mail.MailItem(curMailJSON, curMailJSON.Header.Folder);
                 newMail.renderMail(function(mail) {
                     // 1) Unhighlight currently active mail
                     self.lastActiveMailItem_.highlightOverviewItem(false);
@@ -500,9 +526,10 @@ wat.mail.Inbox.prototype.synchFolder = function(reregisterCb) {
                 }, true);
                 return newMail;
             });
-            if (goog.isDefAndNotNull(mails) && mails.length > 0) {
+            mails = self.postProcessMails_(mails);
+            if (mails.length > 0) {
                 self.addMailsToFolder(mails);
-                wat.app.mailHandler.notifyAboutMails(mails.length);
+                wat.app.mailHandler.notifyAboutMails(mails.length, self.Name);
             }
             if (goog.isDefAndNotNull(reregisterCb)) reregisterCb.call(wat.app.mailHandler);
         } else {
@@ -534,14 +561,10 @@ wat.mail.Inbox.prototype.postProcessMails_ = function(retrievedMails) {
     // In case this is the Inbox, filter all spam mails and add them to the Spam folder
     var spamMails = goog.array.filter(retrievedMails, function(curMail) {
             return curMail.Mail.Header.SpamIndicator > 0;
-        }),
-        unreadSpamMails = goog.array.filter(spamMails, function(curSpamMail) {
-            return !curSpamMail.Mail.Flags.Seen;
         });
     if (spamMails.length > 0) {
         wat.app.mailHandler.addMailsToSpamFolder(spamMails);
     }
-    wat.app.mailHandler.notifyAboutMails(unreadSpamMails.length);
     // remove spam mails from original mail array
     goog.array.forEach(spamMails, function(curSpam) {
         goog.array.remove(retrievedMails, curSpam);
