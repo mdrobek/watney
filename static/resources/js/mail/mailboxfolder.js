@@ -599,8 +599,8 @@ wat.mail.Inbox.prototype.updateCtrlBtns_ = function(forMail) {
             var mail = forMail.Mail,
                 from = goog.isDefAndNotNull(wat.app.userMail) ? wat.app.userMail
                     : mail.Header.Receiver;
-            wat.app.mailHandler.createReply(from, mail.Header.Sender, mail.Header.Subject,
-                mail.Content);
+            wat.app.mailHandler.createNewMail(from, mail.Header.Sender, mail.Header.Subject,
+                mail.Content, true);
         }, false);
     goog.events.listen(d_deleteBtn, goog.events.EventType.CLICK, function() {
         // 1) CLIENT-SIDE: Switch the mail overview list and details part to the next mail in the list

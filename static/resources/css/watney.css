@@ -34,11 +34,13 @@ body {
 /*
  * Global add-ons
  */
-
 .sub-header {
     padding-bottom: 10px;
     border-bottom: 1px solid #eee;
     color: #b29c51;
+}
+.strong {
+    font-weight: bold;
 }
 
 /*
@@ -47,6 +49,16 @@ body {
  */
 .navbar-fixed-top {
     border: 0;
+}
+.navbar-brand {
+    font-family: Battlestar;
+    font-size: 45px;
+    padding-top: 18px;
+    padding-left: 2px;
+}
+.logout-Btn {
+    font-family: Battlestar;
+    font-size: 20px;
 }
 
 /*
@@ -66,7 +78,6 @@ body {
         left: 0;
         z-index: 1000;
         display: block;
-        padding: 20px;
         overflow-x: hidden;
         overflow-y: auto; /* Scrollable contents if viewport is shorter than content. */
         /*background-color: #f5f5f5;*/
@@ -93,34 +104,14 @@ body {
     color: #eeeeee;
     background-color: #317461;
 }
-/*.nav-sidebar > li > .newMail {*/
-    /*display: none;*/
-/*}*/
-/*.nav-sidebar > li > .mailUpdate > .newMail {*/
-    /*display: inline;*/
-    /*font-weight: bold;*/
-    /*color: black;*/
-    /*font-size: 15px;*/
-/*}*/
 .nav-sidebar > .active > a,
 .nav-sidebar > .active > a:focus {
     color: #eeeeee;
     background-color: #428bca;
 }
-.logout-Btn {
-    font-family: Battlestar;
-    font-size: 20px;
-}
-
-.strong {
-    font-weight: bold;
-}
-
-.navbar-brand {
-    font-family: Battlestar;
-    font-size: 45px;
-    padding-top: 18px;
-    padding-left: 2px;
+.actions-container {
+    margin-bottom: 10px;
+    padding-top: 5px;
 }
 
 /*
@@ -314,6 +305,10 @@ div#mailItems > div.row:nth-of-type(2n) {
     border: 2px solid orange;
     cursor: pointer;
     border-radius: 10px;
+}
+.newmail-content .newmail-from {
+    background-color: #666C6D;
+    width: 100%;
 }
 .newmail-content .newmail-subject {
     background-color: #666C6D;

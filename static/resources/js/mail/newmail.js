@@ -49,8 +49,12 @@ wat.mail.NewMail.prototype.MouseOut_Key = null;
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 ///                                    Public methods                                            ///
 ////////////////////////////////////////////////////////////////////////////////////////////////////
-
-wat.mail.NewMail.prototype.renderNewMail = function() {
+/**
+ *
+ * @param {boolean} asReply True - This 'new Mail' will be rendered as if it was a reply mail.
+ *                          False - It will be rendered as a completely new email.
+ */
+wat.mail.NewMail.prototype.renderNewMail = function(asReply) {
     var self = this,
         d_windowContainerElem = goog.dom.getElement("newMailWindowItems"),
         d_newMailWindowItem = goog.soy.renderAsElement(wat.soy.mail.newMailWindowItem, {
@@ -58,12 +62,12 @@ wat.mail.NewMail.prototype.renderNewMail = function() {
             From: self.Mail.Header.Sender,
             To: self.Mail.Header.Receiver,
             Subject: self.Mail.Header.Subject,
-            OrigMail: self.createOriginalText_()
+            OrigMail: self.createOriginalText_(asReply)
         }),
         d_barContainerElem = goog.dom.getElement("newMailBarItems"),
         d_newMailBarItem = goog.soy.renderAsElement(wat.soy.mail.newMailBarItem, {
             DomID: self.WindowBarItemDomID,
-            ShortenedTo: wat.mail.MailHandler.shrinkField(self.Mail.Header.Receiver, 20, true)
+            ShortenedTo: self.createTaskBarText_(asReply)
         });
     // Listener for Click on item in the lower Bar
     goog.events.listen(d_newMailBarItem, goog.events.EventType.CLICK, self.toggleVisible, true,
@@ -155,9 +159,31 @@ wat.mail.NewMail.prototype.unregisterHoverEvents = function() {
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 ///                                   Private methods                                            ///
 ////////////////////////////////////////////////////////////////////////////////////////////////////
-wat.mail.NewMail.prototype.createOriginalText_ = function() {
-    return "\n\n\n***         Original Text           ***\n"
-        + this.Mail.getContent("text/plain")
+/**
+ *
+ * @param {boolean} asReply True - This 'new Mail' will be rendered as if it was a reply mail.
+ *                          False - It will be rendered as a completely new email.
+ */
+wat.mail.NewMail.prototype.createTaskBarText_ = function(asReply) {
+    if (asReply) {
+        return wat.mail.MailHandler.shrinkField(this.Mail.Header.Receiver, 20, true)
+    } else {
+        return "New Mail";
+    }
+};
+
+/**
+ *
+ * @param {boolean} asReply True - This 'new Mail' will be rendered as if it was a reply mail.
+ *                          False - It will be rendered as a completely new email.
+ */
+wat.mail.NewMail.prototype.createOriginalText_ = function(asReply) {
+    if (asReply) {
+        return "\n\n\n***         Original Text           ***\n"
+            + this.Mail.getContent("text/plain")
+    } else {
+        return "";
+    }
 };
 
 wat.mail.NewMail.prototype.registerCtrlBtnEvents_ = function() {
@@ -167,12 +193,12 @@ wat.mail.NewMail.prototype.registerCtrlBtnEvents_ = function() {
         d_sendBtn = goog.dom.getElement(self.WindowDomID+"_SendBtn");
     // Listener for Click on the minimize icon of the window
     goog.events.listen(d_minimizeBtn, goog.events.EventType.CLICK, function() {
-        self.hideAndHoverEvents();
-    }, true, self);
+            self.hideAndHoverEvents();
+        }, true, self);
     // Listener for Click on the close icon of the window
     goog.events.listen(d_closeBtn, goog.events.EventType.CLICK, function() {
-        self.close_();
-    }, true, self);
+            self.close_();
+        }, true, self);
     // Listener for Click on the send icon
     goog.events.listen(d_sendBtn, goog.events.EventType.CLICK, self.sendMail_, true, self);
 
@@ -188,36 +214,54 @@ wat.mail.NewMail.prototype.sendMail_ = function() {
 
     // 1) Clean the error field from previous tries
     goog.dom.setTextContent(goog.dom.getElement(self.WindowDomID+"_ErrMsg"), "");
-    // 2) Add the COMPLETE send listener
-    goog.events.listen(request, goog.net.EventType.COMPLETE, self.sendMailResponse_, true, self);
-    // 3) Send the request (mail)
+    // 2) Create data object to send (mail)
     data.add("from", self.Mail.Header.Sender);
     data.add("to", d_to.value);
     data.add("subject", d_subject.value);
     data.add("body", d_body.value);
-    wat.xhr.send(wat.mail.NewMail.SEND_MAIL_URI_, null, 'POST', data.toString());
+    // 3) Send and add the COMPLETE listener
+    //wat.xhr.send(wat.mail.NewMail.SEND_MAIL_URI_, self.sendMailResponse_, 'POST', data.toString());
+    wat.xhr.send(wat.mail.NewMail.SEND_MAIL_URI_, function(event) {
+        // request complete
+        var request = event.currentTarget;
+        if (request.isSuccess()) {
+            var responseJSON = request.getResponseJson();
+            // Check if the send mail request was successful ...
+            if (goog.isDefAndNotNull(responseJSON) && goog.isDefAndNotNull(responseJSON.error)) {
+                // ... and if not, print the error msg
+                goog.dom.setTextContent(goog.dom.getElement(self.WindowDomID+"_ErrMsg"),
+                    responseJSON.sendMailError);
+            } else {
+                // ... otherwise, sending went fine => go back to previous state
+                self.close_();
+            }
+        } else {
+            //error
+            console.log("something went wrong: " + event.error);
+        }
+    }, 'POST', data.toString());
 };
 
-wat.mail.NewMail.prototype.sendMailResponse_ = function(event) {
-    // request complete
-    var self = this,
-        request = event.currentTarget;
-    if (request.isSuccess()) {
-        var responseJSON = request.getResponseJson();
-        // Check if the send mail request was successful ...
-        if (goog.isDefAndNotNull(responseJSON) && goog.isDefAndNotNull(responseJSON.error)) {
-            // ... and if not, print the error msg
-            goog.dom.setTextContent(goog.dom.getElement(self.WindowDomID+"_ErrMsg"),
-                responseJSON.sendMailError);
-        } else {
-            // ... otherwise, sending went fine => go back to previous state
-            self.close_();
-        }
-    } else {
-        //error
-        console.log("something went wrong: " + event.error);
-    }
-};
+//wat.mail.NewMail.prototype.sendMailResponse_ = function(event) {
+//    // request complete
+//    var self = this,
+//        request = event.currentTarget;
+//    if (request.isSuccess()) {
+//        var responseJSON = request.getResponseJson();
+//        // Check if the send mail request was successful ...
+//        if (goog.isDefAndNotNull(responseJSON) && goog.isDefAndNotNull(responseJSON.error)) {
+//            // ... and if not, print the error msg
+//            goog.dom.setTextContent(goog.dom.getElement(self.WindowDomID+"_ErrMsg"),
+//                responseJSON.sendMailError);
+//        } else {
+//            // ... otherwise, sending went fine => go back to previous state
+//            self.close_();
+//        }
+//    } else {
+//        //error
+//        console.log("something went wrong: " + event.error);
+//    }
+//};
 
 wat.mail.NewMail.prototype.close_ = function() {
     var self = this;

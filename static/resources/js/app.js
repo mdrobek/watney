@@ -25,7 +25,7 @@ wat.app.keyboardShortcutHandler = null;
 /**
  * @type {string} The email address of the user.
  */
-wat.app.userMail = null;
+wat.app.userMail = "";
 //TODO: outsource
 wat.app.LOAD_USER_URI_ = "/userInfo";
 
@@ -51,6 +51,7 @@ wat.app.start = function() {
     wat.app.mailHandler.addNavigationButtons();
     wat.app.mailHandler.switchMailboxFolder(wat.mail.MailboxFolder.INBOX);
     wat.app.mailHandler.registerUpdateEvents();
+    wat.app.mailHandler.registerActionBarEvents();
 };
 
 /**

@@ -45,10 +45,23 @@ wat.mail.MailHandler = function() {
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
+///                                    Public members                                            ///
+////////////////////////////////////////////////////////////////////////////////////////////////////
+/**
+ * The currently selected mailbox folder as shown in the UI.
+ * @type {string}
+ */
+wat.mail.MailHandler.prototype.SelectedMailbox = "";
+/**
+ * The DOM ID of the "New Email" button in the action button menu (which is located in the left
+ * navigation bar).
+ * @type {string}
+ */
+wat.mail.MailHandler.prototype.NewEmailBtnDomID = "newMailBtn";
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
 ///                                   Private members                                            ///
 ////////////////////////////////////////////////////////////////////////////////////////////////////
-wat.mail.MailHandler.prototype.SelectedMailbox = "";
-
 /**
  * {string} MailboxFolderName -> wat.mail.MailboxFolder
  * @type {goog.structs.Map}
@@ -127,6 +140,22 @@ wat.mail.MailHandler.prototype.registerUpdateEvents = function(opt_enable) {
 };
 
 /**
+ * Registers all event listeners to the action bar menu in the left navigation bar. This currently
+ * includes the following actions:
+ * <ul>
+ *     <li>Click event for the "New Email" button.</li>
+ * </ul>
+ * @param mails
+ */
+wat.mail.MailHandler.prototype.registerActionBarEvents = function() {
+    var self = this,
+        d_newMailBtn = goog.dom.getElement(self.NewEmailBtnDomID);
+    goog.events.listen(d_newMailBtn, goog.events.EventType.CLICK, function() {
+        wat.app.mailHandler.createNewMail(wat.app.userMail, "", "", "", false);
+    }, false);
+};
+
+/**
  * Moves a mail from its current mailbox folder into the given new one and additionally updates
  * the folder information in the given mail item.
  * @param {wat.mail.MailItem} mail
@@ -152,10 +181,11 @@ wat.mail.MailHandler.prototype.moveMail = function(mail, intoFolder) {
  * @param {string} subject
  * @param {goog.structs.Map} Content-Type -> wat.mail.ContentPart
  */
-wat.mail.MailHandler.prototype.createReply = function(from, to, subject, content) {
-    var newMail = new wat.mail.NewMail(from, to, "Re: "+subject, content);
+wat.mail.MailHandler.prototype.createNewMail = function(from, to, subject, content, asReply) {
+    var actSubject = asReply ? "Re: "+subject : subject,
+        newMail = new wat.mail.NewMail(from, to, actSubject, content);
     wat.mail.MailHandler.hideActiveNewMail(wat.mail.LAST_ACTIVE_NEW_MAIL_ITEM);
-    newMail.renderNewMail();
+    newMail.renderNewMail(asReply);
     wat.mail.LAST_ACTIVE_NEW_MAIL_ITEM = newMail;
 };
 
@@ -213,7 +243,8 @@ wat.mail.MailHandler.prototype.updateNavigationBarButton = function(folder) {
 };
 
 /**
- *
+ * Adds the given array of mails to the SPAM folder and updates the mails folder member,
+ * respectively.
  * @param {[wat.mail.MailItem]} mails All mails that are marked as SPAM.
  */
 wat.mail.MailHandler.prototype.addMailsToSpamFolder = function(mails) {
