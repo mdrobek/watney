@@ -1,14 +1,14 @@
 /*
 
-*/
+ */
 package main
 
 import (
+	"flag"
+	"fmt"
 	"mdrobek/watney/conf"
 	"mdrobek/watney/web"
-	"flag"
 	"os"
-	"fmt"
 	"os/signal"
 	"syscall"
 )

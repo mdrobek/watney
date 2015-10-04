@@ -1,29 +1,29 @@
 package auth
 
 import (
-	"github.com/martini-contrib/sessionauth"
-	"fmt"
-	"net/smtp"
-	"mdrobek/watney/mail"
 	"errors"
+	"fmt"
+	"github.com/martini-contrib/sessionauth"
+	"mdrobek/watney/mail"
+	"net/smtp"
 	"time"
 )
 
 // MyUserModel can be any struct that represents a user in my system
 type WatneyUser struct {
-	Id            int64			`form:"id" db:"id"`
+	Id int64 `form:"id" db:"id"`
 	// Currently has to be the email address used for the SMTP server
-	Username      string		`form:"name" db:"username"`
+	Username string `form:"name" db:"username"`
 	// Is always empty, after the authentication step has been finished
-	Password      string		`form:"password" db:"password"`
+	Password string `form:"password" db:"password"`
 	// Authentication object for the SMTP service
-	SMTPAuth      smtp.Auth		`form:"-" db:"-"`
+	SMTPAuth smtp.Auth `form:"-" db:"-"`
 	// Mail server connection
-	ImapCon       *mail.MailCon	`form:"-" db:"-"`
+	ImapCon *mail.MailCon `form:"-" db:"-"`
 	// Whether the user is already authenticated or not
-	authenticated bool   		`form:"-" db:"-"`
+	authenticated bool `form:"-" db:"-"`
 	// The last time this user called a backend method
-	lastSeen time.Time   		`form:"-" db:"-"`
+	lastSeen time.Time `form:"-" db:"-"`
 }
 
 // int64 -> *WatneyUser
@@ -45,7 +45,7 @@ func (u *WatneyUser) Login() {
 // Logout will preform any actions that are required to completely
 // logout a user.
 func (u *WatneyUser) Logout() {
-	if u.ImapCon.IsAuthenticated() {
+	if nil != u.ImapCon && u.ImapCon.IsAuthenticated() {
 		u.ImapCon.Close()
 	}
 	usermap.Remove(u.Id)
@@ -64,7 +64,7 @@ func (u *WatneyUser) UniqueId() interface{} {
 // a matching id.
 func (u *WatneyUser) GetById(id interface{}) error {
 	if wUser, ok := usermap.Get(id.(int64)); !ok {
-		return errors.New(fmt.Sprintf("User for id '%s' not logged in", id));
+		return errors.New(fmt.Sprintf("User for id '%s' not logged in", id))
 	} else {
 		// 1) Reset the last access time of the current user to avoid automatic logout
 		wUser.lastSeen = time.Now()
@@ -83,7 +83,6 @@ func (u *WatneyUser) String() string {
 	return fmt.Sprintf("{%s, %s, %s, %b, %s, %s}", u.Id, u.Username, u.Password,
 		u.authenticated, u.ImapCon, u.lastSeen.String())
 }
-
 
 /**
  * Runs through the map of all currently logged in users and checks, which of those are outdated
