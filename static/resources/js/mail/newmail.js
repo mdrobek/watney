@@ -230,7 +230,7 @@ wat.mail.NewMail.prototype.sendMail_ = function() {
             if (goog.isDefAndNotNull(responseJSON) && goog.isDefAndNotNull(responseJSON.error)) {
                 // ... and if not, print the error msg
                 goog.dom.setTextContent(goog.dom.getElement(self.WindowDomID+"_ErrMsg"),
-                    responseJSON.sendMailError);
+                    responseJSON.origError);
             } else {
                 // ... otherwise, sending went fine => go back to previous state
                 self.close_();

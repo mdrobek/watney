@@ -138,7 +138,15 @@ function testTrashRequest() {
     myMock.$verify();
 }
 
-
+//function testTrashRequestRemoteFolder() {
+//    var testInboxItem = new wat.mail.MailItem(inboxMailJson, "/"),
+//        trashResponse_json = { trashedUID: 22 };
+//    myMock(trashResponse_json.trashedUID);
+//    myMock.$replay();
+//    testInboxItem.trashRequest_(testInboxItem.Folder, myMock, function(){});
+//    nextXhr().simulateResponse(200, goog.json.serialize(trashResponse_json));
+//    myMock.$verify();
+//}
 
 function testLoadUserMail() {
     var user = { email: "user@foobar.com" };

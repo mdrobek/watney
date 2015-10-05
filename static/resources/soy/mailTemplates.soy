@@ -140,13 +140,15 @@
 
 /**
  * Template to create the mail control bar for the Trash folder
+ * @param RestoreBtnID The ID of the button used to restore the currently selected mail.
+ * @param EmptyBtnID The ID of the button to empty the complete trash folder.
  */
 {template .trashCtrlBar}
     <div id="trashCtrlBar" class="row">
-        <button id="trashRestoreBtn" type="button" class="btn btn-lg btn-primary">
+        <button id="{$RestoreBtnID}" type="button" class="btn btn-lg btn-primary">
             Restore
         </button>
-        <button id="trashEmptyBtn" type="button" class="btn btn-lg btn-primary
+        <button id="{$EmptyBtnID}" type="button" class="btn btn-lg btn-primary
             pull-right" style="margin-right: 13px;">
             Empty
         </button>

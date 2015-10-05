@@ -393,9 +393,27 @@ func (mc *MailCon) UpdateMailFlags(folder, uid string, f *Flags, add bool) error
  * is called.
  */
 func (mc *MailCon) TrashMail(uid, origFolder string) (uint32, error) {
+	return mc.MoveMail(uid, origFolder, "Trash")
+}
+
+/**
+ * This method moves the mail associated with the given 'UID', from the folder where it currently
+ * resides, into the 'targetFolder'.
+ * After this operation, the following post condition holds, if a mail with the given UID existed
+ * in the original folder:
+ *  - The mail in the original folder has its "Deleted" flag set
+ *  - The folder 'targetFolder' now contains a new mail with the Header and Content of the original
+ *    mail (but with a new UID)
+ *
+ * ATTENTION:
+ * The original mail is NOT deleted from the 'origFolder' where it resided (only its deleted flag
+ * is set). The deletion operation will happen when the IMAP connection is closed, or the EXPUNGE
+ * operation is called.
+ */
+func (mc *MailCon) MoveMail(uid, origFolder, targetFolder string) (uint32, error) {
 	mc.mutex.Lock()
 	defer mc.mutex.Unlock()
-	return mc.moveMail(uid, origFolder, "Trash")
+	return mc.moveMail_internal(uid, origFolder, targetFolder)
 }
 
 /**
@@ -607,7 +625,7 @@ func (mc *MailCon) createMailInFolder_internal(h *Header, f *Flags,
  * @return Returns the UID of the newly created mail in the target folder or an error, if something
  *		   went wrong.
  */
-func (mc *MailCon) moveMail(uid, folder, toFolder string) (uint32, error) {
+func (mc *MailCon) moveMail_internal(uid, folder, toFolder string) (uint32, error) {
 	var targetMbox string = fmt.Sprintf("%s%s%s", mc.mailbox, mc.delim, toFolder)
 	// 1) First check if we need to select a specific folder in the mailbox or if it is root
 	if err := mc.selectFolder(folder, true); err != nil {

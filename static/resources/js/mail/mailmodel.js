@@ -14,6 +14,7 @@ goog.require('goog.structs.Map');
 wat.mail.LOAD_MAILS_URI = "/mails";
 wat.mail.LOAD_MAILCONTENT_URI = "/mailContent";
 wat.mail.TRASH_MAIL_URI = "/trashMail";
+wat.mail.MOVE_MAIL_URI = "/moveMail";
 wat.mail.UPDATE_FLAGS_URI = "/updateFlags";
 wat.mail.CHECK_MAILS_URI = "/poll";
 

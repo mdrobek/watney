@@ -46,6 +46,12 @@ wat.mail.MailboxFolder.prototype.DisplayName = "";
  */
 wat.mail.MailboxFolder.prototype.NavDomID = "";
 /**
+ * Whether this mailbox folder is a client-side local folder only, or if it is mirrored on the
+ * backend.
+ * @type {boolean}
+ */
+wat.mail.MailboxFolder.prototype.IsLocal = false;
+/**
  * Stores all the mails that are by default shown in this mailbox.
  * ATTENTION: Has to be assigned in each implementation constructor (Inbox, Sent, Trash)
  * @type {goog.structs.AvlTree}
@@ -427,6 +433,15 @@ wat.mail.MailboxFolder.prototype.updateNavigationBar = function() {
     goog.dom.setTextContent(d_navbarButtonA, label);
 };
 
+/**
+ * Returns the name of the associated server-side folder.
+ * ATTENTION: Needs to be overwritten for client-side only folders.
+ * @returns {string}
+ */
+wat.mail.MailboxFolder.prototype.getAssocServerSideFolderName = function() {
+    return this.Name;
+};
+
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 ///                               Protected methods                                              ///
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -665,21 +680,18 @@ wat.mail.Trash = function() {
 };
 goog.inherits(wat.mail.Trash, wat.mail.MailboxFolder);
 
-/**
- * Special treatment for the trash folder => all mails in here are shown
- * @override
- */
-//wat.mail.Trash.prototype.addMailsToFolder = function(mails) {
-//    var self = this;
-//    goog.array.forEach(mails, function(curMail) { self.mails_.add(curMail); })
-//};
+wat.mail.Trash.prototype.RestoreBtnDomID = "trashRestoreBtn";
+wat.mail.Trash.prototype.EmptyBtnDomID = "trashEmptyBtn";
 
 /**
  *
  */
 wat.mail.Trash.prototype.renderCtrlbar = function() {
     var d_ctrlBarContainer = goog.dom.getElement("ctrlBarContainer"),
-        d_newCtrlBar = goog.soy.renderAsElement(wat.soy.mail.trashCtrlBar, this);
+        d_newCtrlBar = goog.soy.renderAsElement(wat.soy.mail.trashCtrlBar, {
+            RestoreBtnID: this.RestoreBtnDomID,
+            EmptyBtnID: this.EmptyBtnDomID
+        });
     // 2) Remove the current control bar and add the new one
     goog.dom.removeChildren(d_ctrlBarContainer);
     goog.dom.appendChild(d_ctrlBarContainer, d_newCtrlBar);
@@ -691,7 +703,18 @@ wat.mail.Trash.prototype.renderCtrlbar = function() {
  * @public
  */
 wat.mail.Trash.prototype.updateCtrlBtns_ = function(forMail) {
-    console.log("Trash.updateCtrlBtns_ NOT YET IMPLEMENTED");
+    var self = this,
+        d_restoreBtn = goog.dom.getElement(self.RestoreBtnDomID);
+    // 1) Add events for restore and empty buttons
+    goog.events.listen(d_restoreBtn, goog.events.EventType.CLICK, function() {
+
+        forMail.moveMail( , function(newUID) {
+
+        }, function() {
+            // TODO: We need proper error visualization
+            alert("Restoring of mail (" + forMail.Mail.UID + ") didn't work");
+        });
+    }, false);
 };
 
 wat.mail.Trash.prototype.deleteActiveMail = function() {
@@ -715,8 +738,18 @@ wat.mail.Spam = function() {
     this.Name = wat.mail.MailboxFolder.SPAM;
     this.DisplayName = this.Name;
     this.NavDomID = "Spam_Btn";
+    this.IsLocal = true;
 };
 goog.inherits(wat.mail.Spam, wat.mail.MailboxFolder);
+
+/**
+ * Special
+ * Returns the name of the associated server-side folder.
+ * @returns {string}
+ */
+wat.mail.MailboxFolder.prototype.getAssocServerSideFolderName = function() {
+    return wat.mail.MailboxFolder.INBOX;
+};
 
 /**
  * Special treatment
@@ -744,6 +777,7 @@ wat.mail.Spam.prototype.activate = function() {
     // 4) Local client-folder: always just render the content
     self.renderMailboxContent_();
 };
+
 /**
  *
  */

@@ -155,16 +155,16 @@ wat.mail.MailItem.prototype.highlightOverviewItem = function(active) {
  * as 'Deleted'.
  */
 wat.mail.MailItem.prototype.trash = function() {
-    var self = this,
-        origMailFolder = self.Folder;
+    var self = this;
     // 2) CLIENT-SIDE: Remove mail from current folder and add it to trash (changes the items
     //                 Folder and Previous_Folder values!)
     wat.app.mailHandler.moveMail(self, wat.mail.MailboxFolder.TRASH);
     // 3) SERVER-SIDE: Now send information to server
-    self.trashRequest_(origMailFolder, function(trashedUID) {
+    self.trashRequest_(self.Mail.Header.Folder, function(trashedUID) {
             // The mail has a new UID now
             self.Mail.UID = trashedUID;
         }, function(req) {
+            // Request to move mail on the server-side failed => revert client-side mail move
             wat.app.mailHandler.moveMail(self, self.Previous_Folder);
     });
 };
@@ -203,6 +203,44 @@ wat.mail.MailItem.prototype.setSeen = function(newSeenState) {
     });
 };
 
+/**
+ * Sends a request to the server to change the server-side folder of this mail from its current
+ * folder to the given 'intoFolder'.
+ * ATTENTION:
+ *  - If the given 'intoFolder' is the same as the current mails server-side folder (
+ *    Mail.Header.Folder), the method returns doing nothing
+ *  - Server-side only
+ * @param {string} intoFolder The folder in which this mail should be moved on the server-side.
+ * @param {function} successCb
+ * @param {function} errorCb
+ * @public
+ */
+wat.mail.MailItem.prototype.moveMailOnServer = function(intoFolder, successCb, errorCb) {
+    // 1) Check for simple case and return
+    if (this.Mail.Header.Folder === intoFolder) return;
+    var self = this,
+        data = new goog.Uri.QueryData();
+    data.add("uid", self.Mail.UID);
+    data.add("origFolder", self.Mail.Header.Folder);
+    data.add("targetFolder", intoFolder);
+    wat.xhr.send(wat.mail.MOVE_MAIL_URI, function (event) {
+        // request complete
+        var req = event.currentTarget,
+            newUID;
+        if (req.isSuccess()) {
+            // 1) The mails server-side folder has changed -> update this value on the client-side
+            self.Mail.Header.Folder = intoFolder;
+            // 2) Return the success callback
+            newUID = req.getResponseJson().newUID;
+            if (goog.isDefAndNotNull(successCb)) successCb(newUID);
+        } else {
+            // error
+            console.log("something went wrong loading content for mail: " + req.getLastError());
+            console.log("^^^ " + req.getLastErrorCode());
+            if (goog.isDefAndNotNull(errorCb)) errorCb(self, req);
+        }
+    }, 'POST', data.toString());
+};
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 ///                                    Private methods                                           ///
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -241,26 +279,31 @@ wat.mail.MailItem.prototype.updateFlagsRequest_ = function(folder, uid, flag, ad
  * @param errorCb
  * @private
  */
-wat.mail.MailItem.prototype.trashRequest_ = function(origMailFolder, successCb, errorCb) {
-    var self = this,
-        data = new goog.Uri.QueryData();
-    data.add("uid", self.Mail.UID);
-    data.add("folder", origMailFolder);
-    wat.xhr.send(wat.mail.TRASH_MAIL_URI, function (event) {
-        // request complete
-        var req = event.currentTarget,
-            trashedUID;
-        if (req.isSuccess()) {
-            trashedUID = req.getResponseJson().trashedUID;
-            if (goog.isDefAndNotNull(successCb)) successCb(trashedUID);
-        } else {
-            // error
-            console.log("something went wrong loading content for mail: " + req.getLastError());
-            console.log("^^^ " + req.getLastErrorCode());
-            if (goog.isDefAndNotNull(errorCb)) errorCb(req);
-        }
-    }, 'POST', data.toString());
-};
+//wat.mail.MailItem.prototype.trashRequest_ = function(origMailFolder, successCb, errorCb) {
+//    var self = this,
+//        data = new goog.Uri.QueryData();
+//    data.add("uid", self.Mail.UID);
+//    data.add("folder", origMailFolder);
+//    wat.xhr.send(wat.mail.TRASH_MAIL_URI, function (event) {
+//        // request complete
+//        var req = event.currentTarget,
+//            trashedUID;
+//        if (req.isSuccess()) {
+//            // 1) The mails server-side folder has changed -> update this value on the client-side
+//            self.Mail.Header.Folder = wat.mail.MailboxFolder.TRASH;
+//            // 2) Return the success callback
+//            trashedUID = req.getResponseJson().trashedUID;
+//            if (goog.isDefAndNotNull(successCb)) successCb(trashedUID);
+//        } else {
+//            // error
+//            console.log("something went wrong loading content for mail: " + req.getLastError());
+//            console.log("^^^ " + req.getLastErrorCode());
+//            if (goog.isDefAndNotNull(errorCb)) errorCb(req);
+//        }
+//    }, 'POST', data.toString());
+//};
+
+
 
 /**
  * @param {wat.mail.MailItem} mail1

@@ -156,15 +156,23 @@ wat.mail.MailHandler.prototype.registerActionBarEvents = function() {
 };
 
 /**
- * Moves a mail from its current mailbox folder into the given new one and additionally updates
- * the folder information in the given mail item.
+ * Client-Side mail moving from its current mailbox folder into the given new one and additionally
+ * updates the folder information in the given mail item.</br>
+ * ATTENTION: Only client-side!
  * @param {wat.mail.MailItem} mail
  * @param {string} intoFolder The new mailbox folder as one of wat.mail.MailboxFolder
+ * @param {boolean|Undefined} alsoOnServer True|Undefined - The request is also performed on the
+ *                                         server side
+ *                                         False - The request is only performed on the client-side
  */
-wat.mail.MailHandler.prototype.moveMail = function(mail, intoFolder) {
+wat.mail.MailHandler.prototype.moveMail = function(mail, intoFolder, alsoOnServer) {
     // TODO: folders might be null -> react accordingly
-    var curMailboxFolder = this.mailboxFolders_.get(mail.Folder),
+    // a) Simple case, if the folders are equal => return
+    if (mail.Folder === intoFolder) return;
+    var self = this,
+        curMailboxFolder = this.mailboxFolders_.get(mail.Folder),
         newMailboxFolder = this.mailboxFolders_.get(intoFolder);
+    // I) Perform all client-side actions
     // 1) Remove the mail from the current folder
     curMailboxFolder.remove(mail);
     // 2) Add the mail to the new folder
@@ -172,6 +180,28 @@ wat.mail.MailHandler.prototype.moveMail = function(mail, intoFolder) {
     // 3) Update the mail folder information
     mail.Previous_Folder = mail.Folder;
     mail.Folder = intoFolder;
+    // II) Perform all server-side actions, in case that both folders are available on the server
+    if (goog.isDefAndNotNull(alsoOnServer) && alsoOnServer) {
+        // 1) If the target folder is local => get the associated server-side folder
+        var serverSideTargetFolder = newMailboxFolder.IsLocal
+                ? newMailboxFolder.getAssocServerSideFolderName()
+                : intoFolder;
+        mail.moveMailOnServer(serverSideTargetFolder, function (newUID) {
+                // Request successful: The mail has a new UID now
+                self.Mail.UID = newUID;
+            }, function (mailItem, req) {
+                // Request to move mail on the server-side failed => revert client-side mail move
+                wat.app.mailHandler.moveMail(mailItem, mailItem.Previous_Folder, false);
+            });
+    }
+};
+
+/**
+ *
+ * @param {wat.mail.MailItem} mail
+ */
+wat.mail.MailHandler.prototype.restoreMail = function(mail) {
+
 };
 
 /**
