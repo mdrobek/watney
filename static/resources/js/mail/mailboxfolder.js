@@ -187,9 +187,8 @@ wat.mail.MailboxFolder.prototype.deleteActiveMail = function() {
     var self = this,
         tempLastItem = self.lastActiveMailItem_;
     if (!goog.isDefAndNotNull(tempLastItem)) return;
-
     self.switchAndRemoveNode(tempLastItem);
-    tempLastItem.trash();
+    wat.app.mailHandler.moveMail(tempLastItem, wat.mail.MailboxFolder.TRASH);
 };
 
 /**
@@ -256,7 +255,7 @@ wat.mail.MailboxFolder.prototype.switchAndRemoveNode = function(curMailItem) {
         self.showMail(nextItem);
     } else {
         // 1a) There's no other mail that could be shown in the current folder
-        console.log("MailItem.trash : NOT YET IMPLEMENTED");
+        console.log("MailboxFolder.switchAndRemoveNode : NOT YET IMPLEMENTED");
         // 1a) TODO: Clean the mail page:
         //      * reset from, to, subject
         //      * deactivate control btns (reply, delete)
@@ -621,7 +620,7 @@ wat.mail.Inbox.prototype.updateCtrlBtns_ = function(forMail) {
         // 1) CLIENT-SIDE: Switch the mail overview list and details part to the next mail in the list
         self.switchAndRemoveNode(forMail);
         // 2) Handle all further client- and server-side actions associated with the deletion
-        forMail.trash();
+        wat.app.mailHandler.moveMail(forMail, wat.mail.MailboxFolder.TRASH);
     }, false, forMail);
 };
 
@@ -705,16 +704,18 @@ wat.mail.Trash.prototype.renderCtrlbar = function() {
 wat.mail.Trash.prototype.updateCtrlBtns_ = function(forMail) {
     var self = this,
         d_restoreBtn = goog.dom.getElement(self.RestoreBtnDomID);
-    // 1) Add events for restore and empty buttons
-    goog.events.listen(d_restoreBtn, goog.events.EventType.CLICK, function() {
-
-        forMail.moveMail( , function(newUID) {
-
-        }, function() {
-            // TODO: We need proper error visualization
-            alert("Restoring of mail (" + forMail.Mail.UID + ") didn't work");
-        });
-    }, false);
+    if (forMail.Previous_Folder === forMail.Folder) {
+        // 1) Hide restore button, if the mail wasn't moved in this session
+        goog.dom.classes.add(d_restoreBtn, "hide");
+    } else {
+        // 2a) Show restore button, if the mail was moved in this session
+        goog.dom.classes.remove(d_restoreBtn, "hide");
+        // 2b) Add events for restore and empty buttons
+        goog.events.listen(d_restoreBtn, goog.events.EventType.CLICK, function() {
+            self.switchAndRemoveNode(forMail);
+            wat.app.mailHandler.moveMail(forMail, forMail.Previous_Folder);
+        }, false);
+    }
 };
 
 wat.mail.Trash.prototype.deleteActiveMail = function() {
@@ -795,7 +796,7 @@ wat.mail.Spam.prototype.renderCtrlbar = function() {
  * @public
  */
 wat.mail.Spam.prototype.updateCtrlBtns_ = function(forMail) {
-    console.log("Trash.updateCtrlBtns_ NOT YET IMPLEMENTED");
+    console.log("Spam.updateCtrlBtns_ NOT YET IMPLEMENTED");
 };
 
 wat.mail.Spam.prototype.deleteActiveMail = function() {

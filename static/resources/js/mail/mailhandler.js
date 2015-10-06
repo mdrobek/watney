@@ -156,22 +156,29 @@ wat.mail.MailHandler.prototype.registerActionBarEvents = function() {
 };
 
 /**
- * Client-Side mail moving from its current mailbox folder into the given new one and additionally
- * updates the folder information in the given mail item.</br>
- * ATTENTION: Only client-side!
- * @param {wat.mail.MailItem} mail
- * @param {string} intoFolder The new mailbox folder as one of wat.mail.MailboxFolder
- * @param {boolean|Undefined} alsoOnServer True|Undefined - The request is also performed on the
- *                                         server side
- *                                         False - The request is only performed on the client-side
+ * Moves the given mail in the given 'intoFolder' on the client- and potentially server-side.
+ * However, if the given 'intoFolder' is a client-side only mailbox folder, the moving will only
+ * happen on the client-side, no matter if the given 'opt_alsoOnServer' flag is provided or not. In
+ * any other cases, the server-side operation is performed, if the 'opt_alsoOnServer' flag is true
+ * or omitted.
+ * Additionally, the folder information in the given JS mail item will be updated.</br>
+ * @param {wat.mail.MailItem} mail The MailItem that is to be moved from its current folder in the
+ * new given folder.
+ * @param {string} intoFolder The new mailbox folder (as one of wat.mail.MailboxFolder)
+ * @param {boolean|Undefined} [opt_alsoOnServer]
+ *  True|Undefined - The request is also performed on the server side (if the given intoFolder is
+ *                   not a client-side only mailbox folder).
+ *  False - The request is only performed on the client-side (no matter if the given folder also
+ *          exists on the server-side).
  */
-wat.mail.MailHandler.prototype.moveMail = function(mail, intoFolder, alsoOnServer) {
-    // TODO: folders might be null -> react accordingly
+wat.mail.MailHandler.prototype.moveMail = function(mail, intoFolder, opt_alsoOnServer) {
     // a) Simple case, if the folders are equal => return
     if (mail.Folder === intoFolder) return;
     var self = this,
-        curMailboxFolder = this.mailboxFolders_.get(mail.Folder),
-        newMailboxFolder = this.mailboxFolders_.get(intoFolder);
+        alsoOnServer = !goog.isDefAndNotNull(opt_alsoOnServer) || opt_alsoOnServer,
+        curMailboxFolder = self.mailboxFolders_.get(mail.Folder),
+        newMailboxFolder = self.mailboxFolders_.get(intoFolder),
+        originalPrevious_Folder = mail.Previous_Folder;
     // I) Perform all client-side actions
     // 1) Remove the mail from the current folder
     curMailboxFolder.remove(mail);
@@ -180,28 +187,28 @@ wat.mail.MailHandler.prototype.moveMail = function(mail, intoFolder, alsoOnServe
     // 3) Update the mail folder information
     mail.Previous_Folder = mail.Folder;
     mail.Folder = intoFolder;
-    // II) Perform all server-side actions, in case that both folders are available on the server
-    if (goog.isDefAndNotNull(alsoOnServer) && alsoOnServer) {
+    newMailboxFolder.showMail()
+    // II) Perform server-side request only if:
+    //  * opt_alsoOnServer = undefined|null
+    //  * opt_alsoOnServer = true
+    if (alsoOnServer) {
         // 1) If the target folder is local => get the associated server-side folder
         var serverSideTargetFolder = newMailboxFolder.IsLocal
                 ? newMailboxFolder.getAssocServerSideFolderName()
                 : intoFolder;
-        mail.moveMailOnServer(serverSideTargetFolder, function (newUID) {
+        mail.moveMailOnServer(serverSideTargetFolder,
+            // success
+            function (newUID) {
                 // Request successful: The mail has a new UID now
-                self.Mail.UID = newUID;
-            }, function (mailItem, req) {
+                mail.Mail.UID = newUID;
+            },
+            // fail
+            function (mailItem, req) {
                 // Request to move mail on the server-side failed => revert client-side mail move
                 wat.app.mailHandler.moveMail(mailItem, mailItem.Previous_Folder, false);
+                mailItem.Previous_Folder = originalPrevious_Folder;
             });
     }
-};
-
-/**
- *
- * @param {wat.mail.MailItem} mail
- */
-wat.mail.MailHandler.prototype.restoreMail = function(mail) {
-
 };
 
 /**

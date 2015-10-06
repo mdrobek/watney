@@ -151,25 +151,6 @@ wat.mail.MailItem.prototype.highlightOverviewItem = function(active) {
 };
 
 /**
- * Moves the mail from its current folder into the "Trash" folder. The current mail will be flagged
- * as 'Deleted'.
- */
-wat.mail.MailItem.prototype.trash = function() {
-    var self = this;
-    // 2) CLIENT-SIDE: Remove mail from current folder and add it to trash (changes the items
-    //                 Folder and Previous_Folder values!)
-    wat.app.mailHandler.moveMail(self, wat.mail.MailboxFolder.TRASH);
-    // 3) SERVER-SIDE: Now send information to server
-    self.trashRequest_(self.Mail.Header.Folder, function(trashedUID) {
-            // The mail has a new UID now
-            self.Mail.UID = trashedUID;
-        }, function(req) {
-            // Request to move mail on the server-side failed => revert client-side mail move
-            wat.app.mailHandler.moveMail(self, self.Previous_Folder);
-    });
-};
-
-/**
  * Change the Seen flag of the mail to the given new state.
  * @param {boolean} newSeenState
  *      True  -> If the mail hasn't been seen yet, it will be tagged on the client and server as
@@ -208,16 +189,19 @@ wat.mail.MailItem.prototype.setSeen = function(newSeenState) {
  * folder to the given 'intoFolder'.
  * ATTENTION:
  *  - If the given 'intoFolder' is the same as the current mails server-side folder (
- *    Mail.Header.Folder), the method returns doing nothing
+ *    Mail.Header.Folder), the method returns false.
  *  - Server-side only
  * @param {string} intoFolder The folder in which this mail should be moved on the server-side.
+ * This can't be a client-side mailbox folder (e.g., the SPAM folder)!
  * @param {function} successCb
  * @param {function} errorCb
+ * @return {boolean} True - The request has been sent to the server.
+ * False - The request hasn't been sent.
  * @public
  */
 wat.mail.MailItem.prototype.moveMailOnServer = function(intoFolder, successCb, errorCb) {
     // 1) Check for simple case and return
-    if (this.Mail.Header.Folder === intoFolder) return;
+    if (this.Mail.Header.Folder === intoFolder) return false;
     var self = this,
         data = new goog.Uri.QueryData();
     data.add("uid", self.Mail.UID);
@@ -237,10 +221,14 @@ wat.mail.MailItem.prototype.moveMailOnServer = function(intoFolder, successCb, e
             // error
             console.log("something went wrong loading content for mail: " + req.getLastError());
             console.log("^^^ " + req.getLastErrorCode());
-            if (goog.isDefAndNotNull(errorCb)) errorCb(self, req);
+            if (goog.isDefAndNotNull(errorCb)) {
+                errorCb(self, req.getStatus(), req.getResponseJson());
+            }
         }
     }, 'POST', data.toString());
+    return true;
 };
+
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 ///                                    Private methods                                           ///
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -272,38 +260,6 @@ wat.mail.MailItem.prototype.updateFlagsRequest_ = function(folder, uid, flag, ad
         }
     }, 'POST', data.toString());
 };
-
-/**
- *
- * @param successCb
- * @param errorCb
- * @private
- */
-//wat.mail.MailItem.prototype.trashRequest_ = function(origMailFolder, successCb, errorCb) {
-//    var self = this,
-//        data = new goog.Uri.QueryData();
-//    data.add("uid", self.Mail.UID);
-//    data.add("folder", origMailFolder);
-//    wat.xhr.send(wat.mail.TRASH_MAIL_URI, function (event) {
-//        // request complete
-//        var req = event.currentTarget,
-//            trashedUID;
-//        if (req.isSuccess()) {
-//            // 1) The mails server-side folder has changed -> update this value on the client-side
-//            self.Mail.Header.Folder = wat.mail.MailboxFolder.TRASH;
-//            // 2) Return the success callback
-//            trashedUID = req.getResponseJson().trashedUID;
-//            if (goog.isDefAndNotNull(successCb)) successCb(trashedUID);
-//        } else {
-//            // error
-//            console.log("something went wrong loading content for mail: " + req.getLastError());
-//            console.log("^^^ " + req.getLastErrorCode());
-//            if (goog.isDefAndNotNull(errorCb)) errorCb(req);
-//        }
-//    }, 'POST', data.toString());
-//};
-
-
 
 /**
  * @param {wat.mail.MailItem} mail1

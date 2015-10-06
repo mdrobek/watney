@@ -127,26 +127,30 @@ function testSetSeen() {
         updateFlagXhr.getLastUri());
 }
 
-function testTrashRequest() {
-    var myMock = new goog.testing.FunctionMock(),
-        testInboxItem = new wat.mail.MailItem(inboxMailJson, "/"),
-        trashResponse_json = { trashedUID: 22 };
-    myMock(trashResponse_json.trashedUID);
-    myMock.$replay();
-    testInboxItem.trashRequest_(testInboxItem.Folder, myMock, function(){});
-    nextXhr().simulateResponse(200, goog.json.serialize(trashResponse_json));
-    myMock.$verify();
+function testMoveMailRequest() {
+    var successCb = new goog.testing.FunctionMock(),
+        successResponse_json = { newUID: 22},
+        failCb = new goog.testing.FunctionMock(),
+        failResponse_json = { error:"Failure", origError:"Failure description" },
+        testInboxItem = new wat.mail.MailItem(inboxMailJson, "/");
+    // 1) First Test
+    assertFalse("Trying to move a mail on the server side to folder it already resides doesn't "
+        + "do anything and returns with false",
+        testInboxItem.moveMailOnServer(testInboxItem.Folder, null, null));
+    // 2) Expect successCb to be called in case of successful move
+    successCb(successResponse_json.newUID);
+    successCb.$replay();
+    assertTrue(testInboxItem.moveMailOnServer(wat.mail.MailboxFolder.TRASH, successCb, failCb));
+    nextXhr().simulateResponse(200, goog.json.serialize(successResponse_json));
+    successCb.$verify();
+    // 3) Expect failCb to be called in case something went wrong while moving mail on server
+    testInboxItem = new wat.mail.MailItem(inboxMailJson, "/");
+    failCb(testInboxItem, 500, failResponse_json);
+    failCb.$replay();
+    assertTrue(testInboxItem.moveMailOnServer(wat.mail.MailboxFolder.TRASH, successCb, failCb));
+    nextXhr().simulateResponse(500, goog.json.serialize(failResponse_json));
+    failCb.$verify();
 }
-
-//function testTrashRequestRemoteFolder() {
-//    var testInboxItem = new wat.mail.MailItem(inboxMailJson, "/"),
-//        trashResponse_json = { trashedUID: 22 };
-//    myMock(trashResponse_json.trashedUID);
-//    myMock.$replay();
-//    testInboxItem.trashRequest_(testInboxItem.Folder, myMock, function(){});
-//    nextXhr().simulateResponse(200, goog.json.serialize(trashResponse_json));
-//    myMock.$verify();
-//}
 
 function testLoadUserMail() {
     var user = { email: "user@foobar.com" };
