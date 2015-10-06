@@ -626,20 +626,23 @@ func (mc *MailCon) createMailInFolder_internal(h *Header, f *Flags,
  *		   went wrong.
  */
 func (mc *MailCon) moveMail_internal(uid, folder, toFolder string) (uint32, error) {
-	var targetMbox string = fmt.Sprintf("%s%s%s", mc.mailbox, mc.delim, toFolder)
+	var targetMbox string = mc.mailbox
 	// 1) First check if we need to select a specific folder in the mailbox or if it is root
 	if err := mc.selectFolder(folder, true); err != nil {
 		return 0, err
 	}
+	// 2) Assign necessary variables and initiate IMAP Copy process
 	set, _ := imap.NewSeqSet(uid)
-	// 3) Copy finished successfully, set the deleted flag of the mail in the original folder
+	if len(toFolder) > 0 && toFolder != "/" {
+		targetMbox = fmt.Sprintf("%s%s%s", mc.mailbox, mc.delim, toFolder)
+	}
 	cmd, err := mc.client.UIDCopy(set, targetMbox)
 	var resp *imap.Response
 	if resp, err = cmd.Result(imap.OK); err != nil {
 		return 0,
 			fmt.Errorf("[watney] ERROR waiting for result of copy command\n\t%s\n", err.Error())
 	}
-	// 2) Copy the mail internally to the new folder
+	// 3) Execute the copy process to copy the mail internally to the new folder
 	if _, err := mc.waitFor(mc.client.UIDStore(set, "+FLAGS",
 		SerializeFlags(&Flags{Deleted: true}))); err != nil {
 		return 0, fmt.Errorf("[watney] ERROR waiting for result of update flags command\n\t%s\n",
