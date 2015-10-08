@@ -80,10 +80,10 @@ func parseMainHeaderContent(headerContentMap textproto.MIMEHeader) (h *Header, e
 	var mHeader PMIMEHeader = parseMIMEHeader(headerContentMap)
 	h = &Header{
 		MimeHeader:    mHeader,
-		Subject:       parseAndDecodeHeader(headerContentMap["Subject"][0], mHeader),
-		Date:          parseIMAPHeaderDate(headerContentMap["Date"][0]),
-		Sender:        parseAndDecodeHeader(headerContentMap["From"][0], mHeader),
-		Receiver:      parseAndDecodeHeader(headerContentMap["To"][0], mHeader),
+		Subject:       parseAndDecodeHeader(headerContentMap, "Subject", mHeader),
+		Date:          parseIMAPHeaderDate(headerContentMap),
+		Sender:        parseAndDecodeHeader(headerContentMap, "From", mHeader),
+		Receiver:      parseAndDecodeHeader(headerContentMap, "To", mHeader),
 		SpamIndicator: parseSpamIndicator(headerContentMap),
 	}
 	return h, nil
@@ -134,47 +134,56 @@ func parseMIMEHeader(mimeHeader textproto.MIMEHeader) PMIMEHeader {
 	}
 }
 
-func parseAndDecodeHeader(encoded string, mHeader PMIMEHeader) string {
-	var (
-		encodedValue string = strings.TrimPrefix(encoded, " ")
-		decoded      string
-		dec          *mime.WordDecoder = new(mime.WordDecoder)
-		err          error
-	)
-	if decoded, err = dec.DecodeHeader(encodedValue); err != nil {
-		fmt.Printf("[watney] WARNING: Couldn't decode string: \n\t%s\n\t%s\n", encodedValue,
-			err.Error())
-		return encodedValue
+func parseAndDecodeHeader(rawMimeHeader textproto.MIMEHeader, target string,
+	mHeader PMIMEHeader) string {
+	if targetArray, ok := rawMimeHeader[target]; !ok && len(targetArray) == 0 {
+		return ""
+	} else {
+		var (
+			encodedValue string = strings.TrimPrefix(targetArray[0], " ")
+			decoded      string
+			dec          *mime.WordDecoder = new(mime.WordDecoder)
+			err          error
+		)
+		if decoded, err = dec.DecodeHeader(encodedValue); err != nil {
+			fmt.Printf("[watney] WARNING: Couldn't decode string: \n\t%s\n\t%s\n", encodedValue,
+				err.Error())
+			return encodedValue
+		}
+		return decoded
 	}
-	return decoded
 }
 
 /**
  * The Date information in the IMAP Header is either of type time.RFC1123Z or an extended version
  * which also contains '(MST)' (where MST is the time zone).
  */
-func parseIMAPHeaderDate(dateString string) time.Time {
-	var (
-		date     time.Time
-		err      error
-		patterns []string = []string{
-			"Mon, _2 Jan 2006 15:04:05 -0700",
-			"Mon, _2 Jan 2006 15:04:05 -0700 (MST)",
-			fmt.Sprintf("%s (MST)", time.RFC1123Z),
-			"_2 Jan 2006 15:04:05 -0700",
-			"_2 Jan 06 15:04 MST",
+func parseIMAPHeaderDate(rawMimeHeader textproto.MIMEHeader) time.Time {
+	if dateArray, ok := rawMimeHeader["Date"]; !ok && len(dateArray) == 0 {
+		return time.Unix(0, 0)
+	} else {
+		var (
+			date     time.Time
+			err      error
+			patterns []string = []string{
+				"Mon, _2 Jan 2006 15:04:05 -0700",
+				"Mon, _2 Jan 2006 15:04:05 -0700 (MST)",
+				fmt.Sprintf("%s (MST)", time.RFC1123Z),
+				"_2 Jan 2006 15:04:05 -0700",
+				"_2 Jan 06 15:04 MST",
+			}
+		)
+		// Try to parse the date in a bunch of different date formats
+		for _, pattern := range patterns {
+			if date, err = time.Parse(pattern, dateArray[0]); err == nil {
+				return date
+			}
 		}
-	)
-	// Try to parse the date in a bunch of different date formats
-	for _, pattern := range patterns {
-		if date, err = time.Parse(pattern, dateString); err == nil {
-			return date
-		}
+		fmt.Print("[watney] Error during parsing of date header: %s\n", err.Error())
+		// Fallback: If no date string was found in the header map or, an error occurred during
+		// parsing => set the date to 1/1/1970
+		return time.Unix(0, 0)
 	}
-	fmt.Print("[watney] Error during parsing of date header: %s\n", err.Error())
-	// Fallback: If no date string was found in the header map or, an error occurred during
-	// parsing => set the date to 1/1/1970
-	return time.Unix(0, 0)
 }
 
 /**
@@ -335,7 +344,9 @@ func SerializeHeader(h *Header) string {
 		fmt.Sprintf("%s: %s", "Date", h.Date.Format(time.RFC1123Z)),
 		fmt.Sprintf("%s: %s", "To", h.Receiver),
 		fmt.Sprintf("%s: %s", "From", h.Sender),
-		fmt.Sprintf("%s: %s", "Subject", h.Subject)},
+		fmt.Sprintf("%s: %s", "Subject", h.Subject),
+		// TODO: We need to retain the information about the name of the SPAM field
+		fmt.Sprintf("%s: %d", "X-GMX-Antispam", h.SpamIndicator)},
 		"\r\n"))
 	return header
 }
