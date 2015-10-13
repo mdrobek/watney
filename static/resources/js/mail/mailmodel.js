@@ -141,7 +141,12 @@ wat.mail.BaseMail.prototype.getContent = function(forContentType) {
     return "!!!         Sorry, no 'text/plain' available        !!!"
 };
 
-
+/**
+ * @return {[string]}
+ */
+wat.mail.BaseMail.prototype.getContentTypes = function() {
+    return this.Content.getKeys();
+};
 
 wat.mail.ReceivedMail = function(jsonData) {
     goog.base(this, jsonData.Header.Sender, jsonData.Header.Receiver, jsonData.Header.Subject,

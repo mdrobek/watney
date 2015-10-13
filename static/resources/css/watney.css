@@ -218,12 +218,27 @@ div#mailItems > div.row:nth-of-type(2n) {
     background-color: #454b4c;
     font-size: 18px;
     color: white;
-    overflow-y: scroll;
+    /*overflow-y: scroll;*/
     height: 74%;
     border: 1px solid white;
     border-radius: 10px 10px 10px 10px;
     margin-left: 3px;
     margin-right: 0;
+}
+.mail-content .content #mailDetails_Content {
+    padding: 0;
+    height: 100%;
+}
+.mail-content .content textarea {
+    background-color: #454b4c;
+    font-size: 20px;
+    color: white;
+    overflow-y: scroll;
+    height: 100%;
+    width: 100%;
+    border: 1px solid white;
+    border-radius: 10px 10px 10px 10px;
+    padding: 10px 10px 0 10px;
 }
 .mail-content .mail-window {
     height: 0;

@@ -8,6 +8,8 @@ goog.provide('wat.mail.Sent');
 goog.provide('wat.mail.Trash');
 
 goog.require('wat.mail');
+goog.require('wat.mail.MailDetails');
+goog.require('wat.mail.MailItem');
 goog.require('goog.array');
 goog.require('goog.events');
 goog.require('goog.Uri.QueryData');
@@ -77,6 +79,12 @@ wat.mail.MailboxFolder.prototype.retrieved_ = false;
  * @private
  */
 wat.mail.MailboxFolder.prototype.lastActiveMailItem_ = null;
+/**
+ *
+ * @type {wat.mail.MailDetails}
+ * @private
+ */
+wat.mail.MailboxFolder.prototype.detailsComponent_ = null;
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 ///                                  Abstract methods                                            ///
@@ -330,8 +338,7 @@ wat.mail.MailboxFolder.prototype.getNextItem = function(curMailItem, opt_before)
     // 1) If it is not part of this mailbox folder, simply return null
     if (!this.contains(curMailItem)) return null;
 
-    var self = this,
-        nextItem = null;
+    var self = this;
     // 1) Check trivial cases
     // a) If there's less than or 1 mail in the mailbox, no 'next' item exists
     if (self.mails_.getCount() <= 1) return null;
@@ -406,7 +413,7 @@ wat.mail.MailboxFolder.prototype.showMail = function(activatedMail) {
         // 4) Highlight newly activated mail item in mail list
         activatedMail.highlightOverviewItem(true);
         // 5) Copy over the mail information into the mail details form
-        self.fillMailPage_(activatedMail);
+        self.detailsComponent_.render(activatedMail);
         // 6) Adjust control buttons for newly activated mail item
         self.updateCtrlBtns_(activatedMail);
     }
@@ -466,29 +473,6 @@ wat.mail.MailboxFolder.prototype.renderMailboxContent_ = function() {
 };
 
 /**
- *
- * @param {wat.mail.MailItem} withMailItem
- * @protected
- */
-wat.mail.MailboxFolder.prototype.fillMailPage_ = function(withMailItem) {
-    var mail = withMailItem.Mail,
-        d_mailDetailsFrom = goog.dom.getElement("mailDetails_From"),
-        d_mailDetailsSubject = goog.dom.getElement("mailDetails_Subject"),
-        d_mailDetailsTo = goog.dom.getElement("mailDetails_To"),
-        d_mailDetailsContent = goog.dom.getElement("mailDetails_Content"),
-        plainContent = goog.string.newLineToBr(
-            goog.string.canonicalizeNewlines(mail.getContent("text/plain")));
-    goog.dom.setTextContent(d_mailDetailsFrom, mail.Header.Sender);
-    goog.dom.setTextContent(d_mailDetailsSubject, mail.Header.Subject);
-    goog.dom.setTextContent(d_mailDetailsTo, mail.Header.Receiver);
-
-    goog.dom.removeChildren(d_mailDetailsContent);
-    //goog.dom.appendChild(d_mailDetailsContent, goog.dom.createTextNode(plainContent));
-    // TODO: should be a textarea for plain content!
-    goog.dom.appendChild(d_mailDetailsContent, goog.dom.htmlToDocumentFragment(plainContent));
-};
-
-/**
  * This method runs through the given retrieved mails from the backend and filters dependent on the
  * specific mailbox implementation those mails, that are part of this mailbox, but have to be
  * excluded for particular reasons.
@@ -514,6 +498,7 @@ wat.mail.Inbox = function() {
     this.Name = wat.mail.MailboxFolder.INBOX;
     this.DisplayName = "Inbox";
     this.NavDomID = "Inbox_Btn";
+    this.detailsComponent_ = new wat.mail.MailDetails();
 };
 goog.inherits(wat.mail.Inbox, wat.mail.MailboxFolder);
 
@@ -638,6 +623,7 @@ wat.mail.Sent = function() {
     this.Name = wat.mail.MailboxFolder.SENT;
     this.DisplayName = this.Name;
     this.NavDomID = "Sent_Btn";
+    this.detailsComponent_ = new wat.mail.MailDetails();
 };
 goog.inherits(wat.mail.Sent, wat.mail.MailboxFolder);
 
@@ -655,10 +641,9 @@ wat.mail.Sent.prototype.renderCtrlbar = function() {
 
 /**
  * Resets all control button events for the current mail (e.g., reply, forward and delete button).
- * @param {wat.mail.MailItem} forMail
  * @private
  */
-wat.mail.Sent.prototype.updateCtrlBtns_ = function(forMail) {
+wat.mail.Sent.prototype.updateCtrlBtns_ = function() {
     console.log("Sent.updateCtrlBtns_ NOT YET IMPLEMENTED");
 };
 
@@ -676,6 +661,7 @@ wat.mail.Trash = function() {
     this.Name = wat.mail.MailboxFolder.TRASH;
     this.DisplayName = this.Name;
     this.NavDomID = "Trash_Btn";
+    this.detailsComponent_ = new wat.mail.MailDetails();
 };
 goog.inherits(wat.mail.Trash, wat.mail.MailboxFolder);
 
@@ -740,6 +726,7 @@ wat.mail.Spam = function() {
     this.DisplayName = this.Name;
     this.NavDomID = "Spam_Btn";
     this.IsLocal = true;
+    this.detailsComponent_ = new wat.mail.MailDetails();
 };
 goog.inherits(wat.mail.Spam, wat.mail.MailboxFolder);
 

@@ -150,7 +150,7 @@ task buildDepFile(type: Exec, group: "JS Compile") {
         executable "$closureBinFolder/build/depswriter.py"
     }
     // HINT: MAGIC! The gradle arg doesn't need the surrounding quotes for both paths
-    args "--root_with_prefix=$jsSrcDir ../../../../js/"
+    args "--root_with_prefix=$jsSrcDir ../../../../js"
     standardOutput = new FileOutputStream(new File("$jsSrcDir/watney-deps.js"))
 }
 

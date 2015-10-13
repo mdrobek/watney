@@ -39,7 +39,7 @@ wat.mail.MailItem = function(jsonData, folder) {
     self.Date = goog.date.fromIsoString(self.Mail.Header.Date);
     self.DateString = (new goog.i18n.DateTimeFormat("dd/MM/yyyy")).format(self.Date);
     self.TimeString = (new goog.i18n.DateTimeFormat("HH:mm")).format(self.Date);
-    self.ShortFrom = wat.mail.MailHandler.shrinkField(self.Mail.Header.Sender, 45, true);
+    self.ShortFrom = wat.mail.MailHandler.shrinkField(self.Mail.Header.Sender, 40, true);
     self.ShortSubject = wat.mail.MailHandler.shrinkField(self.Mail.Header.Subject, 33, true);
     // Is the given date of the mail today?
     self.IsFromToday = goog.date.isSameDay(self.Date);
