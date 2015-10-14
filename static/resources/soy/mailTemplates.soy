@@ -1,6 +1,19 @@
 {namespace wat.soy.mail}
 
 /**
+ *
+ * @param LoadID
+ */
+{template .colorBarLoading}
+    <div id="{$LoadID}" class="loading">
+      <div class="loading-bar"></div>
+      <div class="loading-bar"></div>
+      <div class="loading-bar"></div>
+      <div class="loading-bar"></div>
+    </div>
+{/template}
+
+/**
  * Template to create new mail overview items.
  *
  * @param DomID
@@ -12,7 +25,7 @@
  * @param TimeString
  */
 {template .mailOverviewItem}
-    <div id={$DomID} class="row">
+    <div id="{$DomID}" class="row">
         <div class="col-md-12">
             <div id="{$DomID}_Seen" class="row entry {if not $Mail.Flags.Seen} newMail {/if}">
                 <div class="col-md-9 content">
@@ -97,7 +110,7 @@
 {/template}
 
 /**
- * Template to create new mail reply items.
+ * Template to create a new Menu-Bar item for a "new mail reply item".
  *
  * @param DomID
  * @param ShortenedTo

@@ -9,6 +9,7 @@ goog.require('wat.mail');
 goog.require('wat.mail.MailFlags');
 goog.require('wat.mail.ReceivedMail');
 goog.require('wat.soy.mail');
+
 goog.require('goog.object');
 goog.require('goog.events');
 goog.require('goog.dom');

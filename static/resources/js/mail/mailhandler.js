@@ -7,9 +7,12 @@ goog.require('wat.mail');
 goog.require('wat.mail.MailboxFolder');
 goog.require('wat.mail.MailItem');
 goog.require('wat.mail.NewMail');
+goog.require('wat.soy.mail');
+
 goog.require('goog.Timer');
 goog.require('goog.events');
 goog.require('goog.json');
+goog.require('goog.soy');
 goog.require('goog.array');
 goog.require('goog.structs.Map');
 
@@ -32,6 +35,35 @@ wat.mail.KeyShortcuts = {
 };
 // Time until a new update poll to the backend is started
 wat.mail.UPDATE_TIME = 5000;
+
+/**
+ *
+ * @param enable
+ * @param intoDOMID
+ * @param spinnerDOMID
+ * @param {Number} opt_YOffset Y offset in pixel
+ */
+wat.mail.enableSpinner = function(enable, intoDOMID, spinnerDOMID, opt_YOffset) {
+    var d_targetElem = goog.dom.getElement(intoDOMID),
+        d_spinnerElem;
+    if (enable) {
+        d_spinnerElem = goog.soy.renderAsElement(wat.soy.mail.colorBarLoading, {
+            LoadID: spinnerDOMID
+        });
+        if (goog.isDefAndNotNull(opt_YOffset)) {
+            goog.style.setStyle(d_spinnerElem, "top", opt_YOffset+"px");
+        }
+        goog.dom.appendChild(d_targetElem, d_spinnerElem);
+    } else {
+        // 2) We want to remove the spinner from the target element
+        // 2a) Find the spinner element
+        d_spinnerElem = goog.dom.findNode(d_targetElem, function(curNode) {
+            // Check if the Node is an Element with the spinner ID
+            return curNode.nodeType === 1 && curNode.id === spinnerDOMID;
+        });
+        goog.dom.removeNode(d_spinnerElem);
+    }
+};
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 ///                                     Constructor                                              ///

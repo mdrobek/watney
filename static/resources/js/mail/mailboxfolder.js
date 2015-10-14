@@ -48,6 +48,21 @@ wat.mail.MailboxFolder.prototype.DisplayName = "";
  */
 wat.mail.MailboxFolder.prototype.NavDomID = "";
 /**
+ * The Dom ID for the loading spinner icon in the mail overview list.
+ * @type {string}
+ */
+wat.mail.MailboxFolder.prototype.OverviewSpinnerDomID = "Overview_Spinner";
+/**
+ * The Y offset used to place the Spinner in the mail overview list.
+ * @type {Number}
+ */
+wat.mail.MailboxFolder.prototype.LoadingSpinnerYOffset = 400;
+/**
+ * The Y offset used to place the Spinner in the mail overview list.
+ * @type {Number}
+ */
+wat.mail.MailboxFolder.prototype.ContentSpinnerDomID = "DetailsLoadingSpinnerID";
+/**
  * Whether this mailbox folder is a client-side local folder only, or if it is mirrored on the
  * backend.
  * @type {boolean}
@@ -364,18 +379,20 @@ wat.mail.MailboxFolder.prototype.getNextItem = function(curMailItem, opt_before)
 wat.mail.MailboxFolder.prototype.activate = function() {
     var self = this,
         d_navBtn = goog.dom.getElement(self.NavDomID);
-    // 1) Add highlight for new button
-    goog.dom.classes.add(d_navBtn, "active");
-    // 2) Change the control buttons for the specific mail folder
-    self.renderCtrlbar();
-    // 3) Clean mail overview list
+    // 1) Clean mail overview list
     goog.dom.removeChildren(goog.dom.getElement("mailItems"));
-    // 4) Check, whether we need to retrieve the Mails for the given mailbox ...
+    // 2) Show the loading spinner icon
+    wat.mail.enableSpinner(true, "mailItems", self.OverviewSpinnerDomID, self.LoadingSpinnerYOffset);
+    // 3) Add highlight for new button
+    goog.dom.classes.add(d_navBtn, "active");
+    // 4) Change the control buttons for the specific mail folder
+    self.renderCtrlbar();
+    // 5) Check, whether we need to retrieve the Mails for the given mailbox ...
     if (!self.retrieved_) {
-        // 4a) ... and if so, do it
+        // 5a) ... and if so, do it
         self.loadMails();
     } else {
-        // 4b) ... otherwise just render the mails
+        // 5b) ... otherwise just render the mails
         self.renderMailboxContent_();
     }
 };
@@ -398,7 +415,10 @@ wat.mail.MailboxFolder.prototype.showMail = function(activatedMail) {
         console.log("MailboxFolder.ShowMail failed for 'null' mail");
         return;
     }
+    // First: Clean the contents from a potentially last shown mail
+    goog.dom.removeChildren(goog.dom.getElement("mailDetails_Content"));
     if (!activatedMail.HasContentBeenLoaded) {
+        wat.mail.enableSpinner(true, "mailDetails_Content", self.ContentSpinnerDomID, 300);
         activatedMail.loadContent(function(loadedMail) {
             self.showMail(loadedMail);
         });
@@ -412,9 +432,11 @@ wat.mail.MailboxFolder.prototype.showMail = function(activatedMail) {
             self.lastActiveMailItem_.highlightOverviewItem(false);
         // 4) Highlight newly activated mail item in mail list
         activatedMail.highlightOverviewItem(true);
-        // 5) Copy over the mail information into the mail details form
+        // 5) Hide the mail content loading spinner icon
+        wat.mail.enableSpinner(false, "mailDetails_Content", self.ContentSpinnerDomID);
+        // 6) Copy over the mail information into the mail details form
         self.detailsComponent_.render(activatedMail);
-        // 6) Adjust control buttons for newly activated mail item
+        // 7) Adjust control buttons for newly activated mail item
         self.updateCtrlBtns_(activatedMail);
     }
     self.lastActiveMailItem_ = activatedMail;
@@ -457,16 +479,18 @@ wat.mail.MailboxFolder.prototype.getAssocServerSideFolderName = function() {
  */
 wat.mail.MailboxFolder.prototype.renderMailboxContent_ = function() {
     var self = this;
-    // 1) Render all mails in the mailbox
+    // 1) Always disable a potential existing loading spinner icon
+    wat.mail.enableSpinner(false, "mailItems", self.OverviewSpinnerDomID);
+    // 2) Render all mails in the mailbox
     self.mails_.inOrderTraverse(function(curMail) {
         curMail.renderMail(function(mail) {
-            // 1) Unhighlight currently active mail
+            // 4a) Unhighlight currently active mail
             self.lastActiveMailItem_.highlightOverviewItem(false);
-            // 2) Activate the clicked mail
+            // 4b) Activate the clicked mail
             self.showMail(mail);
         });
     });
-    // 2) Highlight the most up-to-date mail in the mailbox
+    // 3) Highlight the most up-to-date mail in the mailbox
     if (self.mails_.getCount() > 0) {
         self.showMail(self.mails_.getKthValue(0));
     }
@@ -756,13 +780,15 @@ wat.mail.Spam.prototype.synchFolder = function() { /* Nothing to do here */ };
 wat.mail.Spam.prototype.activate = function() {
     var self = this,
         d_navBtn = goog.dom.getElement(self.NavDomID);
-    // 1) Add highlight for new button
-    goog.dom.classes.add(d_navBtn, "active");
-    // 2) Change the control buttons for the specific mail folder
-    self.renderCtrlbar();
-    // 3) Clean mail overview list
+    // 1) Clean mail overview list
     goog.dom.removeChildren(goog.dom.getElement("mailItems"));
-    // 4) Local client-folder: always just render the content
+    // 2) Show the loading spinner icon
+    wat.mail.enableSpinner(true, "mailItems", self.OverviewSpinnerDomID, self.LoadingSpinnerYOffset);
+    // 3) Add highlight for new button
+    goog.dom.classes.add(d_navBtn, "active");
+    // 4) Change the control buttons for the specific mail folder
+    self.renderCtrlbar();
+    // 5) Local client-folder: always just render the content
     self.renderMailboxContent_();
 };
 
