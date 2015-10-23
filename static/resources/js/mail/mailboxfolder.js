@@ -15,6 +15,7 @@ goog.require('goog.events');
 goog.require('goog.Uri.QueryData');
 goog.require('goog.json');
 goog.require('goog.structs.AvlTree');
+goog.require('goog.ui.Dialog');
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 ///                                     Constructor                                              ///
@@ -713,7 +714,8 @@ wat.mail.Trash.prototype.renderCtrlbar = function() {
  */
 wat.mail.Trash.prototype.updateCtrlBtns_ = function(forMail) {
     var self = this,
-        d_restoreBtn = goog.dom.getElement(self.RestoreBtnDomID);
+        d_restoreBtn = goog.dom.getElement(self.RestoreBtnDomID),
+        d_emptyBtn = goog.dom.getElement(self.EmptyBtnDomID);
     if (forMail.Previous_Folder === forMail.Folder) {
         // 1) Hide restore button, if the mail wasn't moved in this session
         goog.dom.classes.add(d_restoreBtn, "hide");
@@ -726,12 +728,48 @@ wat.mail.Trash.prototype.updateCtrlBtns_ = function(forMail) {
             wat.app.mailHandler.moveMail(forMail, forMail.Previous_Folder);
         }, false);
     }
+    // 3) Add empty trash listener for modal dialog
+    if (!goog.events.hasListener(d_emptyBtn, goog.events.EventType.CLICK)) {
+        goog.events.listen(d_emptyBtn, goog.events.EventType.CLICK, function () {
+            self.emptyTrashModal_();
+        }, false);
+    }
+};
+
+/**
+ *
+ * @private
+ */
+wat.mail.Trash.prototype.emptyTrashModal_ = function() {
+    var dialog = new goog.ui.Dialog("empty-trash-modal modal-dialog"),
+        d_content = goog.soy.renderAsElement(wat.soy.mail.modalEmptyTrash, this);
+    dialog.setContent(goog.dom.getOuterHtml(d_content));
+    dialog.setTitle("Permanently delete mails");
+    dialog.setButtonSet(goog.ui.Dialog.ButtonSet.OK_CANCEL);
+    // set visible creates the DOM elements necessary to get the Button elements!!!
+    dialog.setVisible(true);
+    var d_cancelBtn = dialog.getButtonSet().getButton(
+            goog.ui.Dialog.ButtonSet.DefaultButtons.CANCEL.key),
+        d_okBtn = dialog.getButtonSet().getButton(
+            goog.ui.Dialog.ButtonSet.DefaultButtons.OK.key);
+    goog.events.listen(d_okBtn, goog.events.EventType.CLICK, function() {
+        // TODO: Implement setDelete(true) for all mails here!
+    }, false);
+    goog.dom.classes.add(d_okBtn, "btn btn-primary");
+    goog.events.listen(d_cancelBtn, goog.events.EventType.CLICK, function() {
+        dialog.dispose();
+    }, false);
+    goog.dom.classes.add(d_cancelBtn, "btn btn-primary pull-right");
+
+    dialog.setHasTitleCloseButton(false);
+    dialog.setDraggable(false);
+    dialog.setEscapeToCancel(true);
+    dialog.setDisposeOnHide(true);
 };
 
 wat.mail.Trash.prototype.deleteActiveMail = function() {
     console.log("TODO: Delete of active mailitem in trash folder hasn't been implemented yet!");
 };
-
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 ///                                  Spam Constructor                                            ///
