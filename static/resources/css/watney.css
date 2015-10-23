@@ -144,7 +144,7 @@ body {
         top: 51px;
         bottom: 0;
         left: 0;
-        z-index: 1000;
+        /*z-index: 1000;*/
         display: block;
         overflow-x: hidden;
         overflow-y: auto; /* Scrollable contents if viewport is shorter than content. */
@@ -389,6 +389,11 @@ div#mailItems > div.row:nth-of-type(2n) {
     cursor: pointer;
     border-radius: 10px;
 }
+/**************************************************************************************************
+ ***                                New-Mail component                                          ***
+ *** Modal dialog used from google closure sources. See goog/css/dialog.css for more            ***
+ *** information.                                                                               ***
+ **************************************************************************************************/
 .newmail-content .newmail-from {
     background-color: #666C6D;
     width: 100%;
@@ -438,10 +443,75 @@ div#mailItems > div.row:nth-of-type(2n) {
 .mail-window-bar-item .newMail-bar-close-btn:hover {
     color: #317461;
 }
+
+/**************************************************************************************************
+ ***                              Default Modal dialog                                          ***
+ *** Modal dialog used from google closure sources. See goog/css/dialog.css for more            ***
+ *** information.                                                                               ***
+ **************************************************************************************************/
+.modal-dialog {
+    background: #c1d9ff;
+    border: 1px solid #3a5774;
+    color: #000;
+    padding: 4px;
+    position: absolute;
+}
+.modal-dialog a,
+.modal-dialog a:link,
+.modal-dialog a:visited  {
+    color: #06c;
+    cursor: pointer;
+}
+.modal-dialog-bg {
+    background: #666;
+    left: 0;
+    position: absolute;
+    top: 0;
+}
+.modal-dialog-title {
+    background: #91BDF8;
+    color: #000;
+    /*cursor: pointer;*/
+    font-size: 120%;
+    font-weight: bold;
+    /* Add padding on the right to ensure the close button has room. */
+    padding: 8px 31px 8px 8px;
+    position: relative;
+    _zoom: 1; /* Ensures proper width in IE6 RTL. */
+}
+.modal-dialog-title-close {
+    /* Client apps may override the URL at which they serve the sprite. */
+    background: #e0edfe;
+    cursor: default;
+    height: 15px;
+    position: absolute;
+    right: 10px;
+    top: 8px;
+    width: 15px;
+    vertical-align: middle;
+}
+.modal-dialog-buttons,
+.modal-dialog-content {
+    background-color: #666c6d;
+    padding: 8px;
+    color: white;
+}
+.goog-buttonset-default {
+    font-weight: bold;
+}
+/***********************                Empty Trash dialog                      *******************/
+.empty-trash-modal .modal-dialog-content {
+    font-size: 20px;
+    text-align: center;
+}
+.empty-trash-modal .modal-dialog-title {
+    text-align: center;
+    font-size: 25px;
+}
+
 /**************************************************************************************************
  ***                              Welcome/Login page                                            ***
  **************************************************************************************************/
-
 .failed-Login {
     font-size: 23px;
     font-weight: bold;

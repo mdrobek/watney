@@ -163,7 +163,7 @@
         </button>
         <button id="{$EmptyBtnID}" type="button" class="btn btn-lg btn-primary
             pull-right" style="margin-right: 13px;">
-            Empty
+            Empty Trash
         </button>
     </div>
 {/template}
@@ -193,3 +193,14 @@
         <a href="#">{$ButtonName}{if $IsActive} <span class="sr-only">(current)</span>{/if}</a>
     </li>
 {/template}
+
+/**
+ * Template to create the content of the empty Trash mailbox modal dialog.
+ */
+{template .modalEmptyTrash}
+    <div>
+        <b>Warning:</b> You're about to permanently delete all trashed mails.</br>
+        Do you want to proceed?
+    </div>
+{/template}
+
