@@ -125,10 +125,10 @@ wat.mail.MailHandler.prototype.addNavigationButtons = function() {
     // The folders have to be added in a certain order, which is why we can't use the Map iterator
     // here (it might switch the iteration order)
     var self = this;
-    self.mailboxFolders_.get(wat.mail.MailboxFolder.INBOX).renderNavigation(true);
-    self.mailboxFolders_.get(wat.mail.MailboxFolder.SENT).renderNavigation();
-    self.mailboxFolders_.get(wat.mail.MailboxFolder.SPAM).renderNavigation();
-    self.mailboxFolders_.get(wat.mail.MailboxFolder.TRASH).renderNavigation();
+    self.mailboxFolders_.get(wat.mail.MailboxFolder.INBOX).renderNavButton(true);
+    self.mailboxFolders_.get(wat.mail.MailboxFolder.SENT).renderNavButton();
+    self.mailboxFolders_.get(wat.mail.MailboxFolder.SPAM).renderNavButton();
+    self.mailboxFolders_.get(wat.mail.MailboxFolder.TRASH).renderNavButton();
 };
 
 /**

@@ -58,14 +58,14 @@ function tearDown() {
 
 function testRenderNavigation() {
     // 1) Test correct DOM structure and content to be set
-    inbox.renderNavigation(true);
+    inbox.renderNavButton(true);
     assertEquals("Rendering 1 mailbox navigation entry creates 1 navigation button",
         1, goog.dom.getChildren(goog.dom.getElement("navBarContainer")).length);
     assertNotNull("Expect the Inbox navigation button to have the correct DOM ID: "
         + inbox.NavDomID, goog.dom.getElement(inbox.NavDomID));
     assertTrue("Expect CSS class active being set for the initial inbox folder",
         goog.dom.classes.has(goog.dom.getElement(inbox.NavDomID), "active"));
-    spam.renderNavigation();
+    spam.renderNavButton();
     var navLink = goog.dom.getElementsByTagNameAndClass("a", null,
         goog.dom.getElement(spam.NavDomID));
     assertNotNull("Expect navigation button to have an <a href> link element",
@@ -81,7 +81,7 @@ function testRenderNavigation() {
 }
 
 function testDeactivateMailbox() {
-    inbox.renderNavigation(true);
+    inbox.renderNavButton(true);
     inbox.deactivate();
     assertFalse("Expect CSS class active being removed from inbox after mailbox switch",
         goog.dom.classes.has(goog.dom.getElement(inbox.NavDomID), "active"));
@@ -91,7 +91,7 @@ function testLoadMails() {
     var inboxMailJson = wat.testing.createInboxMail(wat.mail.MailFlags.RECENT),
         trashMailJson = wat.testing.createTrashMail(wat.mail.MailFlags.RECENT),
         inboxLoadXhr, trashLoadXhr;
-    goog.array.forEach([inbox, trash], function(curFolder) { curFolder.renderNavigation(); });
+    goog.array.forEach([inbox, trash], function(curFolder) { curFolder.renderNavButton(); });
     // Run the load methods for the Trash and Inbox folder
     trash.loadMails();
     trashLoadXhr = nextXhr();
@@ -124,7 +124,7 @@ function testSynchFolder() {
         spamMail = wat.testing.createSpamMail(wat.mail.MailFlags.RECENT),
         spamMailObj = new wat.mail.MailItem(spamMail, wat.mail.MailboxFolder.SPAM),
         inboxXHR;
-    goog.array.forEach([inbox, spam], function(curFolder) { curFolder.renderNavigation(); });
+    goog.array.forEach([inbox, spam], function(curFolder) { curFolder.renderNavButton(); });
     inbox.synchFolder();
     inboxXHR = nextXhr();
     // Set up expected method calls for spam mails
@@ -146,7 +146,7 @@ function testUpdateNavigationBar() {
             wat.testing.createSpamMail(wat.mail.MailFlags.RECENT, mail2Date),
             wat.mail.MailboxFolder.SPAM),
         d_navbarButton, d_navbarButtonA;
-    spam.renderNavigation();
+    spam.renderNavButton();
     goog.array.forEach([spamMail1, spamMail2], function(curMail) {
         curMail.renderMail();
         spam.mails_.add(curMail);
@@ -168,4 +168,35 @@ function testUpdateNavigationBar() {
         + "been read", "Spam", goog.dom.getTextContent(d_navbarButtonA));
     assertFalse("Expect navigation bar button to be reset after mails have been read",
         goog.dom.classes.has(d_navbarButton, "strong"));
+}
+
+// Future test to remo
+function testEmptyTrashFolder() {
+    var mail2Date = new goog.date.DateTime(),
+        mail3Date = new goog.date.DateTime();
+    mail2Date.add(new goog.date.Interval(goog.date.DateTime.MINUTES, 5));
+    mail3Date.add(new goog.date.Interval(goog.date.DateTime.MINUTES, 15));
+    var trashMailJson1 = wat.testing.createTrashMail(wat.mail.MailFlags.RECENT),
+        trashMailJson2 = wat.testing.createTrashMail(wat.mail.MailFlags.RECENT, mail2Date),
+        trashMailJson3 = wat.testing.createTrashMail(wat.mail.MailFlags.RECENT, mail3Date),
+        trashMailsJson = [trashMailJson1, trashMailJson2, trashMailJson3],
+        //trashMailsJson = goog.json.serialize([trashMailJson1, trashMailJson2, trashMailJson3]),
+        trashLoadXhr;
+    trash.renderNavButton();
+    // Run the load methods for the Trash and Inbox folder
+    trash.loadMails();
+    trashLoadXhr = nextXhr();
+    // Fill the trash mailbox with 3 mails
+    trashLoadXhr.simulateResponse(200, goog.json.serialize(trashMailsJson));
+    assertEquals("Expect 3 mails to be stored in the trashs 'mail_' member",
+        3, trash.mails_.getCount());
+    // Now empty the mailbox folder
+    trash.emptyMailbox_();
+    assertEquals("Expect no mails remaining in the trashs 'mail_' member",
+        0, trash.mails_.getCount());
+    assertEquals("Expect 3 new mails in the trashs 'hiddenMails_' member",
+        3, trash.hiddenMails_.getCount());
+    goog.array.forEach(trash.hiddenMails_.getValues(), function(curMail) {
+        assertTrue("Expect mail flag \\\\Deleted to be set", curMail.Mail.Flags.Deleted);
+    });
 }

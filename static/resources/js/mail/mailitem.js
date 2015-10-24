@@ -186,6 +186,26 @@ wat.mail.MailItem.prototype.setSeen = function(newSeenState) {
 };
 
 /**
+ * Change the Deleted flag of the mail to the given new state.
+ * @param {boolean} newSeenState
+ *      True  -> If the mail hasn't been seen yet, it will be tagged on the client and server as
+ *               seen (the \Seen flag will be added)
+ *      False -> Same as True, but the opposite
+ */
+wat.mail.MailItem.prototype.setDeleted = function(newDeletedState) {
+    // 1) Check if the flag has to be changed
+    if (this.Mail.Flags.Deleted === newDeletedState) { /* nothing to do here */ return; }
+    // 2) First apply all client-side effects -> better user experience
+    var self = this;
+    self.Mail.Flags.Deleted = newDeletedState;
+    // 3) Now send information to server
+    self.updateFlagsRequest_(self.Mail.Header.Folder, self.Mail.UID, wat.mail.MailFlags.DELETED,
+        newDeletedState, function(request) {
+            // TODO: Revert changes in client state of Delete flag
+        });
+};
+
+/**
  * Sends a request to the server to change the server-side folder of this mail from its current
  * folder to the given 'intoFolder'.
  * ATTENTION:
@@ -238,7 +258,7 @@ wat.mail.MailItem.prototype.moveMailOnServer = function(intoFolder, successCb, e
  * @param {string} folder The folder in which the mail resides, whose flags should be updates.
  * @param {string} uid The IMAP server unique ID of the mail.
  * @param {wat.mail.MailFlags} flag
- * @param {boolean} addFlags True - The given flags will be added to the mail mail
+ * @param {boolean} addFlags True - The given flags will be added to the mail
  *                           False - The given flags will be removed from the mail
  * @param {function} errorCb
  * @private

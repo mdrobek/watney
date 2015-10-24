@@ -55,9 +55,24 @@ wat.mail.MailDetails.prototype.render = function(withMailItem) {
         contentNode = self.createPlainTextFragment_(mail.getContent("text/plain"));
         goog.style.setStyle(d_mailDetailsContent, "overflow-y", "hidden");
     }
-
     goog.dom.removeChildren(d_mailDetailsContent);
     goog.dom.appendChild(d_mailDetailsContent, contentNode);
+};
+
+/**
+ *
+ * @public
+ */
+wat.mail.MailDetails.prototype.clean = function() {
+    var self = this,
+        d_mailDetailsFrom = goog.dom.getElement(self.FROM_DOMID_),
+        d_mailDetailsSubject = goog.dom.getElement(self.SUBJECT_DOMID_),
+        d_mailDetailsTo = goog.dom.getElement(self.TO_DOMID_),
+        d_mailDetailsContent = goog.dom.getElement(self.CONTENT_DOMID_);
+    goog.dom.setTextContent(d_mailDetailsFrom, "");
+    goog.dom.setTextContent(d_mailDetailsSubject, "");
+    goog.dom.setTextContent(d_mailDetailsTo, "");
+    goog.dom.removeChildren(d_mailDetailsContent);
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////

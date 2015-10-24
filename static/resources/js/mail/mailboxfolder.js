@@ -127,12 +127,13 @@ wat.mail.MailboxFolder.prototype.synchFolder = goog.abstractMethod;
 ///                                  Public methods                                              ///
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 /**
- * This method renders the navigation button in the left navigation menu.
+ * This method renders the navigation button in the left navigation menu for the current
+ * mailbox folder.
  * @param {boolean} [opt_isActive] True - The rendered navigation button will be set active.
  *                                 False - Otherwise.
  * @public
  */
-wat.mail.MailboxFolder.prototype.renderNavigation = function(opt_isActive) {
+wat.mail.MailboxFolder.prototype.renderNavButton = function(opt_isActive) {
     var self = this,
         d_navBarContainer = goog.dom.getElement("navBarContainer"),
         d_newNavButton = goog.soy.renderAsElement(wat.soy.mail.mailNavEntry, {
@@ -444,6 +445,31 @@ wat.mail.MailboxFolder.prototype.showMail = function(activatedMail) {
 };
 
 /**
+ * This method shows an empty mailbox message in the mail overview item list.
+ * ATTENTION:
+ *   The method also empties the mail overview list. This means, that all DOM elements for mail
+ *   items being shown, will be removed.
+ * @param {boolean} enable True - The 'empty folder message' will be shown.
+ *                         False|Undefined- The message will be removed from the mail overview list.
+ * @public
+ */
+wat.mail.MailboxFolder.prototype.showEmptyFolderMsg = function(enable) {
+    var self = this,
+        d_mailItems = goog.dom.getElement("mailItems"),
+        d_emptyFolderMsg;
+    goog.dom.removeChildren(d_mailItems);
+    if (goog.isDefAndNotNull(enable) && enable) {
+        // 1) Clean mail overview list
+        d_emptyFolderMsg = goog.soy.renderAsElement(wat.soy.mail.emptyFolderMessage);
+        goog.dom.appendChild(d_mailItems, d_emptyFolderMsg);
+        // 2) Disable empty trash button
+        self.updateCtrlBtns_();
+        // 3) Clean the mail details component
+        self.detailsComponent_.clean();
+    }
+};
+
+/**
  * Updates the left navigation bar about new arrived mails or mails have been read.
  * @public
  */
@@ -480,9 +506,11 @@ wat.mail.MailboxFolder.prototype.getAssocServerSideFolderName = function() {
  */
 wat.mail.MailboxFolder.prototype.renderMailboxContent_ = function() {
     var self = this;
-    // 1) Always disable a potential existing loading spinner icon
+    // 1) Remove potentially shown empty mailbox folder message
+    self.showEmptyFolderMsg(false);
+    // 2) Always disable a potential existing loading spinner icon
     wat.mail.enableSpinner(false, "mailItems", self.OverviewSpinnerDomID);
-    // 2) Render all mails in the mailbox
+    // 3) Render all mails in the mailbox
     self.mails_.inOrderTraverse(function(curMail) {
         curMail.renderMail(function(mail) {
             // 4a) Unhighlight currently active mail
@@ -491,9 +519,12 @@ wat.mail.MailboxFolder.prototype.renderMailboxContent_ = function() {
             self.showMail(mail);
         });
     });
-    // 3) Highlight the most up-to-date mail in the mailbox
+    // 4) Highlight the most up-to-date mail in the mailbox
     if (self.mails_.getCount() > 0) {
         self.showMail(self.mails_.getKthValue(0));
+    } else {
+        // No mails are available -> show empty folder message
+        self.showEmptyFolderMsg(true);
     }
 };
 
@@ -617,6 +648,17 @@ wat.mail.Inbox.prototype.updateCtrlBtns_ = function(forMail) {
     var self = this,
         d_replyBtn = goog.dom.getElement("mailReplyBtn"),
         d_deleteBtn = goog.dom.getElement("inbox_mailDeleteBtn");
+    // No Mail was given -> disable all buttons
+    if (!goog.isDefAndNotNull(forMail)) {
+        if (!goog.dom.classes.has(d_replyBtn, "disabled")) {
+            goog.dom.classes.add(d_replyBtn, "disabled");
+        }
+        if (!goog.dom.classes.has(d_deleteBtn, "disabled")) {
+            goog.dom.classes.add(d_deleteBtn, "disabled");
+        }
+        return;
+    }
+
     goog.events.removeAll(d_replyBtn);
     goog.events.removeAll(d_deleteBtn);
     goog.events.listen(d_replyBtn, goog.events.EventType.CLICK, function() {
@@ -707,6 +749,19 @@ wat.mail.Trash.prototype.renderCtrlbar = function() {
     goog.dom.appendChild(d_ctrlBarContainer, d_newCtrlBar);
 };
 
+wat.mail.Trash.prototype.deleteActiveMail = function() {
+    var self = this,
+        tempLastItem = self.lastActiveMailItem_;
+    if (!goog.isDefAndNotNull(tempLastItem)) return;
+    // 1) Remove mail items DOM elements and switch to the next item
+    self.switchAndRemoveNode(tempLastItem);
+    // 2) Change \\Deleted flag client- and server-side
+    tempLastItem.setDeleted(true);
+    // 3) Move mail into different member tree
+    self.mails_.remove(tempLastItem);
+    self.hiddenMails_.add(tempLastItem);
+};
+
 /**
  * Resets all control button events for the current mail (e.g., reply, forward and delete button).
  * @param {wat.mail.MailItem} forMail
@@ -716,23 +771,39 @@ wat.mail.Trash.prototype.updateCtrlBtns_ = function(forMail) {
     var self = this,
         d_restoreBtn = goog.dom.getElement(self.RestoreBtnDomID),
         d_emptyBtn = goog.dom.getElement(self.EmptyBtnDomID);
+    // No Mail was given -> disable all buttons
+    if (!goog.isDefAndNotNull(forMail)) {
+        if (!goog.dom.classes.has(d_restoreBtn, "disabled")) {
+            goog.dom.classes.add(d_restoreBtn, "disabled");
+        }
+        if (!goog.dom.classes.has(d_emptyBtn, "disabled")) {
+            goog.dom.classes.add(d_emptyBtn, "disabled");
+        }
+        return;
+    }
+
     if (forMail.Previous_Folder === forMail.Folder) {
-        // 1) Hide restore button, if the mail wasn't moved in this session
-        goog.dom.classes.add(d_restoreBtn, "hide");
+        // 1) Disable restore button, if the mail wasn't moved in this session
+        goog.dom.classes.add(d_restoreBtn, "disabled");
     } else {
-        // 2a) Show restore button, if the mail was moved in this session
-        goog.dom.classes.remove(d_restoreBtn, "hide");
+        // 2a) Enable restore button, if the mail was moved in this session
+        goog.dom.classes.remove(d_restoreBtn, "disabled");
         // 2b) Add events for restore and empty buttons
         goog.events.listen(d_restoreBtn, goog.events.EventType.CLICK, function() {
             self.switchAndRemoveNode(forMail);
             wat.app.mailHandler.moveMail(forMail, forMail.Previous_Folder);
         }, false);
     }
-    // 3) Add empty trash listener for modal dialog
-    if (!goog.events.hasListener(d_emptyBtn, goog.events.EventType.CLICK)) {
-        goog.events.listen(d_emptyBtn, goog.events.EventType.CLICK, function () {
-            self.emptyTrashModal_();
-        }, false);
+    // 3) Add empty trash listener for modal dialog if mails are available
+    if (0 == self.mails_.getCount()) {
+        goog.dom.classes.add(d_emptyBtn, "disabled");
+    } else {
+        goog.dom.classes.remove(d_emptyBtn, "disabled");
+        if (!goog.events.hasListener(d_emptyBtn, goog.events.EventType.CLICK)) {
+            goog.events.listen(d_emptyBtn, goog.events.EventType.CLICK, function () {
+                self.showEmptyTrashModal_();
+            }, false);
+        }
     }
 };
 
@@ -740,35 +811,60 @@ wat.mail.Trash.prototype.updateCtrlBtns_ = function(forMail) {
  *
  * @private
  */
-wat.mail.Trash.prototype.emptyTrashModal_ = function() {
-    var dialog = new goog.ui.Dialog("empty-trash-modal modal-dialog"),
+wat.mail.Trash.prototype.showEmptyTrashModal_ = function() {
+    // 1) Create dialog and content
+    var self = this,
+        dialog = new goog.ui.Dialog("empty-trash-modal modal-dialog"),
         d_content = goog.soy.renderAsElement(wat.soy.mail.modalEmptyTrash, this);
     dialog.setContent(goog.dom.getOuterHtml(d_content));
     dialog.setTitle("Permanently delete mails");
     dialog.setButtonSet(goog.ui.Dialog.ButtonSet.OK_CANCEL);
-    // set visible creates the DOM elements necessary to get the Button elements!!!
+    // 2) Set dialog visible to create the DOM elements necessary to get the Button elements
     dialog.setVisible(true);
     var d_cancelBtn = dialog.getButtonSet().getButton(
             goog.ui.Dialog.ButtonSet.DefaultButtons.CANCEL.key),
         d_okBtn = dialog.getButtonSet().getButton(
             goog.ui.Dialog.ButtonSet.DefaultButtons.OK.key);
+    // 3) Add button event listener
     goog.events.listen(d_okBtn, goog.events.EventType.CLICK, function() {
-        // TODO: Implement setDelete(true) for all mails here!
+        self.emptyMailbox_();
     }, false);
-    goog.dom.classes.add(d_okBtn, "btn btn-primary");
     goog.events.listen(d_cancelBtn, goog.events.EventType.CLICK, function() {
         dialog.dispose();
     }, false);
+    // 4) Add button CSS classes
+    goog.dom.classes.add(d_okBtn, "btn btn-primary");
     goog.dom.classes.add(d_cancelBtn, "btn btn-primary pull-right");
-
+    // 5) Make dialog more user-friendly
     dialog.setHasTitleCloseButton(false);
     dialog.setDraggable(false);
     dialog.setEscapeToCancel(true);
     dialog.setDisposeOnHide(true);
 };
 
-wat.mail.Trash.prototype.deleteActiveMail = function() {
-    console.log("TODO: Delete of active mailitem in trash folder hasn't been implemented yet!");
+/**
+ * Runs through all mails in the mailbox that are not deleted (whose Flag \\Deleted is not set) and
+ * changes the deletion flag to active. All DOM elements of these mails will be removed from the
+ * mail overview list and the 'empty folder message' DOM element will be shown instead.
+ * ATTENTION:
+ *   All mails whose flag \\Deleted is being activated, will be moved to the 'hiddenMails_' member
+ *   and are available up until reload of the page.
+ * @private
+ */
+wat.mail.Trash.prototype.emptyMailbox_ = function() {
+    var self = this;
+    // 1) Remove all mail item DOM elements from the mail overview list and show 'no mails' text
+    self.showEmptyFolderMsg(true);
+    // 2) Change flag (also on server-side).
+    goog.array.forEach(self.mails_.getValues(), function(curMail) {
+        // 2a) Change client- and server-side status of mail flag \\Deleted
+        curMail.setDeleted(true);
+        // 2b) Move mails from 'mails_' tree to 'hiddenMails_' tree
+        self.mails_.remove(curMail);
+        self.hiddenMails_.add(curMail);
+    });
+    // 3) Reset last selected item
+    self.lastActiveMailItem_ = null;
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
