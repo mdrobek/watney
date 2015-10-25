@@ -13,10 +13,12 @@ goog.require('wat.mail.MailDetails');
 goog.require('wat.mail.MailItem');
 goog.require('goog.array');
 goog.require('goog.events');
+goog.require('goog.events.KeyHandler');
 goog.require('goog.Uri.QueryData');
 goog.require('goog.json');
 goog.require('goog.structs.AvlTree');
 goog.require('goog.ui.Dialog');
+goog.require('goog.ui.LabelInput');
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 ///                                     Constructor                                              ///
@@ -25,7 +27,12 @@ goog.require('goog.ui.Dialog');
  * @constructor
  * @abstract
  */
-wat.mail.MailboxFolder = function() {};
+wat.mail.MailboxFolder = function() {
+    var self = this;
+    self.mails_ = new goog.structs.AvlTree(wat.mail.MailItem.comparator);
+    self.hiddenMails_ = new goog.structs.AvlTree(wat.mail.MailItem.comparator);
+    self.detailsComponent_ = new wat.mail.MailDetails();
+};
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 ///                                     Static Vars                                              ///
@@ -51,7 +58,7 @@ wat.mail.MailboxFolder.Buttons.DELETE_BTN = {
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
-///                                   Class members                                              ///
+///                                Public Class members                                          ///
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 /**
  * The name of the mailbox folder (one of the static names defined above).
@@ -94,6 +101,10 @@ wat.mail.MailboxFolder.prototype.CtrlBarButtonsDomID = "ControlBarID";
  * @type {boolean}
  */
 wat.mail.MailboxFolder.prototype.IsLocal = false;
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+///                               Private Class members                                          ///
+////////////////////////////////////////////////////////////////////////////////////////////////////
 /**
  * Stores all the mails that are by default shown in this mailbox.
  * ATTENTION: Has to be assigned in each implementation constructor (Inbox, Sent, Trash)
@@ -115,18 +126,25 @@ wat.mail.MailboxFolder.prototype.hiddenMails_ = null;
  */
 wat.mail.MailboxFolder.prototype.retrieved_ = false;
 /**
- *
  * @type {wat.mail.MailItem}
  * @private
  */
 wat.mail.MailboxFolder.prototype.lastActiveMailItem_ = null;
 /**
- *
  * @type {wat.mail.MailDetails}
  * @private
  */
 wat.mail.MailboxFolder.prototype.detailsComponent_ = null;
-
+/**
+ * @type {goog.ui.LabelInput}
+ * @private
+ */
+wat.mail.MailboxFolder.prototype.searchbar_ = null;
+/**
+ * @type {string}
+ * @private
+ */
+wat.mail.MailboxFolder.prototype.searchbarParentDomID_ = "OverviewSearchBar";
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 ///                                  Abstract methods                                            ///
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -251,6 +269,8 @@ wat.mail.MailboxFolder.prototype.deleteActiveMail = function() {
     if (!goog.isDefAndNotNull(tempLastItem)) return;
     self.switchAndRemoveNode(tempLastItem);
     wat.app.mailHandler.moveMail(tempLastItem, wat.mail.MailboxFolder.TRASH);
+    // 3) Check, whether searchbar needs to be disabled
+    if (0 == self.mails_.getCount()) { self.searchbar_.setEnabled(false); }
 };
 
 /**
@@ -288,6 +308,8 @@ wat.mail.MailboxFolder.prototype.loadMails = function() {
             mails = self.postProcessMails_(mails);
             self.addMailsToFolder(mails);
             self.renderMailboxContent_();
+            // 4) Check, whether searchbar needs to be disabled
+            if (0 == self.mails_.getCount()) { self.searchbar_.setEnabled(false); }
             unseenMails = goog.array.filter(mails, function(curMail) {
                 return !curMail.Mail.Flags.Seen;
             });
@@ -414,14 +436,15 @@ wat.mail.MailboxFolder.prototype.getNextItem = function(curMailItem, opt_before)
 wat.mail.MailboxFolder.prototype.activate = function() {
     var self = this,
         d_navBtn = goog.dom.getElement(self.NavDomID);
-    // 1) Clean mail overview list
-    goog.dom.removeChildren(goog.dom.getElement("mailItems"));
-    // 2) Show the loading spinner icon
-    wat.mail.enableSpinner(true, "mailItems", self.OverviewSpinnerDomID, self.LoadingSpinnerYOffset);
-    // 3) Add highlight for new button
+    // 1) Show the loading spinner icon
+    wat.mail.enableSpinner(true, "mailItems", self.OverviewSpinnerDomID,
+        self.LoadingSpinnerYOffset);
+    // 2) Add highlight for new button
     goog.dom.classes.add(d_navBtn, "active");
-    // 4) Change the control buttons for the specific mail folder
+    // 3) Change the control buttons for the specific mail folder
     self.renderCtrlbar();
+    // 4) Render the search bar
+    self.renderSearchbar_();
     // 5) Check, whether we need to retrieve the Mails for the given mailbox ...
     if (!self.retrieved_) {
         // 5a) ... and if so, do it
@@ -433,10 +456,16 @@ wat.mail.MailboxFolder.prototype.activate = function() {
 };
 
 wat.mail.MailboxFolder.prototype.deactivate = function() {
-    var d_curNavBtn = goog.dom.getElement(this.NavDomID);
+    var self = this,
+        d_curNavBtn = goog.dom.getElement(this.NavDomID);
+    // 1) Clean mail overview list
+    goog.dom.removeChildren(goog.dom.getElement("mailItems"));
+    // 2) Disable navigation bar button highlighting
     if (goog.dom.classes.has(d_curNavBtn, "active")) {
         goog.dom.classes.remove(d_curNavBtn, "active");
     }
+    // 3) Remove the search bar
+    self.searchbar_.dispose();
 };
 
 /**
@@ -534,17 +563,23 @@ wat.mail.MailboxFolder.prototype.getAssocServerSideFolderName = function() {
 ///                               Protected methods                                              ///
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 /**
- *
+ * Renders the mail overview list with all mails (or the filtered mails in the given parameter).
+ * Afterwards, renders the first mails content in the mail overview list.
+ * @param {[wat.mail.MailItem]} [opt_filteredMails] Optional, the array of filtered mails, e.g.,
+ *                                                  from the search bar.
+ *                                                  Defaults to: self.mails_
  * @protected
  */
-wat.mail.MailboxFolder.prototype.renderMailboxContent_ = function() {
-    var self = this;
+wat.mail.MailboxFolder.prototype.renderMailboxContent_ = function(opt_filteredMails) {
+    var self = this,
+        mailsToShow = goog.isDefAndNotNull(opt_filteredMails) ? opt_filteredMails
+            : self.mails_.getValues();
     // 1) Remove potentially shown empty mailbox folder message
     self.showEmptyFolderMsg(false);
     // 2) Always disable a potential existing loading spinner icon
     wat.mail.enableSpinner(false, "mailItems", self.OverviewSpinnerDomID);
     // 3) Render all mails in the mailbox
-    self.mails_.inOrderTraverse(function(curMail) {
+    goog.array.forEach(mailsToShow, function(curMail) {
         curMail.renderMail(function(mail) {
             // 4a) Unhighlight currently active mail
             self.lastActiveMailItem_.highlightOverviewItem(false);
@@ -553,8 +588,8 @@ wat.mail.MailboxFolder.prototype.renderMailboxContent_ = function() {
         });
     });
     // 4) Highlight the most up-to-date mail in the mailbox
-    if (self.mails_.getCount() > 0) {
-        self.showMail(self.mails_.getKthValue(0));
+    if (mailsToShow.length > 0) {
+        self.showMail(mailsToShow[0]);
     } else {
         // No mails are available -> show empty folder message
         self.showEmptyFolderMsg(true);
@@ -610,6 +645,27 @@ wat.mail.MailboxFolder.prototype.postProcessMails_ = function(retrievedMails) {
     return retrievedMails;
 };
 
+/**
+ * Renders the searchbar input element.
+ * @private
+ */
+wat.mail.MailboxFolder.prototype.renderSearchbar_ = function() {
+    var self = this,
+        d_searchbarParent = goog.dom.getElement(self.searchbarParentDomID_),
+        prevSearchVal = '';
+    self.searchbar_ = new goog.ui.LabelInput("Type subject or name");
+    self.searchbar_.render(d_searchbarParent);
+    goog.events.listen(self.searchbar_.getElement(), goog.events.EventType.KEYUP, function () {
+        var searchVal = self.searchbar_.getValue();
+        if (searchVal === prevSearchVal) { return; }
+        prevSearchVal = searchVal;
+        var filteredMails = goog.array.filter(self.mails_.getValues(), function(curMail) {
+                return goog.string.caseInsensitiveContains(curMail.Mail.Header.Subject, searchVal);
+            });
+            console.log("Searching for word: " + searchVal);
+        self.renderMailboxContent_(filteredMails);
+    }, false);
+};
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 ///                                  INBOX Constructor                                           ///
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -618,12 +674,10 @@ wat.mail.MailboxFolder.prototype.postProcessMails_ = function(retrievedMails) {
  * @abstract
  */
 wat.mail.Inbox = function() {
-    this.mails_ = new goog.structs.AvlTree(wat.mail.MailItem.comparator);
-    this.hiddenMails_ = new goog.structs.AvlTree(wat.mail.MailItem.comparator);
+    goog.base(this);
     this.Name = wat.mail.MailboxFolder.INBOX;
     this.DisplayName = "Inbox";
     this.NavDomID = "Inbox_Btn";
-    this.detailsComponent_ = new wat.mail.MailDetails();
 };
 goog.inherits(wat.mail.Inbox, wat.mail.MailboxFolder);
 wat.mail.Inbox.prototype.ButtonSet = [
@@ -726,12 +780,10 @@ wat.mail.Inbox.prototype.postProcessMails_ = function(retrievedMails) {
  * @abstract
  */
 wat.mail.Sent = function() {
-    this.mails_ = new goog.structs.AvlTree(wat.mail.MailItem.comparator);
-    this.hiddenMails_ = new goog.structs.AvlTree(wat.mail.MailItem.comparator);
+    goog.base(this);
     this.Name = wat.mail.MailboxFolder.SENT;
     this.DisplayName = this.Name;
     this.NavDomID = "Sent_Btn";
-    this.detailsComponent_ = new wat.mail.MailDetails();
 };
 goog.inherits(wat.mail.Sent, wat.mail.MailboxFolder);
 wat.mail.Sent.prototype.ButtonSet = [
@@ -751,12 +803,10 @@ wat.mail.Sent.prototype.getButtonSet = function() { return this.ButtonSet; };
  * @abstract
  */
 wat.mail.Trash = function() {
-    this.mails_ = new goog.structs.AvlTree(wat.mail.MailItem.comparator);
-    this.hiddenMails_ = new goog.structs.AvlTree(wat.mail.MailItem.comparator);
+    goog.base(this);
     this.Name = wat.mail.MailboxFolder.TRASH;
     this.DisplayName = this.Name;
     this.NavDomID = "Trash_Btn";
-    this.detailsComponent_ = new wat.mail.MailDetails();
 };
 goog.inherits(wat.mail.Trash, wat.mail.MailboxFolder);
 wat.mail.Trash.prototype.ButtonSet = [
@@ -800,6 +850,8 @@ wat.mail.Trash.prototype.deleteActiveMail = function() {
     // 3) Move mail into different member tree
     self.mails_.remove(tempLastItem);
     self.hiddenMails_.add(tempLastItem);
+    // 4) Check, whether searchbar needs to be disabled
+    if (0 == self.mails_.getCount()) { self.searchbar_.setEnabled(false); }
 };
 
 /**
@@ -873,13 +925,13 @@ wat.mail.Trash.prototype.emptyMailbox_ = function() {
  * @abstract
  */
 wat.mail.Spam = function() {
-    this.mails_ = new goog.structs.AvlTree(wat.mail.MailItem.comparator);
-    this.hiddenMails_ = new goog.structs.AvlTree(wat.mail.MailItem.comparator);
+    goog.base(this);
     this.Name = wat.mail.MailboxFolder.SPAM;
     this.DisplayName = this.Name;
     this.NavDomID = "Spam_Btn";
     this.IsLocal = true;
-    this.detailsComponent_ = new wat.mail.MailDetails();
+    // Spam is only a local folder, and its content has been loaded from the Inbox folder
+    this.retrieved_ = true;
 };
 goog.inherits(wat.mail.Spam, wat.mail.MailboxFolder);
 wat.mail.Spam.prototype.ButtonSet = [
@@ -890,7 +942,6 @@ wat.mail.Spam.prototype.ButtonSet = [
  * @returns {Array}
  */
 wat.mail.Spam.prototype.getButtonSet = function() { return this.ButtonSet; };
-
 /**
  * Special
  * Returns the name of the associated server-side folder.
@@ -899,32 +950,16 @@ wat.mail.Spam.prototype.getButtonSet = function() { return this.ButtonSet; };
 wat.mail.Spam.prototype.getAssocServerSideFolderName = function() {
     return wat.mail.MailboxFolder.INBOX;
 };
-
-/**
- * Special treatment
- * @override
- */
-wat.mail.Spam.prototype.loadMails = function() { /* Nothing to do here */ };
 /**
  * Special treatment
  * @override
  */
 wat.mail.Spam.prototype.synchFolder = function() { /* Nothing to do here */ };
-
 /**
+ * Special treatment: Since Spam is only a local folder, don'ts load anything, and rahter just
+ * render what has already been loaded.
  * @override
  */
-wat.mail.Spam.prototype.activate = function() {
-    var self = this,
-        d_navBtn = goog.dom.getElement(self.NavDomID);
-    // 1) Clean mail overview list
-    goog.dom.removeChildren(goog.dom.getElement("mailItems"));
-    // 2) Show the loading spinner icon
-    wat.mail.enableSpinner(true, "mailItems", self.OverviewSpinnerDomID, self.LoadingSpinnerYOffset);
-    // 3) Add highlight for new button
-    goog.dom.classes.add(d_navBtn, "active");
-    // 4) Change the control buttons for the specific mail folder
-    self.renderCtrlbar();
-    // 5) Local client-folder: always just render the content
-    self.renderMailboxContent_();
+wat.mail.Spam.prototype.loadMails = function() {
+    this.renderMailboxContent_();
 };
