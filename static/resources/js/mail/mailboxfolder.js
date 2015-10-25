@@ -3,6 +3,7 @@
  * Created by mdrobek on 16/08/15.
  */
 goog.provide('wat.mail.MailboxFolder');
+goog.provide('wat.mail.MailboxFolder.Buttons');
 goog.provide('wat.mail.Inbox');
 goog.provide('wat.mail.Sent');
 goog.provide('wat.mail.Trash');
@@ -26,13 +27,32 @@ goog.require('goog.ui.Dialog');
  */
 wat.mail.MailboxFolder = function() {};
 
-// Static folder names
+////////////////////////////////////////////////////////////////////////////////////////////////////
+///                                     Static Vars                                              ///
+////////////////////////////////////////////////////////////////////////////////////////////////////
 wat.mail.MailboxFolder.INBOX = "/";
 wat.mail.MailboxFolder.SENT = "Sent";
 wat.mail.MailboxFolder.TRASH = "Trash";
 // Reminder: This folder only exists on the client-side
 wat.mail.MailboxFolder.SPAM = "Spam";
+wat.mail.MailboxFolder.Buttons = {};
+wat.mail.MailboxFolder.Buttons.DefaultClasses = ["btn", "btn-lg", "btn-primary"];
+// Delete button moves a mail into the trash folder
+wat.mail.MailboxFolder.Buttons.DELETE_BTN = {
+    ID: "DeleteBtn",
+    Caption: "Delete",
+    Classes: goog.array.concat(wat.mail.MailboxFolder.Buttons.DefaultClasses, "pull-right"),
+    Click: function(curMail) {
+        // 1) CLIENT-SIDE: Switch the mail overview list and details part to the next mail in the list
+        this.switchAndRemoveNode(curMail);
+        // 2) Handle all further client- and server-side actions associated with the deletion
+        wat.app.mailHandler.moveMail(curMail, wat.mail.MailboxFolder.TRASH);
+    }
+};
 
+////////////////////////////////////////////////////////////////////////////////////////////////////
+///                                   Class members                                              ///
+////////////////////////////////////////////////////////////////////////////////////////////////////
 /**
  * The name of the mailbox folder (one of the static names defined above).
  * @type {string}
@@ -63,6 +83,11 @@ wat.mail.MailboxFolder.prototype.LoadingSpinnerYOffset = 400;
  * @type {Number}
  */
 wat.mail.MailboxFolder.prototype.ContentSpinnerDomID = "DetailsLoadingSpinnerID";
+/**
+ * The Y offset used to place the Spinner in the mail overview list.
+ * @type {Number}
+ */
+wat.mail.MailboxFolder.prototype.CtrlBarButtonsDomID = "ControlBarID";
 /**
  * Whether this mailbox folder is a client-side local folder only, or if it is mirrored on the
  * backend.
@@ -106,16 +131,13 @@ wat.mail.MailboxFolder.prototype.detailsComponent_ = null;
 ///                                  Abstract methods                                            ///
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 /**
+ * @return An array of Button elements as follows:
+ *   [{ID:string, Caption:string, Classes:[string,..], Click:function(curMail){},
+ *     DisableIf:function(curMail){}}, ..]
+ *   HINT: The 'this' object in all functions always points to the respective mailbox folder.
  * @public
  */
-wat.mail.MailboxFolder.prototype.renderCtrlbar = goog.abstractMethod;
-
-/**
- * @param {wat.mail.MailItem} forMail
- * @public
- */
-wat.mail.MailboxFolder.prototype.updateCtrlBtns_ = goog.abstractMethod;
-
+wat.mail.MailboxFolder.prototype.getButtonSet = goog.abstractMethod;
 /**
  * Requests the backend to check for new mails or changes in the mailbox folder.
  *
@@ -126,6 +148,21 @@ wat.mail.MailboxFolder.prototype.synchFolder = goog.abstractMethod;
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 ///                                  Public methods                                              ///
 ////////////////////////////////////////////////////////////////////////////////////////////////////
+/**
+ * @override
+ */
+wat.mail.MailboxFolder.prototype.renderCtrlbar = function() {
+    var self = this,
+        d_ctrlBarContainer = goog.dom.getElement("ctrlBarContainer"),
+        d_newCtrlBar = goog.soy.renderAsElement(wat.soy.mail.ctrlBarBtns, {
+            CtrlBarID: "CtrlBarButtonsDomID",
+            Buttons: self.getButtonSet()
+        });
+    // 1) Remove the current control bar and add the new one
+    goog.dom.removeChildren(d_ctrlBarContainer);
+    goog.dom.appendChild(d_ctrlBarContainer, d_newCtrlBar);
+};
+
 /**
  * This method renders the navigation button in the left navigation menu for the current
  * mailbox folder.
@@ -280,11 +317,7 @@ wat.mail.MailboxFolder.prototype.switchAndRemoveNode = function(curMailItem) {
         self.showMail(nextItem);
     } else {
         // 1a) There's no other mail that could be shown in the current folder
-        console.log("MailboxFolder.switchAndRemoveNode : NOT YET IMPLEMENTED");
-        // 1a) TODO: Clean the mail page:
-        //      * reset from, to, subject
-        //      * deactivate control btns (reply, delete)
-        //      * reset content area
+        self.showEmptyFolderMsg(true);
     }
     // 2) Remove the deleted item from the overview list
     goog.dom.removeNode(goog.dom.getElement(curMailItem.DomID));
@@ -529,6 +562,42 @@ wat.mail.MailboxFolder.prototype.renderMailboxContent_ = function() {
 };
 
 /**
+ * Resets all control button events for the current mail (e.g., reply, forward and delete button).
+ * @param {wat.mail.MailItem} forMail
+ * @public
+ */
+wat.mail.MailboxFolder.prototype.updateCtrlBtns_ = function(forMail) {
+    var self = this,
+        d_curBtn;
+    // 1) No Mail was given -> disable all buttons
+    if (!goog.isDefAndNotNull(forMail)) {
+        goog.array.forEach(self.getButtonSet(), function(curButton) {
+            d_curBtn = goog.dom.getElement(curButton.ID);
+            if (!goog.dom.classes.has(d_curBtn, "disabled")) {
+                goog.dom.classes.add(d_curBtn, "disabled");
+            }
+        });
+        return;
+    }
+    goog.array.forEach(self.getButtonSet(), function(curButton) {
+        d_curBtn = goog.dom.getElement(curButton.ID);
+        // 2) Check if the button need to be disabled
+        if (goog.isDefAndNotNull(curButton.DisableIf)
+                && true === curButton.DisableIf.call(self, forMail)) {
+            // 2a) Disable the button
+            goog.dom.classes.add(d_curBtn, "disabled");
+        } else {
+            // 2b) Button is enabled, Attach respective Click-functions to all buttons
+            goog.dom.classes.remove(d_curBtn, "disabled");
+            goog.events.removeAll(d_curBtn);
+            goog.events.listen(d_curBtn, goog.events.EventType.CLICK, function () {
+                curButton.Click.call(self, forMail);
+            }, false);
+        }
+    });
+};
+
+/**
  * This method runs through the given retrieved mails from the backend and filters dependent on the
  * specific mailbox implementation those mails, that are part of this mailbox, but have to be
  * excluded for particular reasons.
@@ -557,7 +626,23 @@ wat.mail.Inbox = function() {
     this.detailsComponent_ = new wat.mail.MailDetails();
 };
 goog.inherits(wat.mail.Inbox, wat.mail.MailboxFolder);
+wat.mail.Inbox.prototype.ButtonSet = [
+    {
+        ID: "mailReplyBtn",
+        Caption: "Reply",
+        Classes: wat.mail.MailboxFolder.Buttons.DefaultClasses,
+        Click: function(curMail) {
+            var mail = curMail.Mail,
+                from = goog.isDefAndNotNull(wat.app.userMail) ? wat.app.userMail
+                    : mail.Header.Receiver;
+            wat.app.mailHandler.createNewMail(from, mail.Header.Sender, mail.Header.Subject,
+                mail.Content, true);
+        }
+    },
+    wat.mail.MailboxFolder.Buttons.DELETE_BTN
+];
 
+////////////////////////////////////        ABSTRACT METHODS
 /**
  * @param reregisterCb
  * @override
@@ -611,12 +696,18 @@ wat.mail.Inbox.prototype.synchFolder = function(reregisterCb) {
 
 /**
  * @override
+ * @returns {Array}
+ */
+wat.mail.Inbox.prototype.getButtonSet = function() { return this.ButtonSet; };
+
+/**
+ * @override
  */
 wat.mail.Inbox.prototype.postProcessMails_ = function(retrievedMails) {
     // In case this is the Inbox, filter all spam mails and add them to the Spam folder
     var spamMails = goog.array.filter(retrievedMails, function(curMail) {
-            return curMail.Mail.Header.SpamIndicator > 0;
-        });
+        return curMail.Mail.Header.SpamIndicator > 0;
+    });
     if (spamMails.length > 0) {
         wat.app.mailHandler.addMailsToSpamFolder(spamMails);
     }
@@ -626,56 +717,6 @@ wat.mail.Inbox.prototype.postProcessMails_ = function(retrievedMails) {
     });
     return retrievedMails;
 };
-////////////////////////////////////        ABSTRACT METHODS
-
-/**
- * @override
- */
-wat.mail.Inbox.prototype.renderCtrlbar = function() {
-    var d_ctrlBarContainer = goog.dom.getElement("ctrlBarContainer"),
-        d_newCtrlBar = goog.soy.renderAsElement(wat.soy.mail.inboxCtrlBar, this);
-    // 2) Remove the current control bar and add the new one
-    goog.dom.removeChildren(d_ctrlBarContainer);
-    goog.dom.appendChild(d_ctrlBarContainer, d_newCtrlBar);
-};
-
-/**
- * Resets all control button events for the current mail (e.g., reply, forward and delete button).
- * @param {wat.mail.MailItem} forMail
- * @public
- */
-wat.mail.Inbox.prototype.updateCtrlBtns_ = function(forMail) {
-    var self = this,
-        d_replyBtn = goog.dom.getElement("mailReplyBtn"),
-        d_deleteBtn = goog.dom.getElement("inbox_mailDeleteBtn");
-    // No Mail was given -> disable all buttons
-    if (!goog.isDefAndNotNull(forMail)) {
-        if (!goog.dom.classes.has(d_replyBtn, "disabled")) {
-            goog.dom.classes.add(d_replyBtn, "disabled");
-        }
-        if (!goog.dom.classes.has(d_deleteBtn, "disabled")) {
-            goog.dom.classes.add(d_deleteBtn, "disabled");
-        }
-        return;
-    }
-
-    goog.events.removeAll(d_replyBtn);
-    goog.events.removeAll(d_deleteBtn);
-    goog.events.listen(d_replyBtn, goog.events.EventType.CLICK, function() {
-            var mail = forMail.Mail,
-                from = goog.isDefAndNotNull(wat.app.userMail) ? wat.app.userMail
-                    : mail.Header.Receiver;
-            wat.app.mailHandler.createNewMail(from, mail.Header.Sender, mail.Header.Subject,
-                mail.Content, true);
-        }, false);
-    goog.events.listen(d_deleteBtn, goog.events.EventType.CLICK, function() {
-        // 1) CLIENT-SIDE: Switch the mail overview list and details part to the next mail in the list
-        self.switchAndRemoveNode(forMail);
-        // 2) Handle all further client- and server-side actions associated with the deletion
-        wat.app.mailHandler.moveMail(forMail, wat.mail.MailboxFolder.TRASH);
-    }, false, forMail);
-};
-
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 ///                                   SENT Constructor                                           ///
@@ -693,30 +734,17 @@ wat.mail.Sent = function() {
     this.detailsComponent_ = new wat.mail.MailDetails();
 };
 goog.inherits(wat.mail.Sent, wat.mail.MailboxFolder);
-
+wat.mail.Sent.prototype.ButtonSet = [
+    wat.mail.MailboxFolder.Buttons.DELETE_BTN
+];
 /**
- *
+ * @override
+ * @returns {Array}
  */
-wat.mail.Sent.prototype.renderCtrlbar = function() {
-    var d_ctrlBarContainer = goog.dom.getElement("ctrlBarContainer"),
-        d_newCtrlBar = goog.soy.renderAsElement(wat.soy.mail.sentCtrlBar, this);
-    // 2) Remove the current control bar and add the new one
-    goog.dom.removeChildren(d_ctrlBarContainer);
-    goog.dom.appendChild(d_ctrlBarContainer, d_newCtrlBar);
-};
-
-
-/**
- * Resets all control button events for the current mail (e.g., reply, forward and delete button).
- * @private
- */
-wat.mail.Sent.prototype.updateCtrlBtns_ = function() {
-    console.log("Sent.updateCtrlBtns_ NOT YET IMPLEMENTED");
-};
-
+wat.mail.Sent.prototype.getButtonSet = function() { return this.ButtonSet; };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
-///                                  Trash Constructor                                           ///
+///                                  TRASH Constructor                                           ///
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 /**
  * @constructor
@@ -731,24 +759,36 @@ wat.mail.Trash = function() {
     this.detailsComponent_ = new wat.mail.MailDetails();
 };
 goog.inherits(wat.mail.Trash, wat.mail.MailboxFolder);
-
-wat.mail.Trash.prototype.RestoreBtnDomID = "trashRestoreBtn";
-wat.mail.Trash.prototype.EmptyBtnDomID = "trashEmptyBtn";
+wat.mail.Trash.prototype.ButtonSet = [
+    {
+        ID: "trashRestoreBtn",
+        Caption: "Restore",
+        Classes: wat.mail.MailboxFolder.Buttons.DefaultClasses,
+        DisableIf: function(curMail) { return curMail.Previous_Folder === curMail.Folder; },
+        Click: function(curMail) {
+            this.switchAndRemoveNode(curMail);
+            wat.app.mailHandler.moveMail(curMail, curMail.Previous_Folder);
+        }
+    },
+    {
+        ID: "trashEmptyBtn",
+        Caption: "Empty Trash",
+        Classes: goog.array.concat(wat.mail.MailboxFolder.Buttons.DefaultClasses, "pull-right"),
+        DisableIf: function(curMail) { return 0 == this.mails_.getCount(); },
+        Click: function(curMail) { this.showEmptyTrashModal_(); }
+    }
+];
+/**
+ * @override
+ * @returns {Array}
+ */
+wat.mail.Trash.prototype.getButtonSet = function() { return this.ButtonSet; };
 
 /**
- *
+ * Special case for the Trash folder, since deletion in this case means:
+ *   Set the \\Deleted flag (client- and server-side) and hide the mail.
+ * @override
  */
-wat.mail.Trash.prototype.renderCtrlbar = function() {
-    var d_ctrlBarContainer = goog.dom.getElement("ctrlBarContainer"),
-        d_newCtrlBar = goog.soy.renderAsElement(wat.soy.mail.trashCtrlBar, {
-            RestoreBtnID: this.RestoreBtnDomID,
-            EmptyBtnID: this.EmptyBtnDomID
-        });
-    // 2) Remove the current control bar and add the new one
-    goog.dom.removeChildren(d_ctrlBarContainer);
-    goog.dom.appendChild(d_ctrlBarContainer, d_newCtrlBar);
-};
-
 wat.mail.Trash.prototype.deleteActiveMail = function() {
     var self = this,
         tempLastItem = self.lastActiveMailItem_;
@@ -760,51 +800,6 @@ wat.mail.Trash.prototype.deleteActiveMail = function() {
     // 3) Move mail into different member tree
     self.mails_.remove(tempLastItem);
     self.hiddenMails_.add(tempLastItem);
-};
-
-/**
- * Resets all control button events for the current mail (e.g., reply, forward and delete button).
- * @param {wat.mail.MailItem} forMail
- * @public
- */
-wat.mail.Trash.prototype.updateCtrlBtns_ = function(forMail) {
-    var self = this,
-        d_restoreBtn = goog.dom.getElement(self.RestoreBtnDomID),
-        d_emptyBtn = goog.dom.getElement(self.EmptyBtnDomID);
-    // No Mail was given -> disable all buttons
-    if (!goog.isDefAndNotNull(forMail)) {
-        if (!goog.dom.classes.has(d_restoreBtn, "disabled")) {
-            goog.dom.classes.add(d_restoreBtn, "disabled");
-        }
-        if (!goog.dom.classes.has(d_emptyBtn, "disabled")) {
-            goog.dom.classes.add(d_emptyBtn, "disabled");
-        }
-        return;
-    }
-
-    if (forMail.Previous_Folder === forMail.Folder) {
-        // 1) Disable restore button, if the mail wasn't moved in this session
-        goog.dom.classes.add(d_restoreBtn, "disabled");
-    } else {
-        // 2a) Enable restore button, if the mail was moved in this session
-        goog.dom.classes.remove(d_restoreBtn, "disabled");
-        // 2b) Add events for restore and empty buttons
-        goog.events.listen(d_restoreBtn, goog.events.EventType.CLICK, function() {
-            self.switchAndRemoveNode(forMail);
-            wat.app.mailHandler.moveMail(forMail, forMail.Previous_Folder);
-        }, false);
-    }
-    // 3) Add empty trash listener for modal dialog if mails are available
-    if (0 == self.mails_.getCount()) {
-        goog.dom.classes.add(d_emptyBtn, "disabled");
-    } else {
-        goog.dom.classes.remove(d_emptyBtn, "disabled");
-        if (!goog.events.hasListener(d_emptyBtn, goog.events.EventType.CLICK)) {
-            goog.events.listen(d_emptyBtn, goog.events.EventType.CLICK, function () {
-                self.showEmptyTrashModal_();
-            }, false);
-        }
-    }
 };
 
 /**
@@ -887,13 +882,21 @@ wat.mail.Spam = function() {
     this.detailsComponent_ = new wat.mail.MailDetails();
 };
 goog.inherits(wat.mail.Spam, wat.mail.MailboxFolder);
+wat.mail.Spam.prototype.ButtonSet = [
+    wat.mail.MailboxFolder.Buttons.DELETE_BTN
+];
+/**
+ * @override
+ * @returns {Array}
+ */
+wat.mail.Spam.prototype.getButtonSet = function() { return this.ButtonSet; };
 
 /**
  * Special
  * Returns the name of the associated server-side folder.
  * @returns {string}
  */
-wat.mail.MailboxFolder.prototype.getAssocServerSideFolderName = function() {
+wat.mail.Spam.prototype.getAssocServerSideFolderName = function() {
     return wat.mail.MailboxFolder.INBOX;
 };
 
@@ -924,28 +927,4 @@ wat.mail.Spam.prototype.activate = function() {
     self.renderCtrlbar();
     // 5) Local client-folder: always just render the content
     self.renderMailboxContent_();
-};
-
-/**
- *
- */
-wat.mail.Spam.prototype.renderCtrlbar = function() {
-    var d_ctrlBarContainer = goog.dom.getElement("ctrlBarContainer"),
-        d_newCtrlBar = goog.soy.renderAsElement(wat.soy.mail.spamCtrlBar, this);
-    // 2) Remove the current control bar and add the new one
-    goog.dom.removeChildren(d_ctrlBarContainer);
-    goog.dom.appendChild(d_ctrlBarContainer, d_newCtrlBar);
-};
-
-/**
- * Resets all control button events for the current mail (e.g., reply, forward and delete button).
- * @param {wat.mail.MailItem} forMail
- * @public
- */
-wat.mail.Spam.prototype.updateCtrlBtns_ = function(forMail) {
-    console.log("Spam.updateCtrlBtns_ NOT YET IMPLEMENTED");
-};
-
-wat.mail.Spam.prototype.deleteActiveMail = function() {
-    console.log("TODO: Delete of active mailitem in trash folder hasn't been implemented yet!");
 };

@@ -124,47 +124,20 @@
 {/template}
 
 /**
- * Template to create the mail control bar for the inbox
+ * Template to create all buttons in the control bar for the parent mailbox folder.
+ * @param CtrlBarID The ID of the control bar element that holds all buttons.
+ * @param Buttons The ButtonSet used to render all buttons of this control bar.
  */
-{template .inboxCtrlBar}
-    <div id="inboxCtrlBar" class="row">
-        <button id="mailReplyBtn" type="button" class="btn btn-lg btn-primary">
-            Reply
-        </button>
-        <!--<button type="button" class="btn btn-lg btn-primary">Forward</button>-->
-        <button id="inbox_mailDeleteBtn" type="button" class="btn btn-lg btn-primary
-            pull-right" style="margin-right: 13px;">
-            Delete
-        </button>
-    </div>
-{/template}
-
-/**
- * Template to create the mail control bar for the Sent folder
- */
-{template .sentCtrlBar}
-    <div id="sentCtrlBar" class="row">
-        <button id="sent_mailDeleteBtn" type="button" class="btn btn-lg btn-primary
-            pull-right" style="margin-right: 13px;">
-            Delete
-        </button>
-    </div>
-{/template}
-
-/**
- * Template to create the mail control bar for the Trash folder
- * @param RestoreBtnID The ID of the button used to restore the currently selected mail.
- * @param EmptyBtnID The ID of the button to empty the complete trash folder.
- */
-{template .trashCtrlBar}
-    <div id="trashCtrlBar" class="row">
-        <button id="{$RestoreBtnID}" type="button" class="btn btn-lg btn-primary">
-            Restore
-        </button>
-        <button id="{$EmptyBtnID}" type="button" class="btn btn-lg btn-primary
-            pull-right" style="margin-right: 13px;">
-            Empty Trash
-        </button>
+{template .ctrlBarBtns}
+    <div id="{$CtrlBarID}" class="row">
+        <div class="col-md-12">
+           {foreach $curButton in $Buttons}
+                <button id="{$curButton.ID}" type="button"
+                    class="{foreach $curClass in $curButton.Classes}{$curClass} {/foreach}">
+                    {$curButton.Caption}
+                </button>
+           {/foreach}
+        </div>
     </div>
 {/template}
 
@@ -182,10 +155,11 @@
 
 /**
  * Template to create the mail control bar for the Spam folder
+ * @param DeleteBtnID The ID of the button used to delete mails (move them into the trash folder).
  */
 {template .spamCtrlBar}
     <div id="spamCtrlBar" class="row">
-        <button id="spamDeleteBtn" type="button" class="btn btn-lg btn-primary
+        <button id="{$DeleteBtnID}" type="button" class="btn btn-lg btn-primary
             pull-right" style="margin-right: 13px;">
             Delete
         </button>

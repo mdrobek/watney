@@ -219,7 +219,6 @@ wat.mail.MailHandler.prototype.moveMail = function(mail, intoFolder, opt_alsoOnS
     // 3) Update the mail folder information
     mail.Previous_Folder = mail.Folder;
     mail.Folder = intoFolder;
-    newMailboxFolder.showMail()
     // II) Perform server-side request only if:
     //  * opt_alsoOnServer = undefined|null
     //  * opt_alsoOnServer = true
