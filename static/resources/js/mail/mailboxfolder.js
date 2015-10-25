@@ -465,7 +465,7 @@ wat.mail.MailboxFolder.prototype.deactivate = function() {
         goog.dom.classes.remove(d_curNavBtn, "active");
     }
     // 3) Remove the search bar
-    self.searchbar_.dispose();
+    if (null != self.searchbar_) { self.searchbar_.dispose(); }
 };
 
 /**
