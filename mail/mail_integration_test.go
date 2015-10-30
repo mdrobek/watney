@@ -1,6 +1,7 @@
 package mail
 
 import (
+	"fmt"
 	"mdrobek/watney/conf"
 	"testing"
 )
@@ -166,25 +167,38 @@ func TestSelectFolder(t *testing.T) {
 //	}
 //}
 //
-//func TestLoadMailContent(t *testing.T) {
-//	mailConf := loadConfig(TEST_CONFIG_FILE, t).Mail
-//	mc, err := NewMailCon(&mailConf)
-//	defer mc.Close()
-//	if err != nil {
-//		t.Errorf(err.Error())
-//	}
-//	// 1) Authenticate the given user
-//	if _, err := mc.Authenticate(mailConf.Username, mailConf.Passwd); err != nil {
-//		t.Fatalf(err.Error())
-//	}
-//	var uid uint32= 4336
-//	if _, err := mc.LoadContentForMail("/", uid); nil != err {
-//		t.Errorf(err.Error())
-//	}
-////	if 0 == len(content) {
-////		t.Errorf("Loaded content was empty but shouldn't have been!")
-////	}
-//}
+func TestLoadMailContent(t *testing.T) {
+	testMailConf := loadTestConfig(TEST_CONFIG_FILE, t)
+	mc, err := NewMailCon(&testMailConf.WatneyConf.Mail)
+	defer mc.Close()
+	if err != nil {
+		t.Errorf(err.Error())
+	}
+	// 1) Authenticate the given user
+	if _, err := mc.Authenticate(testMailConf.TestUser.Username,
+		testMailConf.TestUser.Password); err != nil {
+		t.Fatalf(err.Error())
+	}
+	var uid uint32 = 5411
+	if mail, err := mc.LoadMailFromFolderWithUID("/", uid); nil != err {
+		t.Errorf(err.Error())
+	} else {
+		fmt.Printf("text/plain: %s\n", mail.Content["text/plain"])
+		fmt.Printf("##############\n\n\n")
+		//		var buf bytes.Buffer
+		//		_, err := io.Copy(&buf, quotedprintable.NewReader(
+		//			strings.NewReader(mail.Content["text/html"].Body)))
+		//		if err != nil {
+		//			t.Errorf(err.Error())
+		//		}
+		//		fmt.Print(buf.String())
+		fmt.Printf("text/html: %s\n", mail.Content["text/html"])
+	}
+
+	//	if 0 == len(content) {
+	//		t.Errorf("Loaded content was empty but shouldn't have been!")
+	//	}
+}
 
 func loadTestConfig(filename string, t *testing.T) *conf.WatneyTestConf {
 	conf, err := conf.ReadTestConfig(filename)

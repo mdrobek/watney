@@ -11,6 +11,7 @@ import (
 	"math"
 	"mime"
 	"mime/multipart"
+	"mime/quotedprintable"
 	"net/textproto"
 	"strconv"
 	"strings"
@@ -171,6 +172,7 @@ func parseIMAPHeaderDate(rawMimeHeader textproto.MIMEHeader) time.Time {
 				fmt.Sprintf("%s (MST)", time.RFC1123Z),
 				"_2 Jan 2006 15:04:05 -0700",
 				"_2 Jan 06 15:04 MST",
+				time.RFC1123,
 			}
 		)
 		// Try to parse the date in a bunch of different date formats
@@ -179,7 +181,7 @@ func parseIMAPHeaderDate(rawMimeHeader textproto.MIMEHeader) time.Time {
 				return date
 			}
 		}
-		fmt.Print("[watney] Error during parsing of date header: %s\n", err.Error())
+		fmt.Printf("[watney] Error during parsing of date header: %s\n", err.Error())
 		// Fallback: If no date string was found in the header map or, an error occurred during
 		// parsing => set the date to 1/1/1970
 		return time.Unix(0, 0)
@@ -279,6 +281,28 @@ func parseMultipartContent(content, boundary string) (Content, error) {
 		}
 	}
 	return mailParts, nil
+}
+
+func decodeContent(content Content) {
+	for contentType, curPart := range content {
+		switch curPart.Encoding {
+		case "quoted-printable":
+			{
+				var buf bytes.Buffer
+				_, err := io.Copy(&buf, quotedprintable.NewReader(strings.NewReader(curPart.Body)))
+				if err != nil {
+					fmt.Printf("[watney] ERROR while trying to decode content of type " +
+						"'quoted-printable'\n")
+					continue
+				}
+				content[contentType] = ContentPart{
+					Encoding: curPart.Encoding,
+					Charset:  curPart.Charset,
+					Body:     buf.String(),
+				}
+			}
+		}
+	}
 }
 
 func parseSpamIndicator(headerContentMap textproto.MIMEHeader) int {

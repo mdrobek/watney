@@ -560,6 +560,9 @@ func (mc *MailCon) loadMails(set *imap.SeqSet, folder string, withContent bool,
 			// c) Read the content if requested
 			if withContent {
 				mailContent, err = parseContent(resp.MessageInfo(), mailHeader.MimeHeader)
+				if nil == err {
+					decodeContent(mailContent)
+				}
 			}
 			// d) Build the mail object
 			mails = append(mails, Mail{
