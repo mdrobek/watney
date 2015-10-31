@@ -166,3 +166,8 @@ goog.inherits(wat.mail.ReceivedMail, wat.mail.BaseMail);
  * @type {wat.mail.MailFlags}
  */
 wat.mail.ReceivedMail.prototype.Flags = null;
+/**
+ * Whether images of HTML content of this mail should be loaded by default or not.
+ * @type {boolean}
+ */
+wat.mail.ReceivedMail.prototype.LoadContentImages = false;

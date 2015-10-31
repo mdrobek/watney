@@ -375,7 +375,7 @@ wat.mail.MailboxFolder.prototype.switchToSibling = function(curMailItem, opt_bef
  * method selects the next mail item that is timely after this item (closer to 'now'). If, for
  * whatever reason, the given mail item was the only item in the box, null is returned.
  * @param {wat.mail.MailItem} curMailItem
- * @return {wat.mail.MailItem}
+ * @return wat.mail.MailItem || null
  * @public
  */
 wat.mail.MailboxFolder.prototype.getOtherItem = function(curMailItem) {
@@ -480,7 +480,8 @@ wat.mail.MailboxFolder.prototype.showMail = function(activatedMail) {
         return;
     }
     // First: Clean the contents from a potentially last shown mail
-    goog.dom.removeChildren(goog.dom.getElement("mailDetails_Content"));
+    //goog.dom.removeChildren(goog.dom.getElement("mailDetails_Content"));
+    self.detailsComponent_.clean();
     if (!activatedMail.HasContentBeenLoaded) {
         wat.mail.enableSpinner(true, "mailDetails_Content", self.ContentSpinnerDomID, 300);
         activatedMail.loadContent(function(loadedMail) {
@@ -499,7 +500,7 @@ wat.mail.MailboxFolder.prototype.showMail = function(activatedMail) {
         // 5) Hide the mail content loading spinner icon
         wat.mail.enableSpinner(false, "mailDetails_Content", self.ContentSpinnerDomID);
         // 6) Copy over the mail information into the mail details form
-        self.detailsComponent_.render(activatedMail);
+        self.detailsComponent_.render(activatedMail, activatedMail.Mail.LoadContentImages);
         // 7) Adjust control buttons for newly activated mail item
         self.updateCtrlBtns_(activatedMail);
     }

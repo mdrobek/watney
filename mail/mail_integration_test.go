@@ -1,7 +1,6 @@
 package mail
 
 import (
-	"fmt"
 	"mdrobek/watney/conf"
 	"testing"
 )

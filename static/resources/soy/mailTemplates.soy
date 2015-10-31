@@ -190,3 +190,19 @@
     </div>
 {/template}
 
+/**
+ * Template to create the user message to reload the mail content with all contained images.
+ * @param BtnLoadID
+ * @param BtnCancelID
+ */
+{template .loadMailImg}
+    <div class="load-img">
+        <div>
+            <b>Warning:</b> This mail contains external images. Click button "Load Pictures" if
+            you want to load all images.</br>
+        </div>
+        <button id="{$BtnCancelID}" class="btn btn-sm btn-primary">Cancel</button>
+        <button id="{$BtnLoadID}" class="btn btn-sm btn-primary pull-right">Load Pictures</button>
+    </div>
+{/template}
+

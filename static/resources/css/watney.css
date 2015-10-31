@@ -204,7 +204,7 @@ body {
     height: 100%;
 }
 .mail-overview {
-    height: 94%;
+    height: 89%;
 }
 .mail-overview .header {
     color: white;
@@ -329,6 +329,18 @@ div#mailItems > div.row:nth-of-type(2n) {
     border-radius: 10px 10px 10px 10px;
     margin-left: 3px;
     margin-right: 0;
+}
+.mail-content .content .load-img {
+    position: absolute;
+    z-index: 10;
+    background-color: #CCBD76;
+    color: black;
+    border: 1px solid black;
+    width: 96%;
+    padding: 0 15px 3px 15px;
+}
+.mail-content .content .load-img > div {
+    text-align: center;
 }
 .mail-content .content #mailDetails_Content {
     padding: 0;
