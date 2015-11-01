@@ -11,12 +11,16 @@ goog.provide('wat.mail.Trash');
 goog.require('wat.mail');
 goog.require('wat.mail.MailDetails');
 goog.require('wat.mail.MailItem');
+goog.require('wat.mail.MailFilter');
+goog.require('wat.mail.QuickSearchFilter');
+
 goog.require('goog.array');
 goog.require('goog.events');
 goog.require('goog.events.KeyHandler');
 goog.require('goog.Uri.QueryData');
 goog.require('goog.json');
 goog.require('goog.structs.AvlTree');
+goog.require('goog.structs.PriorityQueue');
 goog.require('goog.ui.Dialog');
 goog.require('goog.ui.LabelInput');
 
@@ -28,10 +32,14 @@ goog.require('goog.ui.LabelInput');
  * @abstract
  */
 wat.mail.MailboxFolder = function() {
-    var self = this;
-    self.mails_ = new goog.structs.AvlTree(wat.mail.MailItem.comparator);
-    self.hiddenMails_ = new goog.structs.AvlTree(wat.mail.MailItem.comparator);
+    var self = this,
+        deletedMailsFilter = new wat.mail.MailFilter(function(curMail) {
+            return !curMail.Mail.Flags.Deleted;
+        });
     self.detailsComponent_ = new wat.mail.MailDetails();
+    self.mails_ = new goog.structs.AvlTree(wat.mail.MailItem.comparator);
+    self.filterChain_ = new goog.structs.PriorityQueue();
+    self.filterChain_.enqueue(0, deletedMailsFilter);
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -113,12 +121,17 @@ wat.mail.MailboxFolder.prototype.IsLocal = false;
  */
 wat.mail.MailboxFolder.prototype.mails_ = null;
 /**
- * Contains all those mails that are by default not shown in the mail list overview.
- * ATTENTION: Has to be assigned in each implementation constructor (Inbox, Sent, Trash)
- * @type {goog.structs.AvlTree}
+ * Chain of all filters that need to be applied when rendering the mail overview list.
+ * @type {goog.structs.PriorityQueue}
  * @protected
  */
-wat.mail.MailboxFolder.prototype.hiddenMails_ = null;
+wat.mail.MailboxFolder.prototype.filterChain_ = null;
+/**
+ * The QuickSearch filter used to filter mails in the overview list.
+ * @type {wat.mail.QuickSearchFilter}
+ * @protected
+ */
+wat.mail.MailboxFolder.prototype.quickSearchFilter_ = null;
 /**
  * Whether the mails for this folder have already been loaded or not
  * @type {boolean}
@@ -236,13 +249,9 @@ wat.mail.MailboxFolder.prototype.addMailsToFolder = function(mails) {
     var self = this;
     // 1) Add normal mails regular AvlTree and mails that are flagged as deleted to hidden AvlTree
     goog.array.forEach(mails, function(curMail) {
-        var curTree = self.mails_;
-        if (curMail.Mail.Flags.Deleted) {
-            curTree = self.hiddenMails_;
-        }
         // TODO: Check for already existing date in the Tree
         //       See bug: watney-26: MailItems with same Date disappear
-        curTree.add(curMail);
+        self.mails_.add(curMail);
     });
     // 2) Update the navigation bar visualization for this folder
     self.updateNavigationBar();
@@ -410,27 +419,45 @@ wat.mail.MailboxFolder.prototype.getNextItem = function(curMailItem, opt_before)
     // 1) If it is not part of this mailbox folder, simply return null
     if (!this.contains(curMailItem)) return null;
 
-    var self = this;
+    var self = this,
+        activeMails = self.getFilteredMails(),
+        lastIndex = activeMails.length - 1,
+        targetIndex;
     // 1) Check trivial cases
     // a) If there's less than or 1 mail in the mailbox, no 'next' item exists
-    if (self.mails_.getCount() <= 1) return null;
+    if (activeMails.length <= 1) return null;
     // b) timely before is chosen, but given item is the last in the list (=the oldest item)
     if ((!goog.isDefAndNotNull(opt_before) || opt_before)
-            && self.mails_.getMaximum() === curMailItem) {
+            && activeMails[lastIndex] === curMailItem) {
         return null;
     }
     // c) timely after is chosen, but given item is the first in the list (=the oldest item)
     if (goog.isDefAndNotNull(opt_before) && !opt_before
-            && self.mails_.getMinimum() === curMailItem) {
+            && activeMails[0] === curMailItem) {
         return null;
     }
-
     // 2) Now, dependent on the given timely flag, return the respective sibling
+    targetIndex = goog.array.findIndex(activeMails, function(curElem) {
+            return curElem === curMailItem;
+        });
     if (!goog.isDefAndNotNull(opt_before) || opt_before) {
-        return self.mails_.getKthValue(self.mails_.indexOf(curMailItem)+1);
+        return activeMails[targetIndex+1];
     } else {
-        return self.mails_.getKthValue(self.mails_.indexOf(curMailItem)-1);
+        return activeMails[targetIndex-1];
     }
+};
+
+/**
+ * Applies the filter chain to all previously loaded mails and returns the result, which are all
+ * mails that have not been filtered.
+ */
+wat.mail.MailboxFolder.prototype.getFilteredMails = function() {
+    var self = this,
+        remainingMails = self.mails_.getValues();
+    goog.array.forEach(self.filterChain_.getValues(), function(curFilter) {
+        remainingMails = curFilter.apply(remainingMails);
+    });
+    return remainingMails;
 };
 
 wat.mail.MailboxFolder.prototype.activate = function() {
@@ -566,20 +593,17 @@ wat.mail.MailboxFolder.prototype.getAssocServerSideFolderName = function() {
 /**
  * Renders the mail overview list with all mails (or the filtered mails in the given parameter).
  * Afterwards, renders the first mails content in the mail overview list.
- * @param {[wat.mail.MailItem]} [opt_filteredMails] Optional, the array of filtered mails, e.g.,
- *                                                  from the search bar.
- *                                                  Defaults to: self.mails_
  * @protected
  */
-wat.mail.MailboxFolder.prototype.renderMailboxContent_ = function(opt_filteredMails) {
+wat.mail.MailboxFolder.prototype.renderMailboxContent_ = function() {
     var self = this,
-        mailsToShow = goog.isDefAndNotNull(opt_filteredMails) ? opt_filteredMails
-            : self.mails_.getValues();
-    // 1) Remove potentially shown empty mailbox folder message
+        // 1) Run through all mails and apply the filter
+        mailsToShow = self.getFilteredMails();
+    // 2) Remove potentially shown empty mailbox folder message
     self.showEmptyFolderMsg(false);
-    // 2) Always disable a potential existing loading spinner icon
+    // 3) Always disable a potential existing loading spinner icon
     wat.mail.enableSpinner(false, "mailItems", self.OverviewSpinnerDomID);
-    // 3) Render all mails in the mailbox
+    // 4) Render all mails in the mailbox
     goog.array.forEach(mailsToShow, function(curMail) {
         curMail.renderMail(function(mail) {
             // 4a) Unhighlight currently active mail
@@ -588,7 +612,7 @@ wat.mail.MailboxFolder.prototype.renderMailboxContent_ = function(opt_filteredMa
             self.showMail(mail);
         });
     });
-    // 4) Highlight the most up-to-date mail in the mailbox
+    // 5) Highlight the most up-to-date mail in the mailbox
     if (mailsToShow.length > 0) {
         self.showMail(mailsToShow[0]);
     } else {
@@ -659,12 +683,13 @@ wat.mail.MailboxFolder.prototype.renderSearchbar_ = function() {
     goog.events.listen(self.searchbar_.getElement(), goog.events.EventType.KEYUP, function () {
         var searchVal = self.searchbar_.getValue();
         if (searchVal === prevSearchVal) { return; }
+        if (!goog.isDefAndNotNull(self.quickSearchFilter_)) {
+            self.quickSearchFilter_ = new wat.mail.QuickSearchFilter();
+            self.filterChain_.enqueue(10, self.quickSearchFilter_);
+        }
         prevSearchVal = searchVal;
-        var filteredMails = goog.array.filter(self.mails_.getValues(), function(curMail) {
-                return goog.string.caseInsensitiveContains(curMail.Mail.Header.Subject, searchVal);
-            });
-            console.log("Searching for word: " + searchVal);
-        self.renderMailboxContent_(filteredMails);
+        self.quickSearchFilter_.updateSearchTerm(searchVal);
+        self.renderMailboxContent_();
     }, false);
 };
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -842,17 +867,18 @@ wat.mail.Trash.prototype.getButtonSet = function() { return this.ButtonSet; };
  */
 wat.mail.Trash.prototype.deleteActiveMail = function() {
     var self = this,
-        tempLastItem = self.lastActiveMailItem_;
+        tempLastItem = self.lastActiveMailItem_,
+        nonDeletedMails;
     if (!goog.isDefAndNotNull(tempLastItem)) return;
     // 1) Remove mail items DOM elements and switch to the next item
     self.switchAndRemoveNode(tempLastItem);
     // 2) Change \\Deleted flag client- and server-side
     tempLastItem.setDeleted(true);
-    // 3) Move mail into different member tree
-    self.mails_.remove(tempLastItem);
-    self.hiddenMails_.add(tempLastItem);
-    // 4) Check, whether searchbar needs to be disabled
-    if (0 == self.mails_.getCount()) { self.searchbar_.setEnabled(false); }
+    // 3) Check, whether searchbar needs to be disabled
+    nonDeletedMails = goog.array.filter(self.mails_.getValues(), function(curMail) {
+        return !curMail.Mail.Flags.Deleted;
+    });
+    if (0 == nonDeletedMails.length) { self.searchbar_.setEnabled(false); }
 };
 
 /**
@@ -894,9 +920,6 @@ wat.mail.Trash.prototype.showEmptyTrashModal_ = function() {
  * Runs through all mails in the mailbox that are not deleted (whose Flag \\Deleted is not set) and
  * changes the deletion flag to active. All DOM elements of these mails will be removed from the
  * mail overview list and the 'empty folder message' DOM element will be shown instead.
- * ATTENTION:
- *   All mails whose flag \\Deleted is being activated, will be moved to the 'hiddenMails_' member
- *   and are available up until reload of the page.
  * @private
  */
 wat.mail.Trash.prototype.emptyMailbox_ = function() {
@@ -907,9 +930,6 @@ wat.mail.Trash.prototype.emptyMailbox_ = function() {
     goog.array.forEach(self.mails_.getValues(), function(curMail) {
         // 2a) Change client- and server-side status of mail flag \\Deleted
         curMail.setDeleted(true);
-        // 2b) Move mails from 'mails_' tree to 'hiddenMails_' tree
-        self.mails_.remove(curMail);
-        self.hiddenMails_.add(curMail);
     });
     // 3) Reset last selected item
     self.lastActiveMailItem_ = null;
@@ -957,7 +977,7 @@ wat.mail.Spam.prototype.getAssocServerSideFolderName = function() {
  */
 wat.mail.Spam.prototype.synchFolder = function() { /* Nothing to do here */ };
 /**
- * Special treatment: Since Spam is only a local folder, don'ts load anything, and rahter just
+ * Special treatment: Since Spam is only a local folder, don't load anything, and rather just
  * render what has already been loaded.
  * @override
  */
