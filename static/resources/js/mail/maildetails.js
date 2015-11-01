@@ -152,7 +152,8 @@ wat.mail.MailDetails.prototype.filterImages_ = function(d_htmlContent) {
 };
 
 /**
- *
+ * Adds the notification message at the top of the mail content section to notify the user about
+ * potential harmful images.
  * @param {wat.mail.MailItem} curMail
  * @private
  */

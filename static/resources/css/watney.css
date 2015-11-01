@@ -313,7 +313,33 @@ div#mailItems > div.row:nth-of-type(2n) {
 .mail-content .header {
     font-size: 20px;
     color: white;
-    height: 11%;
+    height: 12%;
+    margin: 0 0 10px 0;
+    overflow-y: auto;
+}
+.mail-content .header .subject-label {
+    padding-right: 0;
+    font-size: 25px;
+}
+.mail-content .header .subject {
+    padding-left: 0;
+    font-size: 25px;
+}
+.mail-content .header .from-label {
+    padding-right: 0;
+    color: #9E9E9E;
+}
+.mail-content .header .from {
+    padding-left: 0;
+    color: #9E9E9E;
+}
+.mail-content .header .to-label {
+    padding-right: 0;
+    color: #9E9E9E;
+}
+.mail-content .header .to {
+    padding-left: 0;
+    color: #9E9E9E;
 }
 .mail-content .control-bar {
     padding-left: 15px;
